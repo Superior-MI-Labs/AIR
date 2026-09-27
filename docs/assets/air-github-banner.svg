@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+  width="1600" height="500" viewBox="0 0 1600 500"
+  role="img" aria-labelledby="title desc">
+
+  <title id="title">AIR - Adaptive Inference Runtime</title>
+  <desc id="desc">
+    Superior MI Labs AIR banner inspired by Lake Superior currents
+    and computational topology.
+  </desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#061520"/>
+      <stop offset=".55" stop-color="#082636"/>
+      <stop offset="1" stop-color="#030b12"/>
+    </linearGradient>
+
+    <radialGradient id="surface" cx="48%" cy="-10%" r="85%">
+      <stop offset="0" stop-color="#62d8ff" stop-opacity=".20"/>
+      <stop offset=".45" stop-color="#1685ae" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#061520" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#267b9c"/>
+      <stop offset=".5" stop-color="#65ddff"/>
+      <stop offset="1" stop-color="#267b9c"/>
+    </linearGradient>
+
+    <linearGradient id="horizon" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4dd7ff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#e1a15b" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#4dd7ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="500" fill="url(#bg)"/>
+  <rect width="1600" height="500" fill="url(#surface)"/>
+
+  <!-- Lake-current layer -->
+  <g fill="none" stroke="#55cfee" stroke-opacity=".11" stroke-width="2">
+    <path d="M-50 90 C260 20 420 160 730 83 S1210 30 1660 115"/>
+    <path d="M-60 148 C230 87 470 205 770 132 S1220 95 1650 171"/>
+    <path d="M-40 211 C270 155 480 254 790 200 S1230 159 1660 233"/>
+  </g>
+
+  <!-- Computational topology -->
+  <g fill="none" stroke="url(#signal)" stroke-width="2" stroke-opacity=".48">
+    <path d="M900 105 L1015 160 L1135 112 L1260 178 L1395 126"/>
+    <path d="M900 105 L945 267 L1085 226 L1195 308 L1330 252 L1470 323"/>
+    <path d="M1015 160 L1085 226"/>
+    <path d="M1135 112 L1195 308"/>
+    <path d="M1260 178 L1330 252"/>
+    <path d="M1395 126 L1470 323"/>
+  </g>
+
+  <g fill="#75e3ff">
+    <circle cx="900" cy="105" r="5"/>
+    <circle cx="1015" cy="160" r="4"/>
+    <circle cx="1135" cy="112" r="5"/>
+    <circle cx="1260" cy="178" r="4"/>
+    <circle cx="1395" cy="126" r="5"/>
+    <circle cx="945" cy="267" r="4"/>
+    <circle cx="1085" cy="226" r="6"/>
+    <circle cx="1195" cy="308" r="5"/>
+    <circle cx="1330" cy="252" r="6"/>
+    <circle cx="1470" cy="323" r="5"/>
+  </g>
+
+  <!-- Horizon -->
+  <path
+    d="M0 432 C300 410 540 452 820 424 S1260 395 1600 435"
+    fill="none" stroke="url(#horizon)" stroke-width="3"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="105" y="205"
+      fill="#eef9ff"
+      font-size="132"
+      font-weight="800"
+      letter-spacing="-8">AIR</text>
+
+    <text x="112" y="263"
+      fill="#b9ddeb"
+      font-size="34"
+      font-weight="500">Adaptive Inference Runtime</text>
+
+    <text x="114" y="316"
+      fill="#57d8ff"
+      font-size="19"
+      font-weight="700"
+      letter-spacing="4">SUPERIOR MI LABS</text>
+
+    <text x="114" y="362"
+      fill="#86a8b8"
+      font-size="20">
+      Local-first inference • explicit architecture • observable runtime
+    </text>
+  </g>
+</svg>
