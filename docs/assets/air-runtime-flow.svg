@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+  width="1500" height="280" viewBox="0 0 1500 280"
+  role="img" aria-labelledby="title desc">
+
+  <title id="title">AIR runtime architecture</title>
+  <desc id="desc">
+    GGUF flows through model preparation, inference service,
+    schedulers, sequence state, CPU or CUDA execution, and public surfaces.
+  </desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06131d"/>
+      <stop offset=".5" stop-color="#092635"/>
+      <stop offset="1" stop-color="#06131d"/>
+    </linearGradient>
+
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2583a7"/>
+      <stop offset=".5" stop-color="#67e0ff"/>
+      <stop offset="1" stop-color="#2583a7"/>
+    </linearGradient>
+  </defs>
+
+  <rect
+    width="1500"
+    height="280"
+    rx="26"
+    fill="url(#bg)"
+    stroke="#184459"
+  />
+
+  <g
+    font-family="Inter,Segoe UI,Arial,sans-serif"
+    text-anchor="middle"
+  >
+    <g fill="#0a2330" stroke="#2d718c">
+      <rect x="45" y="87" width="150" height="105" rx="18"/>
+      <rect x="230" y="87" width="175" height="105" rx="18"/>
+      <rect x="440" y="87" width="180" height="105" rx="18"/>
+      <rect x="655" y="87" width="170" height="105" rx="18"/>
+      <rect x="860" y="87" width="175" height="105" rx="18"/>
+      <rect x="1070" y="87" width="170" height="105" rx="18"/>
+      <rect x="1275" y="87" width="180" height="105" rx="18"/>
+    </g>
+
+    <g fill="none" stroke="url(#flow)" stroke-width="3">
+      <path d="M195 140 H230"/>
+      <path d="M405 140 H440"/>
+      <path d="M620 140 H655"/>
+      <path d="M825 140 H860"/>
+      <path d="M1035 140 H1070"/>
+      <path d="M1240 140 H1275"/>
+    </g>
+
+    <g fill="#f0fbff" font-size="20" font-weight="700">
+      <text x="120" y="132">GGUF</text>
+      <text x="317" y="125">Model</text>
+      <text x="317" y="150">Preparation</text>
+      <text x="530" y="125">Inference</text>
+      <text x="530" y="150">Service</text>
+      <text x="740" y="125">Capacity +</text>
+      <text x="740" y="150">Microbatch</text>
+      <text x="948" y="125">Sequence</text>
+      <text x="948" y="150">State</text>
+      <text x="1155" y="125">CPU /</text>
+      <text x="1155" y="150">CUDA</text>
+      <text x="1365" y="125">HTTP / UI /</text>
+      <text x="1365" y="150">Qualification</text>
+    </g>
+
+    <g fill="#77b7ce" font-size="14">
+      <text x="120" y="172">model input</text>
+      <text x="317" y="172">explicit contracts</text>
+      <text x="530" y="172">canonical service</text>
+      <text x="740" y="172">bounded resources</text>
+      <text x="948" y="172">owned execution state</text>
+      <text x="1155" y="172">backend-neutral path</text>
+      <text x="1365" y="172">public surfaces</text>
+    </g>
+  </g>
+</svg>

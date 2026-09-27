@@ -1,4 +1,42 @@
-# AIR — Adaptive Inference Runtime
+<p align="center">
+  <img
+    src="docs/assets/air-github-banner.svg"
+    width="100%"
+    alt="AIR — Adaptive Inference Runtime by Superior MI Labs"
+  >
+</p>
+
+<h1 align="center">AIR</h1>
+
+<p align="center">
+  <strong>Adaptive Inference Runtime</strong><br>
+  Local-first inference with explicit architecture, bounded execution,
+  observable state, and falsifiable optimization.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.9.12">
+    <img src="https://img.shields.io/badge/release-v0.9.12-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.9.12">
+  </a>
+  <img src="https://img.shields.io/badge/C%2B%2B-20-55d9ff?style=for-the-badge&labelColor=07131d" alt="C++20">
+  <img src="https://img.shields.io/badge/CTest-12%2F12%20PASS-42c98b?style=for-the-badge&labelColor=07131d" alt="12 of 12 CTests passing">
+  <img src="https://img.shields.io/badge/CUDA-optional-76dfff?style=for-the-badge&labelColor=07131d" alt="CUDA optional">
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-e7a85f?style=for-the-badge&labelColor=07131d" alt="Apache License 2.0">
+  </a>
+</p>
+
+<p align="center">
+  <strong>
+    <a href="https://huggingface.co/spaces/Superior-Mind-Labs/AIR">Hugging Face Space</a>
+    &nbsp;•&nbsp;
+    <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.9.12">Release 0.9.12</a>
+    &nbsp;•&nbsp;
+    <a href="#quick-start-on-linux">Quick Start</a>
+    &nbsp;•&nbsp;
+    <a href="#architecture">Architecture</a>
+  </strong>
+</p>
 
 **AIR 0.9.12** is the first public R&D release of the Adaptive Inference Runtime
 from **Superior MI Labs**.
@@ -11,6 +49,17 @@ pipelines.
 > **Status:** public research software. AIR is usable and qualified on its
 > tested path, but it is not presented as a finished commercial inference
 > platform.
+
+## Why AIR
+
+| Local-first | Observable | Explicit | Falsifiable |
+| --- | --- | --- | --- |
+| Run inference on hardware you control. | Runtime, model, event, and metrics state remain visible. | Ownership and execution contracts are intentionally clear. | Optimizations are expected to survive measurement and destructive testing. |
+
+GitHub is the canonical engineering source for AIR. The public Hugging Face
+Space provides an interactive research and presentation surface:
+
+**https://huggingface.co/spaces/Superior-Mind-Labs/AIR**
 
 ## What AIR includes
 
@@ -60,7 +109,7 @@ release.
 Clone:
 
 ```bash
-git clone https://github.com/EmersonDowell/AIR.git
+git clone https://github.com/Superior-MI-Labs/AIR.git
 cd AIR
 ```
 
@@ -196,6 +245,14 @@ Important: Decision scores are **candidate-set-normalized relative scores**.
 They are not calibrated confidence or probability.
 
 ## Architecture
+
+<p align="center">
+  <img
+    src="docs/assets/air-runtime-flow.svg"
+    width="100%"
+    alt="AIR runtime architecture flow"
+  >
+</p>
 
 The high-level execution path is:
 
