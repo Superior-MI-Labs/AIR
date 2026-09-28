@@ -1,5 +1,6 @@
 #include "air/reference.hpp"
 #include "air/storage.hpp"
+#include "model/architecture_adapter.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -515,6 +516,53 @@ void test_output_bias_and_scaled_rope_contracts() {
 }
 
 
+void test_prepared_semantic_model_contract() {
+    auto base = make_tiny_qwen2();
+
+    auto adapter_result = air::detail::resolve_model_architecture(*base);
+    check(adapter_result.is_ok(), "Qwen2 model resolves through the architecture adapter");
+    if (!adapter_result) return;
+
+    auto prepared_result = adapter_result.value()->prepare(*base);
+    check(prepared_result.is_ok(), "Qwen2 architecture adapter prepares semantic bindings");
+    if (!prepared_result) return;
+
+    const auto& prepared = prepared_result.value();
+    check(prepared.source_model == base.get(),
+          "prepared semantic model retains canonical source-model identity");
+    check(prepared.architecture == "qwen2" &&
+              prepared.geometry.architecture == "qwen2" &&
+              prepared.layers.size() == 1U &&
+              prepared.head_dimension == 2U,
+          "prepared semantic model preserves validated Qwen2 geometry");
+    check(prepared.token_embedding_weight != nullptr &&
+              prepared.output_norm_weight != nullptr &&
+              prepared.output_weight == prepared.token_embedding_weight &&
+              prepared.output_weight_tied,
+          "missing output.weight becomes an explicit tied semantic output binding");
+    check(prepared.output_bias == nullptr,
+          "absent optional output bias remains an absent semantic binding");
+
+    if (!prepared.layers.empty()) {
+        const auto& layer = prepared.layers.front();
+        check(layer.query_weight != nullptr &&
+                  layer.key_weight != nullptr &&
+                  layer.value_weight != nullptr &&
+                  layer.query_weight->name == "blk.0.attn_q.weight" &&
+                  layer.key_weight->name == "blk.0.attn_k.weight" &&
+                  layer.value_weight->name == "blk.0.attn_v.weight",
+              "semantic Q/K/V roles retain source tensor identity for provenance");
+        check(layer.query_bias == nullptr &&
+                  layer.key_bias == nullptr &&
+                  layer.value_bias == nullptr,
+              "absent optional Q/K/V biases remain absent semantic bindings");
+    }
+
+    const auto tensors = prepared.execution_tensors();
+    check(tensors.size() == 11U,
+          "prepared execution tensor set avoids duplicating tied output storage");
+}
+
 void test_qwen2_structure_contract_failures() {
     auto base = make_tiny_qwen2();
 
@@ -598,6 +646,7 @@ int main() {
     test_kv_transaction();
     test_qwen2_reference_executor();
     test_output_bias_and_scaled_rope_contracts();
+    test_prepared_semantic_model_contract();
     test_qwen2_structure_contract_failures();
     test_qwen2_optional_qkv_bias_contract();
     test_reference_rejects_wrong_architecture();
