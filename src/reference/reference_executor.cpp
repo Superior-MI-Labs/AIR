@@ -10,10 +10,6 @@
 namespace air {
 namespace {
 
-std::string block_name(std::uint32_t layer, const char* suffix) {
-    return "blk." + std::to_string(layer) + "." + suffix;
-}
-
 std::vector<float> rms_norm(std::span<const float> input,
                             std::span<const float> weight,
                             double epsilon) {
@@ -287,25 +283,39 @@ void ReferenceKvCache::reset() noexcept {
     token_count_ = 0;
 }
 
+ReferenceExecutor::ReferenceExecutor(
+    std::shared_ptr<const ModelDefinition> model,
+    std::unique_ptr<detail::PreparedModelSemantics> prepared)
+    : model_(std::move(model)),
+      prepared_(std::move(prepared)),
+      tensors_(model_) {}
+
+ReferenceExecutor::~ReferenceExecutor() = default;
+
 Result<std::unique_ptr<ReferenceExecutor>> ReferenceExecutor::create(
     std::shared_ptr<const ModelDefinition> model) {
     if (!model) return Status::invalid_argument("reference executor requires a model");
-    const auto canonical_validation = model->validate();
-    if (!canonical_validation) return canonical_validation;
-    auto executor = std::unique_ptr<ReferenceExecutor>(new ReferenceExecutor(std::move(model)));
+
+    auto adapter_result = detail::resolve_model_architecture(*model);
+    if (!adapter_result) return adapter_result.status();
+
+    auto prepared_result = adapter_result.value()->prepare(*model);
+    if (!prepared_result) return prepared_result.status();
+
+    auto prepared = std::make_unique<detail::PreparedModelSemantics>(
+        std::move(prepared_result).value());
+    auto executor = std::unique_ptr<ReferenceExecutor>(
+        new ReferenceExecutor(std::move(model), std::move(prepared)));
     const auto validation = executor->validate_model();
     if (!validation) return validation;
     return executor;
 }
 
 Status ReferenceExecutor::validate_model() const {
-    auto adapter_result = detail::resolve_model_architecture(*model_);
-    if (!adapter_result) return adapter_result.status();
-    const auto* adapter = adapter_result.value();
-
-    auto prepared_result = adapter->prepare(*model_);
-    if (!prepared_result) return prepared_result.status();
-    for (const auto* tensor : prepared_result.value().execution_tensors()) {
+    if (!prepared_ || prepared_->source_model != model_.get()) {
+        return Status::internal_error("reference executor prepared model does not match canonical model");
+    }
+    for (const auto* tensor : prepared_->execution_tensors()) {
         if (!tensor) return Status::internal_error("prepared model contains a null execution tensor");
         if (!ReferenceTensorReader::supports(tensor->type)) {
             return Status::unsupported("reference executor does not support " +
@@ -316,48 +326,52 @@ Status ReferenceExecutor::validate_model() const {
 }
 
 Result<std::vector<float>> ReferenceExecutor::add_optional_bias(
-    std::vector<float> values, const std::string& tensor_name) const {
-    if (!model_->find_tensor(tensor_name)) return values;
-    auto bias = tensors_.vector(tensor_name);
+    std::vector<float> values, const TensorDescriptor* tensor) const {
+    if (!tensor) return values;
+    auto bias = tensors_.vector(*tensor);
     if (!bias) return bias.status();
-    if (bias.value().size() != values.size()) return Status::data_error("bias width mismatch: " + tensor_name);
+    if (bias.value().size() != values.size()) {
+        return Status::data_error("bias width mismatch: " + tensor->name);
+    }
     add_in_place(values, bias.value());
     return values;
 }
 
 Result<std::vector<float>> ReferenceExecutor::step_impl(TokenId token, ReferenceKvCache& cache,
                                                         VerificationTrace* trace) const {
-    const auto& config = model_->config();
+    const auto& config = prepared_->geometry;
     if (token < 0 || static_cast<std::uint64_t>(token) >= config.vocabulary_size) {
         return Status::invalid_argument("input token is outside model vocabulary");
     }
     if (cache.layer_count() != config.layer_count || cache.kv_head_count() != config.kv_head_count ||
-        cache.head_dimension() != config.embedding_size / config.attention_head_count) {
+        cache.head_dimension() != prepared_->head_dimension) {
         return Status::invalid_argument("KV cache geometry does not match model");
     }
     if (cache.size() >= config.context_length) return Status::invalid_state("model context length exceeded");
 
     const auto position = cache.size();
-    const auto head_dimension = config.embedding_size / config.attention_head_count;
-    auto hidden = tensors_.row("token_embd.weight", static_cast<std::uint64_t>(token));
+    const auto head_dimension = prepared_->head_dimension;
+    auto hidden = tensors_.row(*prepared_->token_embedding_weight, static_cast<std::uint64_t>(token));
     if (!hidden) return hidden.status();
     if (trace) trace->record(position, -1, VerificationStage::embedding, hidden.value());
 
     for (std::uint32_t layer = 0; layer < config.layer_count; ++layer) {
-        auto attention_norm_weight = tensors_.vector(block_name(layer, "attn_norm.weight"));
+        const auto& bindings = prepared_->layers[static_cast<std::size_t>(layer)];
+
+        auto attention_norm_weight = tensors_.vector(*bindings.attention_norm_weight);
         if (!attention_norm_weight) { cache.rollback_pending(); return attention_norm_weight.status(); }
         auto normalized = rms_norm(hidden.value(), attention_norm_weight.value(), config.rms_norm_epsilon);
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::attention_norm, normalized);
 
-        auto q = tensors_.matvec(block_name(layer, "attn_q.weight"), normalized);
-        auto k = tensors_.matvec(block_name(layer, "attn_k.weight"), normalized);
-        auto v = tensors_.matvec(block_name(layer, "attn_v.weight"), normalized);
+        auto q = tensors_.matvec(*bindings.query_weight, normalized);
+        auto k = tensors_.matvec(*bindings.key_weight, normalized);
+        auto v = tensors_.matvec(*bindings.value_weight, normalized);
         if (!q) { cache.rollback_pending(); return q.status(); }
         if (!k) { cache.rollback_pending(); return k.status(); }
         if (!v) { cache.rollback_pending(); return v.status(); }
-        q = add_optional_bias(std::move(q).value(), block_name(layer, "attn_q.bias"));
-        k = add_optional_bias(std::move(k).value(), block_name(layer, "attn_k.bias"));
-        v = add_optional_bias(std::move(v).value(), block_name(layer, "attn_v.bias"));
+        q = add_optional_bias(std::move(q).value(), bindings.query_bias);
+        k = add_optional_bias(std::move(k).value(), bindings.key_bias);
+        v = add_optional_bias(std::move(v).value(), bindings.value_bias);
         if (!q) { cache.rollback_pending(); return q.status(); }
         if (!k) { cache.rollback_pending(); return k.status(); }
         if (!v) { cache.rollback_pending(); return v.status(); }
@@ -384,18 +398,18 @@ Result<std::vector<float>> ReferenceExecutor::step_impl(TokenId token, Reference
                                   head_dimension);
         if (!attended) { cache.rollback_pending(); return attended.status(); }
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::attention, attended.value());
-        auto projected = tensors_.matvec(block_name(layer, "attn_output.weight"), attended.value());
+        auto projected = tensors_.matvec(*bindings.attention_output_weight, attended.value());
         if (!projected) { cache.rollback_pending(); return projected.status(); }
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::attention_projection, projected.value());
         add_in_place(hidden.value(), projected.value());
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::attention_residual, hidden.value());
 
-        auto ffn_norm_weight = tensors_.vector(block_name(layer, "ffn_norm.weight"));
+        auto ffn_norm_weight = tensors_.vector(*bindings.ffn_norm_weight);
         if (!ffn_norm_weight) { cache.rollback_pending(); return ffn_norm_weight.status(); }
         normalized = rms_norm(hidden.value(), ffn_norm_weight.value(), config.rms_norm_epsilon);
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::ffn_norm, normalized);
-        auto gate = tensors_.matvec(block_name(layer, "ffn_gate.weight"), normalized);
-        auto up = tensors_.matvec(block_name(layer, "ffn_up.weight"), normalized);
+        auto gate = tensors_.matvec(*bindings.ffn_gate_weight, normalized);
+        auto up = tensors_.matvec(*bindings.ffn_up_weight, normalized);
         if (!gate) { cache.rollback_pending(); return gate.status(); }
         if (!up) { cache.rollback_pending(); return up.status(); }
         if (trace) {
@@ -403,9 +417,11 @@ Result<std::vector<float>> ReferenceExecutor::step_impl(TokenId token, Reference
             trace->record(position, layer_index, VerificationStage::ffn_gate, gate.value());
             trace->record(position, layer_index, VerificationStage::ffn_up, up.value());
         }
-        for (std::size_t i = 0; i < gate.value().size(); ++i) gate.value()[i] = silu(gate.value()[i]) * up.value()[i];
+        for (std::size_t i = 0; i < gate.value().size(); ++i) {
+            gate.value()[i] = silu(gate.value()[i]) * up.value()[i];
+        }
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::ffn_activation, gate.value());
-        auto down = tensors_.matvec(block_name(layer, "ffn_down.weight"), gate.value());
+        auto down = tensors_.matvec(*bindings.ffn_down_weight, gate.value());
         if (!down) { cache.rollback_pending(); return down.status(); }
         if (trace) trace->record(position, static_cast<std::int32_t>(layer), VerificationStage::ffn_down, down.value());
         add_in_place(hidden.value(), down.value());
@@ -415,14 +431,13 @@ Result<std::vector<float>> ReferenceExecutor::step_impl(TokenId token, Reference
         if (!append_status) { cache.rollback_pending(); return append_status; }
     }
 
-    auto final_norm_weight = tensors_.vector("output_norm.weight");
+    auto final_norm_weight = tensors_.vector(*prepared_->output_norm_weight);
     if (!final_norm_weight) { cache.rollback_pending(); return final_norm_weight.status(); }
     auto final_hidden = rms_norm(hidden.value(), final_norm_weight.value(), config.rms_norm_epsilon);
     if (trace) trace->record(position, -1, VerificationStage::final_norm, final_hidden);
-    const std::string output_tensor = model_->find_tensor("output.weight") ? "output.weight" : "token_embd.weight";
-    auto logits = tensors_.matvec(output_tensor, final_hidden);
+    auto logits = tensors_.matvec(*prepared_->output_weight, final_hidden);
     if (!logits) { cache.rollback_pending(); return logits.status(); }
-    logits = add_optional_bias(std::move(logits).value(), "output.bias");
+    logits = add_optional_bias(std::move(logits).value(), prepared_->output_bias);
     if (!logits) { cache.rollback_pending(); return logits.status(); }
     if (trace) trace->record(position, -1, VerificationStage::logits, logits.value());
     auto commit = cache.commit_token();
@@ -453,10 +468,9 @@ Result<std::vector<float>> ReferenceExecutor::prefill(std::span<const TokenId> t
 
 Result<GenerationResult> ReferenceExecutor::generate(std::span<const TokenId> prompt,
                                                      const GenerationConfig& config) const {
-    const auto& model_config = model_->config();
-    const auto head_dimension = model_config.embedding_size / model_config.attention_head_count;
+    const auto& model_config = prepared_->geometry;
     ReferenceKvCache cache(model_config.layer_count, model_config.kv_head_count,
-                           head_dimension, model_config.context_length);
+                           prepared_->head_dimension, model_config.context_length);
     auto trace = run_autoregressive(
         prompt, config, model_->tokenizer().special_ids.eos,
         [this, &cache](std::span<const TokenId> tokens) { return prefill(tokens, cache); },
