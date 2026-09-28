@@ -1,5 +1,6 @@
 #include "air/reference.hpp"
 #include "model/architecture_adapter.hpp"
+#include "reference/reference_executor_factory.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -302,10 +303,28 @@ Result<std::unique_ptr<ReferenceExecutor>> ReferenceExecutor::create(
     auto prepared_result = adapter_result.value()->prepare(*model);
     if (!prepared_result) return prepared_result.status();
 
-    auto prepared = std::make_unique<detail::PreparedModelSemantics>(
-        std::move(prepared_result).value());
+    return detail::ReferenceExecutorFactory::create(
+        std::move(model), std::move(prepared_result).value());
+}
+
+Result<std::unique_ptr<ReferenceExecutor>> detail::ReferenceExecutorFactory::create(
+    std::shared_ptr<const ModelDefinition> model,
+    PreparedModelSemantics prepared) {
+    if (!model) {
+        return Status::invalid_argument(
+            "reference executor factory requires a canonical model");
+    }
+    if (prepared.source_model != model.get()) {
+        return Status::invalid_argument(
+            "reference executor prepared semantics reference a different canonical model");
+    }
+    const auto semantic_validation = validate_prepared_model_semantics(prepared);
+    if (!semantic_validation) return semantic_validation;
+
+    auto prepared_handle =
+        std::make_unique<PreparedModelSemantics>(std::move(prepared));
     auto executor = std::unique_ptr<ReferenceExecutor>(
-        new ReferenceExecutor(std::move(model), std::move(prepared)));
+        new ReferenceExecutor(std::move(model), std::move(prepared_handle)));
     const auto validation = executor->validate_model();
     if (!validation) return validation;
     return executor;
