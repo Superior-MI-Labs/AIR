@@ -117,6 +117,78 @@ Status validate_qwen2_structure(const ModelDefinition& model) {
     return Status::ok();
 }
 
+Result<PreparedModelSemantics> prepare_qwen2_semantics(const ModelDefinition& model) {
+    const auto canonical_status = model.validate();
+    if (!canonical_status) return canonical_status;
+
+    const auto semantic_status = validate_qwen2_structure(model);
+    if (!semantic_status) return semantic_status;
+
+    PreparedModelSemantics prepared;
+    prepared.source_model = &model;
+    prepared.architecture = "qwen2";
+    prepared.geometry = model.config();
+    prepared.head_dimension =
+        model.config().embedding_size / model.config().attention_head_count;
+
+    prepared.token_embedding_weight = model.find_tensor("token_embd.weight");
+    prepared.output_norm_weight = model.find_tensor("output_norm.weight");
+    prepared.output_weight = model.find_tensor("output.weight");
+    prepared.output_bias = model.find_tensor("output.bias");
+    if (!prepared.output_weight) {
+        prepared.output_weight = prepared.token_embedding_weight;
+        prepared.output_weight_tied = true;
+    }
+
+    if (!prepared.token_embedding_weight || !prepared.output_norm_weight ||
+        !prepared.output_weight) {
+        return Status::internal_error(
+            "validated Qwen2 contract did not produce required semantic bindings");
+    }
+
+    prepared.layers.reserve(model.config().layer_count);
+    for (std::uint32_t layer = 0; layer < model.config().layer_count; ++layer) {
+        PreparedLayerTensorBindings bindings;
+        bindings.attention_norm_weight =
+            model.find_tensor(block_name(layer, "attn_norm.weight"));
+        bindings.query_weight =
+            model.find_tensor(block_name(layer, "attn_q.weight"));
+        bindings.key_weight =
+            model.find_tensor(block_name(layer, "attn_k.weight"));
+        bindings.value_weight =
+            model.find_tensor(block_name(layer, "attn_v.weight"));
+        bindings.query_bias =
+            model.find_tensor(block_name(layer, "attn_q.bias"));
+        bindings.key_bias =
+            model.find_tensor(block_name(layer, "attn_k.bias"));
+        bindings.value_bias =
+            model.find_tensor(block_name(layer, "attn_v.bias"));
+        bindings.attention_output_weight =
+            model.find_tensor(block_name(layer, "attn_output.weight"));
+        bindings.ffn_norm_weight =
+            model.find_tensor(block_name(layer, "ffn_norm.weight"));
+        bindings.ffn_gate_weight =
+            model.find_tensor(block_name(layer, "ffn_gate.weight"));
+        bindings.ffn_up_weight =
+            model.find_tensor(block_name(layer, "ffn_up.weight"));
+        bindings.ffn_down_weight =
+            model.find_tensor(block_name(layer, "ffn_down.weight"));
+
+        if (!bindings.attention_norm_weight || !bindings.query_weight ||
+            !bindings.key_weight || !bindings.value_weight ||
+            !bindings.attention_output_weight || !bindings.ffn_norm_weight ||
+            !bindings.ffn_gate_weight || !bindings.ffn_up_weight ||
+            !bindings.ffn_down_weight) {
+            return Status::internal_error(
+                "validated Qwen2 layer did not produce required semantic bindings");
+        }
+
+        prepared.layers.push_back(bindings);
+    }
+
+    return prepared;
+}
+
 std::vector<std::string> qwen2_execution_tensor_names(const ModelDefinition& model) {
     std::vector<std::string> names;
     names.reserve(static_cast<std::size_t>(model.config().layer_count) * 10U + 4U);
