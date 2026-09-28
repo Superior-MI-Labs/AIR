@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 3 Prepared Semantic Model
 
-Status: IMPLEMENTED / AWAITING MACHINE QUALIFICATION
+Status: CLOSED / QUALIFIED
 
 ## Objective
 
@@ -122,15 +122,19 @@ Existing Wave 1 tests continue to protect:
 - MEF R0 is unchanged.
 - Builder is unchanged.
 
-## Wave 3 exit gate
+## Wave 3 qualification result
 
-Wave 3 may close only when the exact branch HEAD:
+WolfCat-Studio qualification reported:
 
-1. builds in Release mode with CUDA enabled on WolfCat-Studio;
-2. passes the complete CTest suite;
-3. passes the new prepared-semantic-model characterization;
-4. preserves all Wave 1/2 characterization behavior;
-5. introduces no new public architecture claim;
-6. introduces no second inference or model-truth path.
+```text
+Release build
+CUDA=ON
+12/12 CTests PASS
+0 failures
+```
 
-If this gate passes, Wave 4 may begin moving Reference numerical execution from source-name reconstruction to the stored semantic bindings.
+Prepared semantic bindings therefore qualified without introducing a second model-truth path, public architecture claim, or runtime authority.
+
+Wave 3 is CLOSED / QUALIFIED.
+
+Wave 4 is authorized to migrate Reference numerical execution to the stored semantic bindings.
