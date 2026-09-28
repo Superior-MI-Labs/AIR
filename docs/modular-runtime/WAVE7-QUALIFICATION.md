@@ -383,6 +383,18 @@ against that exact isolated prefix is sufficient before AIR-local Wave 7
 closure. A full product rebuild is not required unless the targeted check
 exposes an actual served-application defect.
 
+Targeted entrypoint:
+
+```text
+scripts/requalify-wave7-web.sh
+```
+
+The targeted requalifier refuses reuse if any product-affecting file changed
+since the full Wave 7 product qualification head. It reuses only the exact
+isolated installed prefix and qualification manifest, launches that server,
+runs the corrected web doctor, records the new evidence, and requires clean
+shutdown.
+
 ## Wave 7 exit gate
 
 Wave 7 may close only when:
