@@ -189,25 +189,6 @@ Result<PreparedModelSemantics> prepare_qwen2_semantics(const ModelDefinition& mo
     return prepared;
 }
 
-std::vector<std::string> qwen2_execution_tensor_names(const ModelDefinition& model) {
-    std::vector<std::string> names;
-    names.reserve(static_cast<std::size_t>(model.config().layer_count) * 10U + 4U);
-    names.emplace_back("token_embd.weight");
-    names.emplace_back("output_norm.weight");
-    if (model.find_tensor("output.weight")) names.emplace_back("output.weight");
-    if (model.find_tensor("output.bias")) names.emplace_back("output.bias");
-    for (std::uint32_t layer = 0; layer < model.config().layer_count; ++layer) {
-        for (const char* suffix : {"attn_norm.weight", "attn_q.weight", "attn_k.weight", "attn_v.weight",
-                                  "attn_output.weight", "ffn_norm.weight", "ffn_gate.weight",
-                                  "ffn_up.weight", "ffn_down.weight"}) {
-            names.push_back(block_name(layer, suffix));
-        }
-        for (const char* suffix : {"attn_q.bias", "attn_k.bias", "attn_v.bias"}) {
-            const auto name = block_name(layer, suffix);
-            if (model.find_tensor(name)) names.push_back(name);
-        }
-    }
-    return names;
-}
+
 
 } // namespace air::detail
