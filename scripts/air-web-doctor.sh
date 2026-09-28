@@ -4,8 +4,7 @@ set -u
 AIR_ROOT="${AIR_ROOT:-$HOME/Projects/AIR}"
 PREFIX="${AIR_PREFIX:-$HOME/.local}"
 BASE="${AIR_URL:-http://127.0.0.1:8181}"
-EXPECTED="3.1.0"
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/air-web-doctor-v3.XXXXXX")"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/air-web-doctor.XXXXXX")"
 trap 'rm -rf -- "$TMP"' EXIT
 local_fail=0
 served_fail=0
@@ -16,9 +15,25 @@ version_of() {
   sed -n 's/.*name="air-web-version" content="\([^"]*\)".*/\1/p' "$file" | head -n1
 }
 
-printf 'AIR web doctor v3.1\n'
+script_entry_of() {
+  local file="$1"
+  [[ -f "$file" ]] || { printf 'missing'; return; }
+  sed -n 's#.*<script[^>]*src="/app/\([^"]*\)".*#\1#p' "$file" | tail -n1
+}
+
+SOURCE_INDEX="$AIR_ROOT/web/index.html"
+EXPECTED="$(version_of "$SOURCE_INDEX")"
+EXPECTED_MAIN="$(script_entry_of "$SOURCE_INDEX")"
+if [[ -z "$EXPECTED" || "$EXPECTED" == "missing" ||
+      -z "$EXPECTED_MAIN" || "$EXPECTED_MAIN" == "missing" ]]; then
+  printf 'FAIL canonical source web identity is unreadable: %s\n' "$SOURCE_INDEX" >&2
+  exit 2
+fi
+
+printf 'AIR web doctor\n'
 printf 'AIR root : %s\n' "$AIR_ROOT"
-printf 'URL      : %s\n\n' "$BASE"
+printf 'URL      : %s\n' "$BASE"
+printf 'Expected : web=%s · entry=%s\n\n' "$EXPECTED" "$EXPECTED_MAIN"
 
 printf 'A. Local deployment truth\n'
 for tree in "$AIR_ROOT/web" "$PREFIX/share/air/web"; do
@@ -84,7 +99,12 @@ else
     printf '  FAIL server is not serving AIR Web %s\n' "$EXPECTED"
     served_fail=1
   fi
-  if grep -q '/app/main-v310.js' "$TMP/index.html"; then printf '  PASS index loads main-v310.js\n'; else printf '  FAIL main-v310.js missing from served index\n'; served_fail=1; fi
+  if grep -q "/app/$EXPECTED_MAIN" "$TMP/index.html"; then
+    printf '  PASS index loads %s\n' "$EXPECTED_MAIN"
+  else
+    printf '  FAIL expected entry script %s missing from served index\n' "$EXPECTED_MAIN"
+    served_fail=1
+  fi
   if grep -q 'setup.js' "$TMP/index.html"; then printf '  FAIL served index references setup.js\n'; served_fail=1; else printf '  PASS served index does not reference setup.js\n'; fi
 
   printf '\nF. Served script bytes\n'
