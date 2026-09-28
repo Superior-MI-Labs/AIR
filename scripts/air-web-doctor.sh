@@ -37,8 +37,17 @@ printf 'Expected : web=%s · entry=%s\n\n' "$EXPECTED" "$EXPECTED_MAIN"
 
 printf 'A. Local deployment truth\n'
 for tree in "$AIR_ROOT/web" "$PREFIX/share/air/web"; do
-  printf '  %-42s version=%s\n' "$tree" "$(version_of "$tree/index.html")"
-  if [[ "$(version_of "$tree/index.html")" != "$EXPECTED" ]]; then local_fail=1; fi
+  tree_version="$(version_of "$tree/index.html")"
+  tree_main="$(script_entry_of "$tree/index.html")"
+  printf '  %-42s version=%s · entry=%s\n' "$tree" "$tree_version" "$tree_main"
+  if [[ "$tree_version" != "$EXPECTED" ]]; then
+    printf '    FAIL expected web version %s\n' "$EXPECTED"
+    local_fail=1
+  fi
+  if [[ "$tree_main" != "$EXPECTED_MAIN" ]]; then
+    printf '    FAIL expected entry script %s\n' "$EXPECTED_MAIN"
+    local_fail=1
+  fi
   if [[ -d "$tree" ]]; then
     stale="$(find "$tree" -type f -name 'setup.js' -print 2>/dev/null | head -n1)"
     if [[ -n "$stale" ]]; then printf '    FAIL stale setup.js: %s\n' "$stale"; local_fail=1; else printf '    PASS no setup.js file\n'; fi
