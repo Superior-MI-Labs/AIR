@@ -1,6 +1,7 @@
 #include "model/prepared_model.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <span>
 #include <unordered_set>
 
@@ -102,6 +103,10 @@ Status validate_prepared_model_semantics(const PreparedModelSemantics& prepared)
         config.architecture != prepared.source_model->config().architecture) {
         return Status::invalid_argument("prepared semantic architecture identity is inconsistent");
     }
+    if (prepared.architecture != "qwen2") {
+        return Status::unsupported(
+            "prepared semantic execution currently supports only qwen2");
+    }
     if (!same_geometry(config, prepared.source_model->config())) {
         return Status::invalid_argument(
             "prepared semantic geometry diverges from canonical model");
@@ -124,6 +129,34 @@ Status validate_prepared_model_semantics(const PreparedModelSemantics& prepared)
     }
     if (prepared.layers.size() != config.layer_count) {
         return Status::data_error("prepared semantic layer count is inconsistent");
+    }
+    if (!(config.rms_norm_epsilon > 0.0)) {
+        return Status::data_error(
+            "prepared Qwen2 RMS norm epsilon is missing or invalid");
+    }
+    if (!(config.rope_frequency_base > 0.0)) {
+        return Status::data_error(
+            "prepared Qwen2 RoPE base is missing or invalid");
+    }
+    if (!config.rope_scaling_type.empty() &&
+        config.rope_scaling_type != "none") {
+        return Status::unsupported(
+            "prepared Qwen2 execution does not implement RoPE scaling type: " +
+            config.rope_scaling_type);
+    }
+    if (std::fabs(config.rope_scaling_factor - 1.0) > 1.0e-12 ||
+        std::fabs(config.rope_scale_linear - 1.0) > 1.0e-12) {
+        return Status::unsupported(
+            "prepared Qwen2 execution does not implement scaled RoPE");
+    }
+    if (config.attention_sliding_window != 0U) {
+        return Status::unsupported(
+            "prepared Qwen2 execution does not implement sliding-window attention");
+    }
+    if (config.rope_dimension_count != head_dimension ||
+        config.rope_dimension_count % 2U != 0U) {
+        return Status::unsupported(
+            "prepared Qwen2 execution requires full, even head-dimension RoPE");
     }
 
     const auto owns = [&prepared](const TensorDescriptor* tensor, bool optional = false) {
