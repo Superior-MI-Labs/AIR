@@ -36,6 +36,7 @@ add_library(air_core
     src/model/storage.cpp
     src/model/tokenizer.cpp
     src/model/architecture_adapter.cpp
+    src/model/prepared_model.cpp
     src/model/qwen2_contract.cpp
     src/runtime/execution.cpp
     src/runtime/decision.cpp
