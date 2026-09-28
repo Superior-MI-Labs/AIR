@@ -1768,8 +1768,8 @@ struct CudaExecutor::Impl {
         std::lock_guard lock(pools_mutex);
         const auto found = kv_pools.find(page_tokens);
         if (found != kv_pools.end()) return found->second;
-        const auto& config = model->config();
-        const auto head_dimension = config.embedding_size / config.attention_head_count;
+        const auto& config = prepared->geometry;
+        const auto head_dimension = prepared->head_dimension;
         const auto kv_width = static_cast<std::uint64_t>(config.kv_head_count) * head_dimension;
         auto pool = std::make_shared<CudaKvPagePool>(device_ordinal, config.layer_count, kv_width, page_tokens);
         kv_pools.emplace(page_tokens, pool);
@@ -1844,10 +1844,10 @@ struct CudaExecutor::Impl {
         }
         stats.resident_model_bytes = total_bytes;
 
-        const auto& config = model->config();
+        const auto& config = prepared->geometry;
         const std::uint64_t embedding = config.embedding_size;
         const std::uint64_t kv_width = static_cast<std::uint64_t>(config.kv_head_count) *
-                                       (config.embedding_size / config.attention_head_count);
+                                       (prepared->head_dimension);
         const std::uint64_t ffn = config.feed_forward_size;
         const std::uint64_t vocab = config.vocabulary_size;
         const std::uint64_t scores = static_cast<std::uint64_t>(config.attention_head_count) * config.context_length;
@@ -2348,7 +2348,7 @@ struct CudaExecutor::Impl {
 
     Result<std::vector<float>> read_logits_host() {
         ScopedProfileRange range("air.cuda.logit_readback");
-        const auto vocab = model->config().vocabulary_size;
+        const auto vocab = prepared->geometry.vocabulary_size;
         std::vector<float> logits(static_cast<std::size_t>(vocab));
         auto status = cuda_status(cudaMemcpyAsync(logits.data(), workspace.logits,
                                                   logits.size() * sizeof(float),
@@ -2368,7 +2368,7 @@ struct CudaExecutor::Impl {
 
     Result<TokenId> select_greedy_device_from(const float* logits) {
         ScopedProfileRange range("air.cuda.greedy_select");
-        const auto vocab = model->config().vocabulary_size;
+        const auto vocab = prepared->geometry.vocabulary_size;
         if (vocab == 0U || vocab > static_cast<std::uint64_t>(std::numeric_limits<TokenId>::max())) {
             return Status::unsupported("CUDA greedy selection vocabulary exceeds token-id range");
         }
@@ -2411,7 +2411,7 @@ struct CudaExecutor::Impl {
     Result<std::vector<float>> read_target_logprobs_device(
         std::span<const TokenId> target_tokens) {
         ScopedProfileRange range("air.cuda.target_logprobs");
-        const auto vocab = model->config().vocabulary_size;
+        const auto vocab = prepared->geometry.vocabulary_size;
         if (target_tokens.empty()) {
             return Status::invalid_argument("CUDA target logprob request requires at least one token");
         }
