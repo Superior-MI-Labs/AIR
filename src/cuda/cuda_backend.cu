@@ -3005,7 +3005,7 @@ Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(
         const auto* down_weight = impl_->tensor(bindings.ffn_down_weight);
         if (!attn_norm || !q_weight || !k_weight || !v_weight || !attn_output ||
             !ffn_norm || !gate_weight || !up_weight || !down_weight) {
-            return fail(Status::internal_error("resident Qwen2 layer tensor is missing"));
+            return fail(Status::internal_error("resident semantic layer tensor is missing"));
         }
 
         status = impl_->rms_norm_batch(impl_->workspace.hidden, *attn_norm, embedding_width,
@@ -3153,7 +3153,7 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
             const auto* down_weight = impl_->tensor(bindings.ffn_down_weight);
             if (!attn_norm || !q_weight || !k_weight || !v_weight || !attn_output ||
                 !ffn_norm || !gate_weight || !up_weight || !down_weight) {
-                return fail(Status::internal_error("resident Qwen2 layer tensor is missing"));
+                return fail(Status::internal_error("resident semantic layer tensor is missing"));
             }
 
             status = impl_->rms_norm_batch(impl_->workspace.hidden, *attn_norm, embedding_width,
@@ -3415,7 +3415,7 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
                 !attn_output || !ffn_norm || !gate_weight || !up_weight ||
                 !down_weight) {
                 return fail_round(Status::internal_error(
-                    "resident Qwen2 layer tensor is missing"));
+                    "resident semantic layer tensor is missing"));
             }
 
             status = impl_->rms_norm_batch(
