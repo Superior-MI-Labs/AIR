@@ -2704,8 +2704,8 @@ Result<std::vector<float>> CudaExecutor::step_impl(
     if (!status) return status;
     if (!cache.impl_) return Status::invalid_argument("CUDA KV cache is not initialized");
     auto& kv = *cache.impl_;
-    const auto& config = impl_->model->config();
-    const std::uint32_t head_dimension = config.embedding_size / config.attention_head_count;
+    const auto& config = impl_->prepared->geometry;
+    const std::uint32_t head_dimension = impl_->prepared->head_dimension;
     if (kv.device_ordinal != impl_->device_ordinal || kv.layer_count != config.layer_count ||
         kv.kv_head_count != config.kv_head_count || kv.head_dimension != head_dimension ||
         kv.context_length != config.context_length) {
@@ -2720,14 +2720,10 @@ Result<std::vector<float>> CudaExecutor::step_impl(
     if (!status) return status;
 
     const auto fail = [&kv](Status failure) -> Result<std::vector<float>> { kv.rollback(); return failure; };
-    const auto* embedding = impl_->tensor("token_embd.weight");
+    const auto* embedding = impl_->tensor(impl_->prepared->token_embedding_weight);
     if (!embedding) return fail(Status::internal_error("resident token embedding is missing"));
     status = impl_->load_row(*embedding, static_cast<std::uint64_t>(token), config.embedding_size, impl_->workspace.hidden);
     if (!status) return fail(status);
-
-    const auto block_name = [](std::uint32_t layer, const char* suffix) {
-        return "blk." + std::to_string(layer) + "." + suffix;
-    };
     const std::uint64_t embedding_width = config.embedding_size;
     const std::uint64_t kv_width = static_cast<std::uint64_t>(config.kv_head_count) * head_dimension;
     const auto position = kv.token_count;
@@ -2737,7 +2733,8 @@ Result<std::vector<float>> CudaExecutor::step_impl(
 
     for (std::uint32_t layer = 0; layer < config.layer_count; ++layer) {
         ScopedProfileRange layer_range("air.decode.layer");
-        const auto* attn_norm = impl_->tensor(block_name(layer, "attn_norm.weight"));
+        const auto& bindings = impl_->prepared->layers[static_cast<std::size_t>(layer)];
+        const auto* attn_norm = impl_->tensor(bindings.attention_norm_weight);
         if (!attn_norm) return fail(Status::internal_error("resident attention norm is missing"));
         status = impl_->rms_norm(impl_->workspace.hidden, *attn_norm, embedding_width,
                                  static_cast<float>(config.rms_norm_epsilon), impl_->workspace.normalized);
@@ -2747,16 +2744,16 @@ Result<std::vector<float>> CudaExecutor::step_impl(
                                      embedding_width);
         if (!status) return fail(status);
 
-        const auto* q_weight = impl_->tensor(block_name(layer, "attn_q.weight"));
-        const auto* k_weight = impl_->tensor(block_name(layer, "attn_k.weight"));
-        const auto* v_weight = impl_->tensor(block_name(layer, "attn_v.weight"));
+        const auto* q_weight = impl_->tensor(bindings.query_weight);
+        const auto* k_weight = impl_->tensor(bindings.key_weight);
+        const auto* v_weight = impl_->tensor(bindings.value_weight);
         if (!q_weight || !k_weight || !v_weight) return fail(Status::internal_error("resident QKV weight is missing"));
         status = impl_->linear_single(*q_weight, impl_->workspace.normalized, impl_->workspace.q, block_linear); if (!status) return fail(status);
         status = impl_->linear_single(*k_weight, impl_->workspace.normalized, impl_->workspace.k, block_linear); if (!status) return fail(status);
         status = impl_->linear_single(*v_weight, impl_->workspace.normalized, impl_->workspace.v, block_linear); if (!status) return fail(status);
-        status = impl_->add_optional_tensor(impl_->workspace.q, block_name(layer, "attn_q.bias"), embedding_width); if (!status) return fail(status);
-        status = impl_->add_optional_tensor(impl_->workspace.k, block_name(layer, "attn_k.bias"), kv_width); if (!status) return fail(status);
-        status = impl_->add_optional_tensor(impl_->workspace.v, block_name(layer, "attn_v.bias"), kv_width); if (!status) return fail(status);
+        status = impl_->add_optional_tensor(impl_->workspace.q, bindings.query_bias, embedding_width); if (!status) return fail(status);
+        status = impl_->add_optional_tensor(impl_->workspace.k, bindings.key_bias, kv_width); if (!status) return fail(status);
+        status = impl_->add_optional_tensor(impl_->workspace.v, bindings.value_bias, kv_width); if (!status) return fail(status);
         status = impl_->record_trace(trace, position, static_cast<std::int32_t>(layer), VerificationStage::q_projection,
                                      impl_->workspace.q, embedding_width); if (!status) return fail(status);
         status = impl_->record_trace(trace, position, static_cast<std::int32_t>(layer), VerificationStage::k_projection,
@@ -2778,7 +2775,7 @@ Result<std::vector<float>> CudaExecutor::step_impl(
         status = impl_->record_trace(trace, position, static_cast<std::int32_t>(layer), VerificationStage::attention,
                                      impl_->workspace.attended, embedding_width); if (!status) return fail(status);
 
-        const auto* attn_output = impl_->tensor(block_name(layer, "attn_output.weight"));
+        const auto* attn_output = impl_->tensor(bindings.attention_output_weight);
         if (!attn_output) return fail(Status::internal_error("resident attention output weight is missing"));
         status = impl_->linear_single(*attn_output, impl_->workspace.attended, impl_->workspace.projection, block_linear); if (!status) return fail(status);
         status = impl_->record_trace(trace, position, static_cast<std::int32_t>(layer), VerificationStage::attention_projection,
@@ -2787,10 +2784,10 @@ Result<std::vector<float>> CudaExecutor::step_impl(
         status = impl_->record_trace(trace, position, static_cast<std::int32_t>(layer), VerificationStage::attention_residual,
                                      impl_->workspace.hidden, embedding_width); if (!status) return fail(status);
 
-        const auto* ffn_norm = impl_->tensor(block_name(layer, "ffn_norm.weight"));
-        const auto* gate_weight = impl_->tensor(block_name(layer, "ffn_gate.weight"));
-        const auto* up_weight = impl_->tensor(block_name(layer, "ffn_up.weight"));
-        const auto* down_weight = impl_->tensor(block_name(layer, "ffn_down.weight"));
+        const auto* ffn_norm = impl_->tensor(bindings.ffn_norm_weight);
+        const auto* gate_weight = impl_->tensor(bindings.ffn_gate_weight);
+        const auto* up_weight = impl_->tensor(bindings.ffn_up_weight);
+        const auto* down_weight = impl_->tensor(bindings.ffn_down_weight);
         if (!ffn_norm || !gate_weight || !up_weight || !down_weight) return fail(Status::internal_error("resident FFN tensor is missing"));
         status = impl_->rms_norm(impl_->workspace.hidden, *ffn_norm, embedding_width,
                                  static_cast<float>(config.rms_norm_epsilon), impl_->workspace.normalized); if (!status) return fail(status);
@@ -2817,7 +2814,7 @@ Result<std::vector<float>> CudaExecutor::step_impl(
         status = impl_->append_kv(kv, layer, 1U); if (!status) return fail(status);
     }
 
-    const auto* output_norm = impl_->tensor("output_norm.weight");
+    const auto* output_norm = impl_->tensor(impl_->prepared->output_norm_weight);
     if (!output_norm) return fail(Status::internal_error("resident output norm is missing"));
     status = impl_->rms_norm(impl_->workspace.hidden, *output_norm, embedding_width,
                              static_cast<float>(config.rms_norm_epsilon), impl_->workspace.normalized);
@@ -2825,14 +2822,14 @@ Result<std::vector<float>> CudaExecutor::step_impl(
     status = impl_->record_trace(trace, position, -1, VerificationStage::final_norm,
                                  impl_->workspace.normalized, embedding_width);
     if (!status) return fail(status);
-    const auto* output_weight = impl_->tensor(impl_->model->find_tensor("output.weight") ? "output.weight" : "token_embd.weight");
+    const auto* output_weight = impl_->tensor(impl_->prepared->output_weight);
     if (!output_weight) return fail(Status::internal_error("resident output weight is missing"));
     {
         ScopedProfileRange output_range("air.decode.output_projection");
         status = impl_->linear_single(*output_weight, impl_->workspace.normalized, impl_->workspace.logits, output_linear);
     }
     if (!status) return fail(status);
-    status = impl_->add_optional_tensor(impl_->workspace.logits, "output.bias", config.vocabulary_size); if (!status) return fail(status);
+    status = impl_->add_optional_tensor(impl_->workspace.logits, impl_->prepared->output_bias, config.vocabulary_size); if (!status) return fail(status);
     status = impl_->record_trace(trace, position, -1, VerificationStage::logits,
                                  impl_->workspace.logits, config.vocabulary_size);
     if (!status) return fail(status);
