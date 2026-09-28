@@ -1,5 +1,5 @@
 #include "air/cuda.hpp"
-#include "model/qwen2_contract.hpp"
+#include "model/architecture_adapter.hpp"
 
 #include <cublas_v2.h>
 #include <cuda_bf16.h>
@@ -1780,9 +1780,13 @@ struct CudaExecutor::Impl {
         status = cublas_status(cublasSetStream(cublas, stream), "cublasSetStream");
         if (!status) return status;
 
-        status = detail::validate_qwen2_structure(*model);
+        auto adapter_result = detail::resolve_model_architecture(*model);
+        if (!adapter_result) return adapter_result.status();
+        const auto* adapter = adapter_result.value();
+
+        status = adapter->validate(*model);
         if (!status) return status;
-        const auto names = detail::qwen2_execution_tensor_names(*model);
+        const auto names = adapter->execution_tensor_names(*model);
         std::uint64_t total_bytes = 0U;
         struct Placement { const TensorDescriptor* tensor; std::uint64_t offset; CudaTensorKernel kernel; };
         std::vector<Placement> placements;
