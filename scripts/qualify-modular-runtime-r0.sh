@@ -45,16 +45,16 @@ mkdir -p "$OUT"
 AIR_ENABLE_CUDA=ON \
 BUILD_DIR="$BUILD_DIR" \
 PREFIX="$PREFIX" \
-"$ROOT/scripts/install-local.sh" \
-    > "$OUT/install-and-ctest.txt" 2>&1
+"$ROOT/scripts/install-local.sh" 2>&1 | \
+    tee "$OUT/install-and-ctest.txt"
 
 PATH="$PREFIX/bin:$PATH" \
 AIR_PREFIX="$PREFIX" \
 AIR_BIN_DIR="$PREFIX/bin" \
 AIR_RC_OUT="$RC_OUT" \
 AIR_RC_ARCHIVE="$RC_ARCHIVE" \
-"$ROOT/scripts/validate-rc-machine.sh" "$MODEL" "$PORT" \
-    > "$OUT/validate-rc.txt" 2>&1
+"$ROOT/scripts/validate-rc-machine.sh" "$MODEL" "$PORT" 2>&1 | \
+    tee "$OUT/validate-rc.txt"
 
 {
     cat "$OUT/identity.txt"
