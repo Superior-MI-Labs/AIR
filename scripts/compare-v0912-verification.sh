@@ -91,16 +91,21 @@ elif t["within_requested_atol"] and not c["within_requested_atol"]:
 elif not t["within_requested_atol"] and not c["within_requested_atol"]:
     ratio = c["max_abs_error"] / t["max_abs_error"] if t["max_abs_error"] else float("inf")
     print("current_to_tag_max_error_ratio=", ratio, sep="")
-    verdict = (
-        "HISTORICAL_ATOL_NOT_REPRODUCIBLE"
-        if ratio <= 1.25
-        else "BRANCH_ERROR_INCREASE_SUSPECTED"
-    )
+    verdict = "STRICT_ATOL_NOT_REPRODUCIBLE_BASELINE_GATE_REQUIRED"
 else:
     verdict = "CURRENT_GATE_PASSES_OR_INCONCLUSIVE"
 
 print("verdict=", verdict, sep="")
 PY
+
+set +e
+python3 "$ROOT/scripts/compare-verification-baseline.py" \
+    --current "$CURRENT_JSON" \
+    --baseline "$TAG_JSON" \
+    --output "$OUT/baseline-gate.json" \
+    2>&1 | tee "$OUT/baseline-gate.txt"
+BASELINE_GATE_RC="${PIPESTATUS[0]}"
+set -e
 
 {
     echo "model=$MODEL"
@@ -110,6 +115,7 @@ PY
     echo "tag=v0.9.12"
     echo "tag_commit=$(git -C "$WORKTREE" rev-parse HEAD)"
     echo "tag_verify_exit=$TAG_RC"
+    echo "baseline_gate_exit=$BASELINE_GATE_RC"
     echo "nvcc=$(nvcc --version | tail -n1)"
     nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
 } > "$OUT/identity.txt"
@@ -119,3 +125,6 @@ cat "$OUT/comparison.txt"
 echo
 echo "Evidence directory:"
 echo "$OUT"
+echo
+echo "baseline_gate_exit=$BASELINE_GATE_RC"
+exit "$BASELINE_GATE_RC"
