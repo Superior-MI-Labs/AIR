@@ -2,6 +2,7 @@
 #include "air/reference.hpp"
 #include "air/storage.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstddef>
@@ -141,6 +142,30 @@ bool near(float left, float right, float tolerance = 1.0e-4F) {
     return std::fabs(left - right) <= tolerance;
 }
 
+bool same_logits(std::span<const float> actual,
+                 std::span<const float> expected,
+                 const char* label) {
+    if (actual.size() != expected.size()) {
+        std::cerr << label << " logit width mismatch\n";
+        return false;
+    }
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        if (!near(actual[i], expected[i])) {
+            std::cerr << label << " logit mismatch at index " << i
+                      << ": cuda=" << actual[i]
+                      << " reference=" << expected[i] << '\n';
+            return false;
+        }
+    }
+    return true;
+}
+
+air::TokenId greedy_token(std::span<const float> logits) {
+    return static_cast<air::TokenId>(
+        std::distance(logits.begin(),
+                      std::max_element(logits.begin(), logits.end())));
+}
+
 int verify_cuda_reference_parity() {
     auto model = tiny_qwen2();
 
@@ -158,43 +183,123 @@ int verify_cuda_reference_parity() {
         return 1;
     }
 
-    air::ReferenceKvCache reference_cache(1, 1, 2, 8);
-    auto cuda_cache = cuda.value()->create_kv_cache();
-    if (!cuda_cache) {
-        std::cerr << "CUDA KV fixture failed: "
-                  << cuda_cache.status().message() << '\n';
-        return 1;
-    }
+    {
+        air::ReferenceKvCache reference_cache(1, 1, 2, 8);
+        auto cuda_cache = cuda.value()->create_kv_cache();
+        if (!cuda_cache) {
+            std::cerr << "CUDA single-decode KV fixture failed: "
+                      << cuda_cache.status().message() << '\n';
+            return 1;
+        }
 
-    auto expected = reference.value()->step(2, reference_cache);
-    if (!expected) {
-        std::cerr << "reference step failed: "
-                  << expected.status().message() << '\n';
-        return 1;
-    }
-
-    auto actual = cuda.value()->step(2, *cuda_cache.value());
-    if (!actual) {
-        std::cerr << "CUDA step failed: "
-                  << actual.status().message() << '\n';
-        return 1;
-    }
-
-    if (actual.value().size() != expected.value().size()) {
-        std::cerr << "CUDA/reference logit width mismatch\n";
-        return 1;
-    }
-
-    for (std::size_t i = 0; i < expected.value().size(); ++i) {
-        if (!near(actual.value()[i], expected.value()[i])) {
-            std::cerr << "CUDA/reference logit mismatch at index " << i
-                      << ": cuda=" << actual.value()[i]
-                      << " reference=" << expected.value()[i] << '\n';
+        auto expected = reference.value()->step(2, reference_cache);
+        auto actual = cuda.value()->step(2, *cuda_cache.value());
+        if (!expected || !actual) {
+            std::cerr << "single decode failed: reference="
+                      << (expected ? "ok" : expected.status().message())
+                      << " cuda="
+                      << (actual ? "ok" : actual.status().message()) << '\n';
+            return 1;
+        }
+        if (!same_logits(actual.value(), expected.value(), "single decode")) {
             return 1;
         }
     }
 
-    std::cout << "CUDA/reference semantic-binding parity passed\n";
+    {
+        const std::vector<air::TokenId> prompt = {0, 2};
+        air::ReferenceKvCache reference_cache(1, 1, 2, 8);
+        auto cuda_cache = cuda.value()->create_kv_cache();
+        if (!cuda_cache) {
+            std::cerr << "CUDA prefill KV fixture failed: "
+                      << cuda_cache.status().message() << '\n';
+            return 1;
+        }
+
+        auto expected = reference.value()->prefill(prompt, reference_cache);
+        auto actual = cuda.value()->prefill(prompt, *cuda_cache.value());
+        if (!expected || !actual) {
+            std::cerr << "single-sequence prefill failed\n";
+            return 1;
+        }
+        if (!same_logits(actual.value(), expected.value(), "single prefill")) {
+            return 1;
+        }
+    }
+
+    {
+        auto cuda_cache_a = cuda.value()->create_kv_cache();
+        auto cuda_cache_b = cuda.value()->create_kv_cache();
+        if (!cuda_cache_a || !cuda_cache_b) {
+            std::cerr << "CUDA batched-decode KV fixture failed\n";
+            return 1;
+        }
+
+        std::vector<air::TokenId> tokens = {1, 2};
+        std::vector<air::CudaKvCache*> caches = {
+            cuda_cache_a.value().get(),
+            cuda_cache_b.value().get(),
+        };
+        auto actual = cuda.value()->step_greedy_batch(tokens, caches);
+        if (!actual || actual.value().size() != tokens.size()) {
+            std::cerr << "CUDA batched decode failed\n";
+            return 1;
+        }
+
+        for (std::size_t i = 0; i < tokens.size(); ++i) {
+            air::ReferenceKvCache reference_cache(1, 1, 2, 8);
+            auto expected = reference.value()->step(tokens[i], reference_cache);
+            if (!expected ||
+                actual.value()[i] != greedy_token(expected.value())) {
+                std::cerr << "CUDA/reference batched decode greedy mismatch at item "
+                          << i << '\n';
+                return 1;
+            }
+        }
+    }
+
+    {
+        const std::vector<air::TokenId> prompt_a = {0, 1};
+        const std::vector<air::TokenId> prompt_b = {2, 3};
+        auto cuda_cache_a = cuda.value()->create_kv_cache();
+        auto cuda_cache_b = cuda.value()->create_kv_cache();
+        if (!cuda_cache_a || !cuda_cache_b) {
+            std::cerr << "CUDA multi-prefill KV fixture failed\n";
+            return 1;
+        }
+
+        std::vector<air::CudaPrefillBatchItem> items;
+        items.push_back({
+            cuda_cache_a.value().get(),
+            std::span<const air::TokenId>(prompt_a),
+            air::CudaPrefillBatchOutput::logits,
+        });
+        items.push_back({
+            cuda_cache_b.value().get(),
+            std::span<const air::TokenId>(prompt_b),
+            air::CudaPrefillBatchOutput::logits,
+        });
+
+        auto actual = cuda.value()->prefill_batch(items);
+        if (!actual || actual.value().items.size() != 2U) {
+            std::cerr << "CUDA multi-sequence prefill failed\n";
+            return 1;
+        }
+
+        for (std::size_t i = 0; i < 2U; ++i) {
+            air::ReferenceKvCache reference_cache(1, 1, 2, 8);
+            const auto& prompt = i == 0U ? prompt_a : prompt_b;
+            auto expected = reference.value()->prefill(prompt, reference_cache);
+            if (!expected ||
+                !same_logits(actual.value().items[i].logits,
+                             expected.value(),
+                             "multi-sequence prefill")) {
+                return 1;
+            }
+        }
+    }
+
+    std::cout << "CUDA/reference semantic-binding parity passed for decode and prefill paths\n";
     return 0;
 }
 
