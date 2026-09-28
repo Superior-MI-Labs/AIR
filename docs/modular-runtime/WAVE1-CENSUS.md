@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 1 Architecture Census
 
-Status: SOURCE CENSUS IN PROGRESS
+Status: CHARACTERIZATION GATE IN PROGRESS
 Source branch: `architecture/modular-runtime-r0`
 Source baseline: `f57f860515e5deab8b4c31d190b1f091bbbbb15d`
 
@@ -272,14 +272,40 @@ Reference and CUDA can then consume those products without constructing GGUF/Qwe
 
 This preserves the current numerical implementation while creating the seam later Neural Model IR or Builder work can target.
 
+## Wave 1 characterization audit
+
+Clean modular-runtime machine baseline reported on WolfCat-Studio:
+
+```text
+12/12 CTests PASS
+CUDA=ON
+Release build
+```
+
+Existing coverage was confirmed for:
+
+- supported Qwen2 reference execution;
+- tied output through absent `output.weight`;
+- optional output bias;
+- unsupported RoPE scaling;
+- unsupported sliding-window attention;
+- explicit wrong-architecture rejection.
+
+Wave 1 added characterization coverage for the remaining high-value contract gaps:
+
+- missing required Qwen2 semantic tensor;
+- wrong required tensor shape;
+- optional Q/K/V bias acceptance and execution.
+
+The new tests are characterization only. No production source is changed by that commit.
+
 ## Wave 1 close conditions still outstanding
 
 Before Wave 1 is CLOSED:
 
-- establish a clean machine baseline for the modular-runtime branch;
-- confirm characterization coverage for the listed failure/optional-tensor cases;
-- add only missing characterization tests;
-- run the applicable test suite on that exact branch;
-- record the machine evidence.
+- update the modular-runtime worktree to the characterization-test commit;
+- run the complete build/CTest suite on that exact commit;
+- require 12/12 tests to pass with CUDA enabled;
+- record the resulting exact HEAD and machine evidence.
 
 Do not start Wave 2 implementation before those gates are met.
