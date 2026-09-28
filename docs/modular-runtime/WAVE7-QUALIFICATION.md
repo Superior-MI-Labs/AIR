@@ -285,6 +285,32 @@ A full Wave 7 qualification rerun remains required because the first run
 skipped several downstream public-surface/stress gates after the strict
 differential failure.
 
+## Second machine qualification attempt
+
+The next isolated Wave 7 run reached the expected branch head, completed the
+Release/CUDA build, passed all 12 CTests, and installed the isolated prefix.
+
+It then stopped before the frozen-baseline comparison because the newly added
+shell helper had been created without an executable file mode and the wrapper
+attempted to execute it directly:
+
+```text
+scripts/compare-v0912-verification.sh: Permission denied
+```
+
+This is a qualification-harness invocation defect only. It occurred after the
+product build/tests/install completed and before the numerical baseline/RC
+gates ran.
+
+Root-cause fix:
+
+- the Wave 7 wrapper now invokes shell helpers explicitly through `bash`;
+- this removes dependence on repository executable-bit metadata for the
+  qualification entrypoint, baseline comparator, and RC validator;
+- no production AIR source or numerical behavior changed.
+
+A complete Wave 7 rerun remains required.
+
 ## Wave 7 exit gate
 
 Wave 7 may close only when:
