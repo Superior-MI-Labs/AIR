@@ -325,11 +325,64 @@ if [ -n "$DMON_PID" ]; then
     DMON_PID=""
 fi
 
+# Deterministic bounded-overload proof on a fresh server instance. A one-active,
+# one-queued scheduler must reject at least one synchronized request with HTTP 503.
+OVERLOAD_PORT=$((PORT + 2))
+air-server -m "$MODEL" --backend auto --device 0 --host 127.0.0.1 --port "$OVERLOAD_PORT" \
+    --manifest "$MANIFEST" --require-manifest --prefix-cache 0 \
+    --max-active 1 --max-queued 1 --token-budget 1 --prefill-quantum 1 \
+    --stream-queue 16 --workers 8 --max-connections 16 --io-timeout 5 \
+    --event-log "$OUT/overload-server-events.jsonl" > "$OUT/overload-server.txt" 2>&1 &
+SERVER_PID=$!
+
+if wait_ready "http://127.0.0.1:$OVERLOAD_PORT/health" "$OUT/overload-health.json"; then
+    record overload_server_ready 0
+    python3 "$ROOT/scripts/overload-server.py" \
+        --url "http://127.0.0.1:$OVERLOAD_PORT" \
+        --requests 12 --tokens 256 \
+        > "$OUT/overload.json" 2> "$OUT/overload-stderr.txt"
+    record bounded_overload "$?"
+
+    curl -fsS "http://127.0.0.1:$OVERLOAD_PORT/runtime" \
+        > "$OUT/overload-runtime-after.json" 2>/dev/null
+    python3 - "$OUT/overload-runtime-after.json" <<'PY' \
+        > "$OUT/overload-resource-check.txt" 2>&1
+import json,sys
+x=json.load(open(sys.argv[1], encoding='utf-8'))
+c=x.get('capabilities') or {}
+checks={
+    'queued_requests': x.get('queued_requests') == 0,
+    'active_requests': x.get('active_requests') == 0,
+    'current_kv_bytes': x.get('current_kv_bytes') == 0,
+    'admission_reserved_bytes': c.get('admission_reserved_bytes') == 0,
+    'kv_pool_all_free': c.get('kv_pool_allocated_bytes') == c.get('kv_pool_free_bytes'),
+    'rejected_overload_requests': (x.get('rejected_overload_requests') or 0) >= 1,
+}
+for k,v in checks.items(): print(f'{k}={v}')
+raise SystemExit(0 if all(checks.values()) else 1)
+PY
+    record overload_resource_reclamation "$?"
+else
+    record overload_server_ready 95
+fi
+
+if [ -n "$SERVER_PID" ]; then
+    kill -TERM "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null
+    OVERLOAD_SERVER_RC=$?
+    SERVER_PID=""
+    if [ "$OVERLOAD_SERVER_RC" -eq 0 ]; then
+        record overload_server_shutdown 0
+    else
+        record overload_server_shutdown "$OVERLOAD_SERVER_RC"
+    fi
+fi
+
 python3 - "$OUT" <<'PY' > "$OUT/summary.txt"
 import json,pathlib,statistics,sys
 root=pathlib.Path(sys.argv[1])
 print('AIR release-candidate validation summary')
-for name in ('verification.json','qualification-manifest.json','runtime-after.json','stress.json'):
+for name in ('verification.json','qualification-manifest.json','runtime-after.json','stress.json','overload.json'):
     p=root/name
     if p.exists():
         try:
@@ -355,6 +408,10 @@ for name in ('verification.json','qualification-manifest.json','runtime-after.js
         elif name=='stress.json':
             print('stress_successes=',x.get('successes'),'/',x.get('requests'),sep='')
             print('stress_errors=',len(x.get('errors',[])),sep='')
+        elif name=='overload.json':
+            print('overload_http_200=',x.get('http_200'),sep='')
+            print('overload_http_503=',x.get('http_503'),sep='')
+            print('overload_rejected_requests=',x.get('rejected_overload_requests'),sep='')
 
 dmon=root/'gpu-dmon.txt'
 if dmon.exists():
