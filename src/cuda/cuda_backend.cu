@@ -1,4 +1,5 @@
 #include "air/cuda.hpp"
+#include "cuda/cuda_executor_factory.hpp"
 #include "model/architecture_adapter.hpp"
 
 #include <cublas_v2.h>
@@ -1788,13 +1789,13 @@ struct CudaExecutor::Impl {
     }
 
     Status initialize() {
-        auto adapter_result = detail::resolve_model_architecture(*model);
-        if (!adapter_result) return adapter_result.status();
-
-        auto prepared_result = adapter_result.value()->prepare(*model);
-        if (!prepared_result) return prepared_result.status();
-        prepared = std::make_unique<detail::PreparedModelSemantics>(
-            std::move(prepared_result).value());
+        if (!prepared) {
+            return Status::internal_error(
+                "CUDA executor initialize requires prepared model semantics");
+        }
+        const auto semantic_validation =
+            detail::validate_prepared_model_semantics(*prepared);
+        if (!semantic_validation) return semantic_validation;
 
         auto status = select_device(device_ordinal);
         if (!status) return status;
@@ -2553,17 +2554,46 @@ CudaExecutor::~CudaExecutor() = default;
 CudaExecutor::CudaExecutor(CudaExecutor&&) noexcept = default;
 CudaExecutor& CudaExecutor::operator=(CudaExecutor&&) noexcept = default;
 
-Result<std::unique_ptr<CudaExecutor>> CudaExecutor::create(std::shared_ptr<const ModelDefinition> model,
-                                                           int device_ordinal) {
+Result<std::unique_ptr<CudaExecutor>> CudaExecutor::create(
+    std::shared_ptr<const ModelDefinition> model,
+    int device_ordinal) {
     if (!model) return Status::invalid_argument("CUDA executor requires a model");
-    auto status = model->validate();
-    if (!status) return status;
-    auto impl = std::make_unique<Impl>();
+
+    auto adapter_result = detail::resolve_model_architecture(*model);
+    if (!adapter_result) return adapter_result.status();
+
+    auto prepared_result = adapter_result.value()->prepare(*model);
+    if (!prepared_result) return prepared_result.status();
+
+    return detail::CudaExecutorFactory::create(
+        std::move(model), device_ordinal, std::move(prepared_result).value());
+}
+
+Result<std::unique_ptr<CudaExecutor>> detail::CudaExecutorFactory::create(
+    std::shared_ptr<const ModelDefinition> model,
+    int device_ordinal,
+    PreparedModelSemantics prepared) {
+    if (!model) {
+        return Status::invalid_argument(
+            "CUDA executor factory requires a canonical model");
+    }
+    if (prepared.source_model != model.get()) {
+        return Status::invalid_argument(
+            "CUDA executor prepared semantics reference a different canonical model");
+    }
+    const auto semantic_validation = validate_prepared_model_semantics(prepared);
+    if (!semantic_validation) return semantic_validation;
+
+    auto impl = std::make_unique<CudaExecutor::Impl>();
     impl->model = std::move(model);
+    impl->prepared =
+        std::make_unique<PreparedModelSemantics>(std::move(prepared));
     impl->device_ordinal = device_ordinal;
-    status = impl->initialize();
+
+    auto status = impl->initialize();
     if (!status) return status;
-    return std::unique_ptr<CudaExecutor>(new CudaExecutor(std::move(impl)));
+    return std::unique_ptr<CudaExecutor>(
+        new CudaExecutor(std::move(impl)));
 }
 
 const ModelDefinition& CudaExecutor::model() const noexcept { return *impl_->model; }
