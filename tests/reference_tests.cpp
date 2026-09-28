@@ -796,6 +796,19 @@ void test_prepared_semantic_tamper_rejection() {
     check(!status && status.code() == air::ErrorCode::data_error,
           "prepared validation rejects inconsistent derived geometry");
 
+    auto divergent_geometry = alias.prepared;
+    divergent_geometry.geometry.context_length += 1;
+    status = air::detail::validate_prepared_model_semantics(divergent_geometry);
+    check(!status && status.code() == air::ErrorCode::invalid_argument,
+          "prepared validation rejects geometry diverging from canonical model");
+
+    auto duplicate_role = alias.prepared;
+    duplicate_role.layers.front().attention_output_weight =
+        duplicate_role.layers.front().query_weight;
+    status = air::detail::validate_prepared_model_semantics(duplicate_role);
+    check(!status && status.code() == air::ErrorCode::invalid_argument,
+          "prepared validation rejects duplicate physical descriptors across semantic roles");
+
     auto bad_tie = alias.prepared;
     bad_tie.output_weight = bad_tie.layers.front().query_weight;
     bad_tie.output_weight_tied = true;
