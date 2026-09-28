@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 6 Abstraction Falsification
 
-Status: IMPLEMENTED / AWAITING MACHINE QUALIFICATION
+Status: IMPLEMENTED / REQUALIFICATION REQUIRED
 
 ## Objective
 
@@ -146,6 +146,35 @@ The Reference executor still contains Qwen2-specific error wording for the curre
 - public AIR model support claims are unchanged.
 - MEF R0 is unchanged.
 - Builder is unchanged.
+
+## First machine qualification result
+
+WolfCat-Studio reached the exact Wave 6 implementation head and completed the Release/CUDA build.
+
+Observed result:
+
+```text
+11/12 CTests PASS
+air-reference-tests FAIL
+air-cuda-contract-tests PASS
+```
+
+The sole failure was the destructive test for a missing required semantic role.
+
+Root cause:
+
+`validate_prepared_model_semantics()` checked descriptor ownership before required-role presence. A null required binding was therefore classified as `invalid_argument` (foreign/unowned descriptor) instead of the intended `data_error` (missing required semantic role).
+
+This was a validator error-classification defect, not a numerical or architecture-boundary failure.
+
+Fix:
+
+- ownership validation now applies only to descriptors that are actually bound;
+- missing required roles continue to the role/shape validator and fail as `data_error`;
+- non-null descriptors from another canonical model still fail as `invalid_argument`;
+- the falsification test expectation was not weakened.
+
+Wave 6 remains open until the fixed exact head passes the complete qualification suite.
 
 ## Wave 6 exit gate
 
