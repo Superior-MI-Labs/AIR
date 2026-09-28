@@ -17,6 +17,7 @@ namespace air {
 
 namespace detail {
 struct PreparedModelSemantics;
+class ReferenceExecutorFactory;
 }
 
 class ReferenceTensorReader final {
@@ -133,6 +134,8 @@ private:
     std::shared_ptr<const ModelDefinition> model_;
     std::unique_ptr<detail::PreparedModelSemantics> prepared_;
     ReferenceTensorReader tensors_;
+
+    friend class detail::ReferenceExecutorFactory;
 };
 
 } // namespace air
