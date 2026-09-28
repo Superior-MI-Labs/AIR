@@ -1434,6 +1434,7 @@ struct CudaKvCache::Impl {
 
 struct CudaExecutor::Impl {
     std::shared_ptr<const ModelDefinition> model;
+    std::unique_ptr<detail::PreparedModelSemantics> prepared;
     int device_ordinal{0};
     cudaStream_t stream{nullptr};
     cublasHandle_t cublas{nullptr};
@@ -1491,6 +1492,14 @@ struct CudaExecutor::Impl {
     [[nodiscard]] const ResidentTensor* tensor(const std::string& name) const noexcept {
         const auto it = tensors.find(name);
         return it == tensors.end() ? nullptr : &it->second;
+    }
+
+    [[nodiscard]] const ResidentTensor* tensor(
+        const TensorDescriptor* descriptor) const noexcept {
+        if (!descriptor) return nullptr;
+        const auto* resident = tensor(descriptor->name);
+        if (!resident || resident->descriptor != descriptor) return nullptr;
+        return resident;
     }
 
     [[nodiscard]] static bool is_transformer_block_linear_name(std::string_view name) noexcept {
@@ -1771,6 +1780,14 @@ struct CudaExecutor::Impl {
     }
 
     Status initialize() {
+        auto adapter_result = detail::resolve_model_architecture(*model);
+        if (!adapter_result) return adapter_result.status();
+
+        auto prepared_result = adapter_result.value()->prepare(*model);
+        if (!prepared_result) return prepared_result.status();
+        prepared = std::make_unique<detail::PreparedModelSemantics>(
+            std::move(prepared_result).value());
+
         auto status = select_device(device_ordinal);
         if (!status) return status;
         status = cuda_status(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking), "cudaStreamCreateWithFlags");
@@ -1780,13 +1797,7 @@ struct CudaExecutor::Impl {
         status = cublas_status(cublasSetStream(cublas, stream), "cublasSetStream");
         if (!status) return status;
 
-        auto adapter_result = detail::resolve_model_architecture(*model);
-        if (!adapter_result) return adapter_result.status();
-        const auto* adapter = adapter_result.value();
-
-        auto prepared_result = adapter->prepare(*model);
-        if (!prepared_result) return prepared_result.status();
-        const auto execution_tensors = prepared_result.value().execution_tensors();
+        const auto execution_tensors = prepared->execution_tensors();
         std::uint64_t total_bytes = 0U;
         struct Placement { const TensorDescriptor* tensor; std::uint64_t offset; CudaTensorKernel kernel; };
         std::vector<Placement> placements;
@@ -2143,19 +2154,29 @@ struct CudaExecutor::Impl {
         return launch_status("rms_norm_batch_kernel");
     }
 
-    Status add_optional_tensor(float* target, const std::string& name, std::uint64_t width) {
-        const auto* bias = tensor(name);
-        if (!bias) return Status::ok();
+    Status add_optional_tensor(
+        float* target, const TensorDescriptor* descriptor, std::uint64_t width) {
+        if (!descriptor) return Status::ok();
+        const auto* bias = tensor(descriptor);
+        if (!bias) {
+            return Status::internal_error(
+                "resident semantic bias tensor is missing: " + descriptor->name);
+        }
         constexpr unsigned int threads = 256U;
         add_tensor_kernel<<<blocks_for(width), threads, 0, stream>>>(
             target, bias->data, static_cast<int>(bias->descriptor->type), width);
         return launch_status("add_tensor_kernel");
     }
 
-    Status add_optional_tensor_batch(float* target, const std::string& name,
-                                     std::uint64_t width, std::uint32_t batch) {
-        const auto* bias = tensor(name);
-        if (!bias) return Status::ok();
+    Status add_optional_tensor_batch(
+        float* target, const TensorDescriptor* descriptor,
+        std::uint64_t width, std::uint32_t batch) {
+        if (!descriptor) return Status::ok();
+        const auto* bias = tensor(descriptor);
+        if (!bias) {
+            return Status::internal_error(
+                "resident semantic bias tensor is missing: " + descriptor->name);
+        }
         constexpr unsigned int threads = 256U;
         const auto total = static_cast<std::uint64_t>(batch) * width;
         add_tensor_batch_kernel<<<blocks_for(total), threads, 0, stream>>>(
