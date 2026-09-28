@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 7 Full-System Qualification
 
-Status: QUALIFICATION IN PROGRESS / DIFFERENTIAL GATE UNDER INVESTIGATION
+Status: AIR-LOCAL CLOSED / EXTERNAL MEF R0 GATE PENDING
 
 ## Objective
 
@@ -394,6 +394,28 @@ since the full Wave 7 product qualification head. It reuses only the exact
 isolated installed prefix and qualification manifest, launches that server,
 runs the corrected web doctor, records the new evidence, and requires clean
 shutdown.
+
+## Targeted browser requalification result
+
+The targeted browser requalification against the exact isolated Wave 7
+installed prefix reported:
+
+```text
+TARGETED WAVE 7 WEB REQUALIFICATION: PASS
+```
+
+The requalifier also enforced that no product-affecting file had changed since
+the full Wave 7 product qualification head.
+
+Therefore the prior `web_doctor=1` result is closed as qualification-harness
+drift. The served AIR Web 3.2 application, installed web tree, source web tree,
+runtime endpoints, JavaScript parsing, legacy-path rejection, and clean server
+shutdown all passed the corrected doctor.
+
+AIR-local Wave 7 is CLOSED / QUALIFIED.
+
+The only remaining Wave 7 authority is the independent frozen MEF R0
+`provider.air.http` compatibility gate.
 
 ## Wave 7 exit gate
 
