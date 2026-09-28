@@ -15,6 +15,10 @@
 
 namespace air {
 
+namespace detail {
+struct PreparedModelSemantics;
+}
+
 class ReferenceTensorReader final {
 public:
     explicit ReferenceTensorReader(std::shared_ptr<const ModelDefinition> model)
@@ -28,12 +32,19 @@ public:
                                                     std::span<const float> input) const;
 
 private:
+    [[nodiscard]] Result<std::vector<float>> vector(const TensorDescriptor& tensor) const;
+    [[nodiscard]] Result<std::vector<float>> row(const TensorDescriptor& tensor,
+                                                 std::uint64_t row_index) const;
+    [[nodiscard]] Result<std::vector<float>> matvec(const TensorDescriptor& tensor,
+                                                    std::span<const float> input) const;
     [[nodiscard]] Result<std::vector<float>> decode_tensor(const TensorDescriptor& tensor) const;
     [[nodiscard]] Result<std::vector<float>> decode_range(const TensorDescriptor& tensor,
                                                           std::uint64_t element_offset,
                                                           std::uint64_t element_count) const;
 
     std::shared_ptr<const ModelDefinition> model_;
+
+    friend class ReferenceExecutor;
 };
 
 class ReferenceKvCache final {
@@ -95,6 +106,8 @@ private:
 
 class ReferenceExecutor final {
 public:
+    ~ReferenceExecutor();
+
     [[nodiscard]] static Result<std::unique_ptr<ReferenceExecutor>> create(
         std::shared_ptr<const ModelDefinition> model);
 
@@ -108,16 +121,17 @@ public:
                                                     const GenerationConfig& config) const;
 
 private:
-    explicit ReferenceExecutor(std::shared_ptr<const ModelDefinition> model)
-        : model_(std::move(model)), tensors_(model_) {}
+    ReferenceExecutor(std::shared_ptr<const ModelDefinition> model,
+                      std::unique_ptr<detail::PreparedModelSemantics> prepared);
 
     [[nodiscard]] Status validate_model() const;
     [[nodiscard]] Result<std::vector<float>> step_impl(TokenId token, ReferenceKvCache& cache,
                                                         VerificationTrace* trace) const;
     [[nodiscard]] Result<std::vector<float>> add_optional_bias(
-        std::vector<float> values, const std::string& tensor_name) const;
+        std::vector<float> values, const TensorDescriptor* tensor) const;
 
     std::shared_ptr<const ModelDefinition> model_;
+    std::unique_ptr<detail::PreparedModelSemantics> prepared_;
     ReferenceTensorReader tensors_;
 };
 
