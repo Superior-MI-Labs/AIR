@@ -344,44 +344,41 @@ Result<std::vector<float>> ReferenceTensorReader::decode_range(const TensorDescr
                       tensor.type, element_count);
 }
 
-Result<std::vector<float>> ReferenceTensorReader::vector(const std::string& name) const {
-    const auto* tensor = model_->find_tensor(name);
-    if (!tensor) return Status::data_error("missing tensor: " + name);
-    if (tensor->shape.dimensions.size() != 1U) {
-        return Status::data_error("expected rank-1 tensor: " + name);
+Result<std::vector<float>> ReferenceTensorReader::vector(const TensorDescriptor& tensor) const {
+    if (tensor.shape.dimensions.size() != 1U) {
+        return Status::data_error("expected rank-1 tensor: " + tensor.name);
     }
-    return decode_tensor(*tensor);
+    return decode_tensor(tensor);
 }
 
-Result<std::vector<float>> ReferenceTensorReader::row(const std::string& name,
+Result<std::vector<float>> ReferenceTensorReader::row(const TensorDescriptor& tensor,
                                                       std::uint64_t row_index) const {
-    const auto* tensor = model_->find_tensor(name);
-    if (!tensor) return Status::data_error("missing tensor: " + name);
-    if (tensor->shape.dimensions.size() != 2U) {
-        return Status::data_error("expected rank-2 tensor: " + name);
+    if (tensor.shape.dimensions.size() != 2U) {
+        return Status::data_error("expected rank-2 tensor: " + tensor.name);
     }
-    const auto columns = tensor->shape.dimensions[0];
-    const auto rows = tensor->shape.dimensions[1];
-    if (row_index >= rows) return Status::invalid_argument("tensor row is outside matrix: " + name);
-    return decode_range(*tensor, row_index * columns, columns);
+    const auto columns = tensor.shape.dimensions[0];
+    const auto rows = tensor.shape.dimensions[1];
+    if (row_index >= rows) {
+        return Status::invalid_argument("tensor row is outside matrix: " + tensor.name);
+    }
+    return decode_range(tensor, row_index * columns, columns);
 }
 
-Result<std::vector<float>> ReferenceTensorReader::matvec(const std::string& name,
-                                                         std::span<const float> input) const {
-    const auto* tensor = model_->find_tensor(name);
-    if (!tensor) return Status::data_error("missing tensor: " + name);
-    if (tensor->shape.dimensions.size() != 2U) {
-        return Status::data_error("expected rank-2 matrix tensor: " + name);
+Result<std::vector<float>> ReferenceTensorReader::matvec(
+    const TensorDescriptor& tensor,
+    std::span<const float> input) const {
+    if (tensor.shape.dimensions.size() != 2U) {
+        return Status::data_error("expected rank-2 matrix tensor: " + tensor.name);
     }
-    const auto columns = tensor->shape.dimensions[0];
-    const auto rows = tensor->shape.dimensions[1];
+    const auto columns = tensor.shape.dimensions[0];
+    const auto rows = tensor.shape.dimensions[1];
     if (columns != input.size()) {
-        return Status::data_error("matrix input width mismatch for tensor: " + name);
+        return Status::data_error("matrix input width mismatch for tensor: " + tensor.name);
     }
 
     std::vector<float> output(static_cast<std::size_t>(rows), 0.0F);
     for (std::uint64_t row_index = 0; row_index < rows; ++row_index) {
-        auto decoded_row = decode_range(*tensor, row_index * columns, columns);
+        auto decoded_row = decode_range(tensor, row_index * columns, columns);
         if (!decoded_row) return decoded_row.status();
         double sum = 0.0;
         for (std::uint64_t column = 0; column < columns; ++column) {
@@ -391,6 +388,26 @@ Result<std::vector<float>> ReferenceTensorReader::matvec(const std::string& name
         output[static_cast<std::size_t>(row_index)] = static_cast<float>(sum);
     }
     return output;
+}
+
+Result<std::vector<float>> ReferenceTensorReader::vector(const std::string& name) const {
+    const auto* tensor = model_->find_tensor(name);
+    if (!tensor) return Status::data_error("missing tensor: " + name);
+    return vector(*tensor);
+}
+
+Result<std::vector<float>> ReferenceTensorReader::row(const std::string& name,
+                                                      std::uint64_t row_index) const {
+    const auto* tensor = model_->find_tensor(name);
+    if (!tensor) return Status::data_error("missing tensor: " + name);
+    return row(*tensor, row_index);
+}
+
+Result<std::vector<float>> ReferenceTensorReader::matvec(const std::string& name,
+                                                         std::span<const float> input) const {
+    const auto* tensor = model_->find_tensor(name);
+    if (!tensor) return Status::data_error("missing tensor: " + name);
+    return matvec(*tensor, input);
 }
 
 } // namespace air
