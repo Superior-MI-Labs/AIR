@@ -224,19 +224,66 @@ scripts/compare-v0912-verification.sh
 It builds frozen `v0.9.12` on the same machine/toolchain and runs the identical
 model, prompt, teacher-forced decision count, CUDA device, top-k, and tolerance.
 
-Interpretation:
+Observed frozen-baseline comparison on the same WolfCat-Studio machine,
+model, CUDA 13.0.88 toolchain, prompt, device, and verification command:
 
-- if frozen v0.9.12 passes at 0.001 while the modular branch fails, treat the
-  modular branch as a numerical-regression suspect and bisect/fix it;
-- if frozen v0.9.12 also fails with a comparable error distribution, treat the
-  historical tolerance as non-reproducible on the current machine/toolchain
-  and investigate/redefine the release numerical contract from evidence;
-- do not weaken the threshold before this comparison.
+```text
+current branch:
+  decisions=16
+  top1_parity=true
+  finite=true
+  max_abs_error=0.0039185285568237305
+  mean_decision_max_abs_error=0.00205797515809536
+  max_rms_error=0.0008627701382458027
+  strict_atol_pass=false
 
-Because the first differential failure sets the RC failure flag, several
-independent public-surface/stress gates were not executed in that run. A full
-Wave 7 qualification rerun remains required after the differential issue is
-resolved.
+frozen v0.9.12:
+  decisions=16
+  top1_parity=true
+  finite=true
+  max_abs_error=0.0039185285568237305
+  mean_decision_max_abs_error=0.00205797515809536
+  max_rms_error=0.0008627701382458027
+  strict_atol_pass=false
+```
+
+The reported numerical error distribution is identical at these summary
+measurements. Therefore the modular runtime work is not the source of the
+historical `0.001` failure on this current environment.
+
+Wave 7 does not replace or hide the historical strict measurement.
+
+The revised numerical gate records:
+
+```text
+differential_verification_strict=<raw air-verify exit>
+```
+
+and, when strict verification fails, requires an independently generated
+frozen `v0.9.12` report from the same machine/model/toolchain.
+
+The baseline-relative gate requires:
+
+- the same verification schema;
+- the same nonzero decision count;
+- finite current and baseline reports;
+- top-1 parity in both reports;
+- identical teacher-forced token history;
+- identical per-decision Reference/CUDA top-token history;
+- current max, RMS, and mean absolute error no worse than the frozen baseline
+  for every decision, apart from a `1e-7` serialization/numerical comparison
+  epsilon.
+
+There is no percentage or broad absolute-error allowance.
+
+Thus `0.001` remains visible as the historical diagnostic threshold, while
+release qualification asks the scientifically relevant compatibility question:
+did AIR 0.10.0 make Reference/CUDA agreement worse than the frozen public
+release under the same environment?
+
+A full Wave 7 qualification rerun remains required because the first run
+skipped several downstream public-surface/stress gates after the strict
+differential failure.
 
 ## Wave 7 exit gate
 
@@ -245,7 +292,7 @@ Wave 7 may close only when:
 1. the exact clean branch head completes the isolated Release/CUDA build;
 2. all 12 CTests pass;
 3. the machine RC validator reports `overall_fail=0`;
-4. Reference/CUDA verification passes on the real supported model;
+4. Reference/CUDA verification either satisfies the historical strict threshold or passes the frozen-v0.9.12 non-regression gate on the same machine/model/toolchain;
 5. installed-package consumer passes;
 6. generation, chat, Decision, browser, and observability endpoints pass;
 7. malformed/unsupported protocol behavior remains explicit;
