@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 6 Abstraction Falsification
 
-Status: IMPLEMENTED / REQUALIFICATION REQUIRED
+Status: CLOSED / QUALIFIED
 
 ## Objective
 
@@ -174,7 +174,18 @@ Fix:
 - non-null descriptors from another canonical model still fail as `invalid_argument`;
 - the falsification test expectation was not weakened.
 
-Wave 6 remains open until the fixed exact head passes the complete qualification suite.
+Requalification after the root-cause fix reported:
+
+```text
+Release build
+CUDA=ON
+12/12 CTests PASS
+0 failures
+```
+
+The falsification boundary therefore survived renamed-source Reference execution, renamed-source CUDA execution, dense-FP32 semantic tactic preparation, destructive prepared-state validation, and the full regression suite.
+
+Wave 6 is CLOSED / QUALIFIED.
 
 ## Wave 6 exit gate
 
