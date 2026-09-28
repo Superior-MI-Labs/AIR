@@ -98,7 +98,7 @@ std::shared_ptr<const air::ModelDefinition> make_tiny_qwen2() {
     constexpr std::uint32_t ffn = 6;
 
     air::ModelConfig config;
-    config.architecture = std::move(architecture);
+    config.architecture = "qwen2";
     config.layer_count = 1;
     config.embedding_size = embedding;
     config.feed_forward_size = ffn;
@@ -109,8 +109,6 @@ std::shared_ptr<const air::ModelDefinition> make_tiny_qwen2() {
     config.vocabulary_size = vocab;
     config.rope_frequency_base = 10000.0;
     config.rms_norm_epsilon = 1.0e-5;
-    config.rope_scaling_factor = rope_scaling_factor;
-    config.attention_sliding_window = sliding_window;
 
     air::TokenizerDefinition tokenizer;
     tokenizer.model = "gpt2";
@@ -157,7 +155,7 @@ AliasSemanticFixture make_alias_semantic_fixture(
     constexpr std::uint32_t ffn = 6;
 
     air::ModelConfig config;
-    config.architecture = "qwen2";
+    config.architecture = std::move(architecture);
     config.layer_count = 1;
     config.embedding_size = embedding;
     config.feed_forward_size = ffn;
@@ -168,6 +166,8 @@ AliasSemanticFixture make_alias_semantic_fixture(
     config.vocabulary_size = vocab;
     config.rope_frequency_base = 10000.0;
     config.rms_norm_epsilon = 1.0e-5;
+    config.rope_scaling_factor = rope_scaling_factor;
+    config.attention_sliding_window = sliding_window;
 
     air::TokenizerDefinition tokenizer;
     tokenizer.model = "gpt2";
