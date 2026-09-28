@@ -2660,12 +2660,12 @@ Result<std::unique_ptr<CudaKvCache>> CudaExecutor::create_kv_cache(std::uint32_t
     if (page_tokens == 0U || page_tokens > 1024U) {
         return Status::invalid_argument("CUDA KV page tokens must be in [1,1024]");
     }
-    const auto& config = impl_->model->config();
+    const auto& config = impl_->prepared->geometry;
     auto cache = std::make_unique<CudaKvCache::Impl>();
     cache->device_ordinal = impl_->device_ordinal;
     cache->layer_count = config.layer_count;
     cache->kv_head_count = config.kv_head_count;
-    cache->head_dimension = config.embedding_size / config.attention_head_count;
+    cache->head_dimension = impl_->prepared->head_dimension;
     cache->context_length = config.context_length;
     cache->page_tokens = page_tokens;
     cache->pool = impl_->pool_for(page_tokens);
@@ -3098,8 +3098,8 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
     auto status = activate_device(impl_->device_ordinal);
     if (!status) return status;
     auto& kv = *cache.impl_;
-    const auto& config = impl_->model->config();
-    const std::uint32_t head_dimension = config.embedding_size / config.attention_head_count;
+    const auto& config = impl_->prepared->geometry;
+    const std::uint32_t head_dimension = impl_->prepared->head_dimension;
     if (kv.device_ordinal != impl_->device_ordinal || kv.layer_count != config.layer_count ||
         kv.kv_head_count != config.kv_head_count || kv.head_dimension != head_dimension ||
         kv.context_length != config.context_length) {
@@ -3123,29 +3123,26 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
         if (!status) return status;
         const auto fail = [&kv](Status failure) -> Result<std::vector<float>> { kv.rollback(); return failure; };
 
-        const auto* embedding = impl_->tensor("token_embd.weight");
+        const auto* embedding = impl_->tensor(impl_->prepared->token_embedding_weight);
         if (!embedding) return fail(Status::internal_error("resident token embedding is missing"));
         status = impl_->load_rows(*embedding, chunk, config.embedding_size, impl_->workspace.hidden);
         if (!status) return fail(status);
-
-        const auto block_name = [](std::uint32_t layer, const char* suffix) {
-            return "blk." + std::to_string(layer) + "." + suffix;
-        };
         const std::uint64_t embedding_width = config.embedding_size;
         const std::uint64_t kv_width = static_cast<std::uint64_t>(config.kv_head_count) * head_dimension;
         const auto position_start = kv.token_count;
 
         for (std::uint32_t layer = 0; layer < config.layer_count; ++layer) {
             ScopedProfileRange layer_range("air.prefill.layer");
-            const auto* attn_norm = impl_->tensor(block_name(layer, "attn_norm.weight"));
-            const auto* q_weight = impl_->tensor(block_name(layer, "attn_q.weight"));
-            const auto* k_weight = impl_->tensor(block_name(layer, "attn_k.weight"));
-            const auto* v_weight = impl_->tensor(block_name(layer, "attn_v.weight"));
-            const auto* attn_output = impl_->tensor(block_name(layer, "attn_output.weight"));
-            const auto* ffn_norm = impl_->tensor(block_name(layer, "ffn_norm.weight"));
-            const auto* gate_weight = impl_->tensor(block_name(layer, "ffn_gate.weight"));
-            const auto* up_weight = impl_->tensor(block_name(layer, "ffn_up.weight"));
-            const auto* down_weight = impl_->tensor(block_name(layer, "ffn_down.weight"));
+            const auto& bindings = impl_->prepared->layers[static_cast<std::size_t>(layer)];
+            const auto* attn_norm = impl_->tensor(bindings.attention_norm_weight);
+            const auto* q_weight = impl_->tensor(bindings.query_weight);
+            const auto* k_weight = impl_->tensor(bindings.key_weight);
+            const auto* v_weight = impl_->tensor(bindings.value_weight);
+            const auto* attn_output = impl_->tensor(bindings.attention_output_weight);
+            const auto* ffn_norm = impl_->tensor(bindings.ffn_norm_weight);
+            const auto* gate_weight = impl_->tensor(bindings.ffn_gate_weight);
+            const auto* up_weight = impl_->tensor(bindings.ffn_up_weight);
+            const auto* down_weight = impl_->tensor(bindings.ffn_down_weight);
             if (!attn_norm || !q_weight || !k_weight || !v_weight || !attn_output ||
                 !ffn_norm || !gate_weight || !up_weight || !down_weight) {
                 return fail(Status::internal_error("resident Qwen2 layer tensor is missing"));
@@ -3157,9 +3154,9 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
             status = impl_->matmul(*q_weight, impl_->workspace.normalized, impl_->workspace.q, count, linear); if (!status) return fail(status);
             status = impl_->matmul(*k_weight, impl_->workspace.normalized, impl_->workspace.k, count, linear); if (!status) return fail(status);
             status = impl_->matmul(*v_weight, impl_->workspace.normalized, impl_->workspace.v, count, linear); if (!status) return fail(status);
-            status = impl_->add_optional_tensor_batch(impl_->workspace.q, block_name(layer, "attn_q.bias"), embedding_width, count); if (!status) return fail(status);
-            status = impl_->add_optional_tensor_batch(impl_->workspace.k, block_name(layer, "attn_k.bias"), kv_width, count); if (!status) return fail(status);
-            status = impl_->add_optional_tensor_batch(impl_->workspace.v, block_name(layer, "attn_v.bias"), kv_width, count); if (!status) return fail(status);
+            status = impl_->add_optional_tensor_batch(impl_->workspace.q, bindings.query_bias, embedding_width, count); if (!status) return fail(status);
+            status = impl_->add_optional_tensor_batch(impl_->workspace.k, bindings.key_bias, kv_width, count); if (!status) return fail(status);
+            status = impl_->add_optional_tensor_batch(impl_->workspace.v, bindings.value_bias, kv_width, count); if (!status) return fail(status);
             status = impl_->apply_rope_batch(impl_->workspace.q, count, config.attention_head_count, head_dimension,
                                              config.rope_dimension_count, position_start,
                                              static_cast<float>(config.rope_frequency_base)); if (!status) return fail(status);
@@ -3187,21 +3184,21 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
 
         const bool final_chunk = offset + count == tokens.size();
         if (final_chunk && output != FinalOutput::discard) {
-            const auto* output_norm = impl_->tensor("output_norm.weight");
+            const auto* output_norm = impl_->tensor(impl_->prepared->output_norm_weight);
             if (!output_norm) return fail(Status::internal_error("resident output norm is missing"));
             const float* final_hidden = impl_->workspace.hidden +
                 static_cast<std::uint64_t>(count - 1U) * embedding_width;
             status = impl_->rms_norm(final_hidden, *output_norm, embedding_width,
                                      static_cast<float>(config.rms_norm_epsilon), impl_->workspace.normalized);
             if (!status) return fail(status);
-            const auto* output_weight = impl_->tensor(impl_->model->find_tensor("output.weight") ? "output.weight" : "token_embd.weight");
+            const auto* output_weight = impl_->tensor(impl_->prepared->output_weight);
             if (!output_weight) return fail(Status::internal_error("resident output weight is missing"));
             {
                 ScopedProfileRange output_range("air.prefill.output_projection");
                 status = impl_->matvec(*output_weight, impl_->workspace.normalized, impl_->workspace.logits);
             }
             if (!status) return fail(status);
-            status = impl_->add_optional_tensor(impl_->workspace.logits, "output.bias", config.vocabulary_size); if (!status) return fail(status);
+            status = impl_->add_optional_tensor(impl_->workspace.logits, impl_->prepared->output_bias, config.vocabulary_size); if (!status) return fail(status);
 
             if (output == FinalOutput::logits) {
                 auto copied = impl_->read_logits_host();
