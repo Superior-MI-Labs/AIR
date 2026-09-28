@@ -21,10 +21,11 @@ def summary(doc):
         "max_abs_error": max(max_abs, default=0.0),
         "max_rms_error": max(rms, default=0.0),
         "max_mean_abs_error": max(mean_abs, default=0.0),
-        "tokens": [
+        "teacher_forced_tokens": doc.get("teacher_forced_tokens", []),
+        "decision_tops": [
             (
-                d.get("reference", {}).get("token"),
-                d.get("cuda", {}).get("token"),
+                d.get("reference_top"),
+                d.get("cuda_top"),
                 bool(d.get("top1_match", False)),
             )
             for d in decisions
@@ -54,7 +55,12 @@ def main():
     checks["baseline_finite"] = baseline["finite"]
     checks["current_top1_parity"] = current["top1_parity"]
     checks["baseline_top1_parity"] = baseline["top1_parity"]
-    checks["teacher_forced_token_history_match"] = current["tokens"] == baseline["tokens"]
+    checks["teacher_forced_token_history_match"] = (
+        current["teacher_forced_tokens"] == baseline["teacher_forced_tokens"]
+    )
+    checks["decision_top_tokens_match"] = (
+        current["decision_tops"] == baseline["decision_tops"]
+    )
 
     max_ok, max_limit = not_worse(current["max_abs_error"], baseline["max_abs_error"])
     rms_ok, rms_limit = not_worse(current["max_rms_error"], baseline["max_rms_error"])
