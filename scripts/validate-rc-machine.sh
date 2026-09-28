@@ -7,10 +7,21 @@ if [ -z "$MODEL" ] || [ ! -f "$MODEL" ]; then
     exit 2
 fi
 
-STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$HOME/Downloads/AIR-RC-validation-$STAMP"
-ARCHIVE="$HOME/Downloads/AIR-RC-validation-$STAMP.zip"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PREFIX="${AIR_PREFIX:-$HOME/.local}"
+BIN="${AIR_BIN_DIR:-$PREFIX/bin}"
+export PATH="$BIN:$PATH"
+
+EXPECTED_MANIFEST_SCHEMA="$(sed -nE 's/.*execution_manifest_schema_version = ([0-9]+)U.*/\1/p' "$ROOT/include/air/manifest.hpp" | head -n1)"
+EXPECTED_BENCHMARK_SCHEMA="$(sed -nE 's/.*benchmark_report_schema = "([^"]+)".*/\1/p' "$ROOT/include/air/benchmark.hpp" | head -n1)"
+if [ -z "$EXPECTED_MANIFEST_SCHEMA" ] || [ -z "$EXPECTED_BENCHMARK_SCHEMA" ]; then
+    echo "ERROR: failed to derive current evidence schema identities from source" >&2
+    exit 2
+fi
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+OUT="${AIR_RC_OUT:-$HOME/Downloads/AIR-RC-validation-$STAMP}"
+ARCHIVE="${AIR_RC_ARCHIVE:-$HOME/Downloads/AIR-RC-validation-$STAMP.zip}"
 MANIFEST="$OUT/qualification-manifest.json"
 mkdir -p "$OUT"
 FAIL=0
@@ -39,6 +50,19 @@ record() {
         FAIL=1
     fi
 }
+
+for TOOL in air-cli air-server air-bench air-qualify air-verify; do
+    RESOLVED="$(command -v "$TOOL" 2>/dev/null || true)"
+    if [[ "$RESOLVED" == "$BIN/"* ]]; then
+        echo "$TOOL=$RESOLVED" >> "$OUT/binary-origins.txt"
+    else
+        echo "$TOOL=${RESOLVED:-missing}" >> "$OUT/binary-origins.txt"
+        record installed_binary_origin 94
+    fi
+done
+if ! grep -q '^installed_binary_origin=' "$OUT/exit-codes.txt"; then
+    record installed_binary_origin 0
+fi
 
 http_status() {
     URL="$1"
@@ -70,6 +94,11 @@ wait_ready() {
     echo "model: $MODEL"
     echo "model_sha256: $(sha256sum "$MODEL" | awk '{print $1}')"
     echo "model_bytes: $(stat -c %s "$MODEL")"
+    echo
+    echo "qualification_prefix: $PREFIX"
+    echo "expected_manifest_schema: $EXPECTED_MANIFEST_SCHEMA"
+    echo "expected_benchmark_schema: $EXPECTED_BENCHMARK_SCHEMA"
+    cat "$OUT/binary-origins.txt"
     echo
     for TOOL in air-cli air-server air-bench air-qualify air-verify; do
         "$TOOL" --version 2>&1 || true
@@ -123,28 +152,31 @@ air-qualify -m "$MODEL" \
     --output "$MANIFEST" > "$OUT/qualification.txt" 2>&1
 record qualification "$?"
 
-python3 - "$MANIFEST" <<'PY' > "$OUT/manifest-check.txt" 2>&1
+python3 - "$MANIFEST" "$EXPECTED_MANIFEST_SCHEMA" <<'PY' > "$OUT/manifest-check.txt" 2>&1
 import json, sys
 p=sys.argv[1]
+expected=int(sys.argv[2])
 x=json.load(open(p, encoding='utf-8'))
 print('schema_version=', x.get('schema_version'), sep='')
+print('expected_schema_version=', expected, sep='')
 print('air_version=', x.get('air_version'), sep='')
 print('manifest_id=', x.get('manifest_id'), sep='')
 print('strategy_count=', len(x.get('strategies', [])), sep='')
-raise SystemExit(0 if x.get('schema_version') == 3 and x.get('strategies') else 1)
+raise SystemExit(0 if x.get('schema_version') == expected and x.get('strategies') else 1)
 PY
-record manifest_v3 "$?"
+record manifest_current "$?"
 
-# A pre-release schema must fail explicitly rather than being reinterpreted.
-python3 - "$MANIFEST" "$OUT/legacy-manifest-v2.json" <<'PY'
+# The immediately prior schema must fail explicitly rather than being reinterpreted.
+LEGACY_SCHEMA=$((EXPECTED_MANIFEST_SCHEMA - 1))
+python3 - "$MANIFEST" "$OUT/legacy-manifest.json" "$LEGACY_SCHEMA" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1], encoding='utf-8'))
-x['schema_version']=2
+x['schema_version']=int(sys.argv[3])
 json.dump(x, open(sys.argv[2], 'w', encoding='utf-8'), separators=(',', ':'))
 PY
 LEGACY_PORT=$((PORT + 1))
 air-server -m "$MODEL" --backend auto --device 0 --host 127.0.0.1 --port "$LEGACY_PORT" \
-    --manifest "$OUT/legacy-manifest-v2.json" --require-manifest --prefix-cache 0 \
+    --manifest "$OUT/legacy-manifest.json" --require-manifest --prefix-cache 0 \
     > "$OUT/legacy-manifest-server.txt" 2>&1
 LEGACY_RC=$?
 if [ "$LEGACY_RC" -eq 0 ]; then
@@ -174,7 +206,7 @@ int main() {
 }
 CPP
 cmake -S "$CONSUMER" -B "$CONSUMER/build" \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$HOME/.local" \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PREFIX" \
     > "$OUT/cmake-consumer-configure.txt" 2>&1 && \
 cmake --build "$CONSUMER/build" -j2 > "$OUT/cmake-consumer-build.txt" 2>&1 && \
 "$CONSUMER/build/air_consumer" > "$OUT/cmake-consumer-run.txt" 2>&1
@@ -186,7 +218,7 @@ DMON_PID=$!
 
 air-server -m "$MODEL" --backend auto --device 0 --host 127.0.0.1 --port "$PORT" \
     --manifest "$MANIFEST" --require-manifest --prefix-cache 0 \
-    --max-active 4 --token-budget 64 --prefill-quantum 16 \
+    --max-active 4 --max-queued 16 --token-budget 64 --prefill-quantum 16 \
     --stream-queue 64 --workers 8 --max-connections 16 --io-timeout 5 \
     --event-log "$OUT/server-events.jsonl" > "$OUT/server.txt" 2>&1 &
 SERVER_PID=$!
@@ -198,6 +230,27 @@ else
 fi
 
 if [ "$FAIL" -eq 0 ]; then
+    for endpoint in / /model /runtime /events /metrics /v1/models; do
+        SAFE_NAME="$(printf '%s' "$endpoint" | sed 's#^/$#root#; s#^/##; s#/#-#g')"
+        CODE="$(curl -sS -o "$OUT/get-$SAFE_NAME.body" -w '%{http_code}' "http://127.0.0.1:$PORT$endpoint" 2>>"$OUT/curl-stderr.txt")"
+        echo "$CODE" > "$OUT/get-$SAFE_NAME.status"
+        [ "$CODE" = "200" ]; record "get_$SAFE_NAME" "$?"
+    done
+
+    AIR_ROOT="$ROOT" AIR_PREFIX="$PREFIX" AIR_URL="http://127.0.0.1:$PORT" \
+        "$ROOT/scripts/air-web-doctor.sh" > "$OUT/web-doctor.txt" 2>&1
+    record web_doctor "$?"
+
+    AIR_URL="http://127.0.0.1:$PORT" \
+        "$ROOT/scripts/air-generation-doctor.sh" > "$OUT/generation-doctor.txt" 2>&1
+    record generation_doctor "$?"
+
+    STATUS="$(http_status "http://127.0.0.1:$PORT/decide" \
+        '{"input":"Route this request:","candidates":[{"id":"left","text":"Left","model_text":" left"},{"id":"right","text":"Right","model_text":" right"}],"scoring_policy":"sequence-logprob-mean","output_cardinality":"exactly-one","determinism":"required"}' \
+        "$OUT/native-decision.json")"
+    echo "$STATUS" > "$OUT/native-decision.status"
+    [ "$STATUS" = "200" ]; record native_decision "$?"
+
     curl -fsS "http://127.0.0.1:$PORT/runtime" > "$OUT/runtime-before.json" 2>/dev/null
 
     STATUS="$(http_status "http://127.0.0.1:$PORT/generate" \
