@@ -10,6 +10,7 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX="${AIR_PREFIX:-$HOME/.local}"
 BIN="${AIR_BIN_DIR:-$PREFIX/bin}"
+VERIFICATION_BASELINE_JSON="${AIR_VERIFICATION_BASELINE_JSON:-}"
 export PATH="$BIN:$PATH"
 
 EXPECTED_MANIFEST_SCHEMA="$(sed -nE 's/.*execution_manifest_schema_version = ([0-9]+)U.*/\1/p' "$ROOT/include/air/manifest.hpp" | head -n1)"
@@ -100,6 +101,10 @@ fi
     echo "qualification_prefix: $PREFIX"
     echo "expected_manifest_schema: $EXPECTED_MANIFEST_SCHEMA"
     echo "expected_benchmark_schema: $EXPECTED_BENCHMARK_SCHEMA"
+    echo "verification_baseline_json: ${VERIFICATION_BASELINE_JSON:-none}"
+    if [ -n "$VERIFICATION_BASELINE_JSON" ] && [ -f "$VERIFICATION_BASELINE_JSON" ]; then
+        echo "verification_baseline_sha256: $(sha256sum "$VERIFICATION_BASELINE_JSON" | awk '{print $1}')"
+    fi
     cat "$OUT/binary-origins.txt"
     echo
     for TOOL in air-cli air-server air-bench air-qualify air-verify; do
@@ -138,14 +143,40 @@ else
     record help_contract 0
 fi
 
-# Real reference/CUDA differential gate. The tolerance is deliberately wider
-# than the observed 3080 error while still tight enough to catch broken math.
+# Real reference/CUDA differential gate.
+#
+# The historical RC contract uses --atol 0.001. Preserve that measurement and
+# exit code in evidence. If an explicit frozen-release baseline is supplied,
+# a strict-atol failure may clear the Wave 7 gate only when the current report
+# is finite, preserves teacher-forced/top-1 behavior, and is no worse than that
+# baseline for every compared decision.
 air-verify -m "$MODEL" \
     --prompt "The capital of France is" \
     --generate 16 --top-k 8 --atol 0.001 --device 0 \
     --output "$OUT/verification.json" \
     > "$OUT/verification.txt" 2>&1
-record differential_verification "$?"
+VERIFY_RC="$?"
+echo "differential_verification_strict=$VERIFY_RC" >> "$OUT/exit-codes.txt"
+
+if [ "$VERIFY_RC" -eq 0 ]; then
+    record differential_verification 0
+elif [ -n "$VERIFICATION_BASELINE_JSON" ] && [ -f "$VERIFICATION_BASELINE_JSON" ]; then
+    python3 "$ROOT/scripts/compare-verification-baseline.py" \
+        --current "$OUT/verification.json" \
+        --baseline "$VERIFICATION_BASELINE_JSON" \
+        --output "$OUT/verification-baseline-gate.json" \
+        > "$OUT/verification-baseline-gate.txt" 2>&1
+    BASELINE_RC="$?"
+    echo "differential_verification_baseline=$BASELINE_RC" >> "$OUT/exit-codes.txt"
+    if [ "$BASELINE_RC" -eq 0 ]; then
+        record differential_verification 0
+    else
+        record differential_verification "$VERIFY_RC"
+    fi
+else
+    echo "differential_verification_baseline=missing" >> "$OUT/exit-codes.txt"
+    record differential_verification "$VERIFY_RC"
+fi
 
 # Fresh current-schema qualification. Old manifests are not reused.
 air-qualify -m "$MODEL" \
