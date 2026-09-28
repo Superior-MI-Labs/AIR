@@ -439,7 +439,8 @@ PY
 } > "$OUT/gates.txt"
 
 rm -f "$ARCHIVE"
-(cd "$HOME/Downloads" && zip -qr "$ARCHIVE" "$(basename "$OUT")")
+OUT_PARENT="$(dirname "$OUT")"
+(cd "$OUT_PARENT" && zip -qr "$ARCHIVE" "$(basename "$OUT")")
 ZIP_RC=$?
 
 printf '\n===== AIR RC VALIDATION =====\n'
