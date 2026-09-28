@@ -1,5 +1,5 @@
 #include "air/reference.hpp"
-#include "model/qwen2_contract.hpp"
+#include "model/architecture_adapter.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -299,9 +299,13 @@ Result<std::unique_ptr<ReferenceExecutor>> ReferenceExecutor::create(
 }
 
 Status ReferenceExecutor::validate_model() const {
-    auto status = detail::validate_qwen2_structure(*model_);
+    auto adapter_result = detail::resolve_model_architecture(*model_);
+    if (!adapter_result) return adapter_result.status();
+    const auto* adapter = adapter_result.value();
+
+    auto status = adapter->validate(*model_);
     if (!status) return status;
-    for (const auto& name : detail::qwen2_execution_tensor_names(*model_)) {
+    for (const auto& name : adapter->execution_tensor_names(*model_)) {
         const auto* tensor = model_->find_tensor(name);
         if (!tensor) return Status::internal_error("Qwen2 execution contract omitted required tensor: " + name);
         if (!ReferenceTensorReader::supports(tensor->type)) {
