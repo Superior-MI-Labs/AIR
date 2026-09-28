@@ -1502,22 +1502,28 @@ struct CudaExecutor::Impl {
         return resident;
     }
 
-    [[nodiscard]] static bool is_transformer_block_linear_name(std::string_view name) noexcept {
-        if (!name.starts_with("blk.")) return false;
-        return name.ends_with(".attn_q.weight") ||
-               name.ends_with(".attn_k.weight") ||
-               name.ends_with(".attn_v.weight") ||
-               name.ends_with(".attn_output.weight") ||
-               name.ends_with(".ffn_gate.weight") ||
-               name.ends_with(".ffn_up.weight") ||
-               name.ends_with(".ffn_down.weight");
+    [[nodiscard]] bool is_transformer_block_linear(
+        const TensorDescriptor* descriptor) const noexcept {
+        if (!descriptor || !prepared) return false;
+        for (const auto& layer : prepared->layers) {
+            if (descriptor == layer.query_weight ||
+                descriptor == layer.key_weight ||
+                descriptor == layer.value_weight ||
+                descriptor == layer.attention_output_weight ||
+                descriptor == layer.ffn_gate_weight ||
+                descriptor == layer.ffn_up_weight ||
+                descriptor == layer.ffn_down_weight) {
+                return true;
+            }
+        }
+        return false;
     }
 
     [[nodiscard]] std::uint64_t dense_f32_required_bytes() const noexcept {
         std::uint64_t total_bytes = 0U;
-        for (const auto& [name, resident] : tensors) {
+        for (const auto& [_, resident] : tensors) {
             const auto& dims = resident.descriptor->shape.dimensions;
-            if (dims.size() != 2U || !is_transformer_block_linear_name(name)) continue;
+            if (dims.size() != 2U || !is_transformer_block_linear(resident.descriptor)) continue;
             if (dims[0] != 0U && dims[1] > std::numeric_limits<std::uint64_t>::max() / dims[0]) {
                 return std::numeric_limits<std::uint64_t>::max();
             }
@@ -1546,9 +1552,9 @@ struct CudaExecutor::Impl {
         };
         std::vector<DensePlacement> placements;
         std::uint64_t total_bytes = 0U;
-        for (const auto& [name, resident] : tensors) {
+        for (const auto& [_, resident] : tensors) {
             const auto& dims = resident.descriptor->shape.dimensions;
-            if (dims.size() != 2U || !is_transformer_block_linear_name(name)) continue;
+            if (dims.size() != 2U || !is_transformer_block_linear(resident.descriptor)) continue;
             // Prepared block-linear state follows the explicit operation scope.
             // Embeddings, vocabulary projection, and unrelated rank-2 tensors are
             // not materialized merely because they share a matrix shape.
@@ -1608,11 +1614,13 @@ struct CudaExecutor::Impl {
         return found->second;
     }
 
-    [[nodiscard]] static bool packed_dp4a_eligible(const ResidentTensor& resident) noexcept {
+    [[nodiscard]] bool packed_dp4a_eligible(
+        const ResidentTensor& resident) const noexcept {
         const auto& dims = resident.descriptor->shape.dimensions;
         return dims.size() == 2U &&
-               is_transformer_block_linear_name(resident.descriptor->name) &&
-               (resident.descriptor->type == DataType::q5_0 || resident.descriptor->type == DataType::q8_0);
+               is_transformer_block_linear(resident.descriptor) &&
+               (resident.descriptor->type == DataType::q5_0 ||
+                resident.descriptor->type == DataType::q8_0);
     }
 
     [[nodiscard]] std::uint64_t packed_dp4a_required_bytes() const noexcept {
