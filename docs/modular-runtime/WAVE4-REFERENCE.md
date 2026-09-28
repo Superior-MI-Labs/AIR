@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 4 Reference Migration
 
-Status: IMPLEMENTED / AWAITING MACHINE QUALIFICATION
+Status: CLOSED / QUALIFIED
 
 ## Objective
 
@@ -116,15 +116,19 @@ Wave 1 and Wave 3 characterization remain active, including:
 - structural tensor validation;
 - prepared semantic binding tests.
 
-## Wave 4 exit gate
+## Wave 4 qualification result
 
-Wave 4 may close only when the exact branch HEAD:
+WolfCat-Studio qualification reported:
 
-1. builds in Release mode with CUDA enabled on WolfCat-Studio;
-2. passes the complete CTest suite;
-3. preserves the existing reference numerical characterization;
-4. preserves verified/plain logit equality and verification-stage ordering;
-5. keeps zero source tensor-name reconstruction and zero `find_tensor()` calls in `ReferenceExecutor`;
-6. requires no scheduler, serving, CUDA, MEF, or Builder compensation.
+```text
+Release build
+CUDA=ON
+12/12 CTests PASS
+0 failures
+```
 
-If this gate passes, Wave 5 may migrate CUDA numerical tensor access to the same semantic contract.
+Reference numerical execution therefore qualified on semantic bindings while preserving the existing oracle behavior and without requiring scheduler, serving, CUDA, MEF, or Builder compensation.
+
+Wave 4 is CLOSED / QUALIFIED.
+
+Wave 5 is authorized to migrate CUDA numerical tensor access to the same semantic contract.
