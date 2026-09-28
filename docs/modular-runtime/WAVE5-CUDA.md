@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 5 CUDA Migration
 
-Status: IMPLEMENTED / AWAITING MACHINE QUALIFICATION
+Status: CLOSED / QUALIFIED
 
 ## Objective
 
@@ -121,16 +121,19 @@ This turns the existing CUDA CTest into a real semantic-binding execution qualif
 - MEF R0;
 - Builder.
 
-## Wave 5 exit gate
+## Wave 5 qualification result
 
-Wave 5 may close only when the exact branch HEAD on WolfCat-Studio:
+WolfCat-Studio qualification reported:
 
-1. builds in Release mode with CUDA enabled;
-2. passes the complete 12-test CTest suite;
-3. passes the strengthened CUDA/reference parity test on the actual NVIDIA device;
-4. exercises and passes single decode, batched decode, single prefill, and multi-sequence prefill;
-5. preserves existing scheduler, serving, Decision, and lifecycle tests;
-6. keeps the CUDA source-level name boundary described above;
-7. requires no MEF or Builder contract change.
+```text
+Release build
+CUDA=ON
+12/12 CTests PASS
+0 failures
+```
 
-If this passes, Wave 6 may begin architecture-abstraction falsification with alternate source tensor identities and destructive semantic-binding tests.
+The strengthened CUDA contract test therefore executed on the actual NVIDIA device and passed the semantic-binding migration together with the existing system suite.
+
+Wave 5 is CLOSED / QUALIFIED.
+
+Wave 6 is authorized to falsify the architecture boundary with alternate source tensor identities and destructive prepared-state tests.
