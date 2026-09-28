@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 7 Full-System Qualification
 
-Status: IMPLEMENTED / AWAITING MACHINE QUALIFICATION
+Status: QUALIFICATION IN PROGRESS / DIFFERENTIAL GATE UNDER INVESTIGATION
 
 ## Objective
 
@@ -172,6 +172,71 @@ containing, at minimum:
 - `wave7-summary.txt`.
 
 The RC evidence includes per-gate exit codes and generated runtime artifacts.
+
+## First machine qualification result
+
+The first isolated WolfCat-Studio Wave 7 run successfully exercised the upgraded
+qualification harness and produced a genuine single-gate failure:
+
+```text
+overall_fail=1
+
+PASS:
+installed binary origin
+help contract
+fresh qualification manifest
+current manifest schema
+legacy manifest rejection
+installed CMake consumer
+server startup/shutdown
+bounded overload
+overload resource reclamation
+overload shutdown
+
+FAIL:
+differential_verification=9
+```
+
+The differential report itself remained finite and preserved top-1 parity for
+all 16 teacher-forced decisions.
+
+Observed full-logit error:
+
+```text
+requested atol:       0.001
+worst max_abs_error:  0.0039185285568237305
+top-1 parity:         16/16
+finite:               true
+```
+
+The release harness therefore failed correctly rather than silently accepting
+the result.
+
+The historical AIR v0.9.12 RC harness uses the same `--atol 0.001` threshold.
+That threshold must not be loosened without evidence.
+
+A dedicated discriminator is now provided:
+
+```text
+scripts/compare-v0912-verification.sh
+```
+
+It builds frozen `v0.9.12` on the same machine/toolchain and runs the identical
+model, prompt, teacher-forced decision count, CUDA device, top-k, and tolerance.
+
+Interpretation:
+
+- if frozen v0.9.12 passes at 0.001 while the modular branch fails, treat the
+  modular branch as a numerical-regression suspect and bisect/fix it;
+- if frozen v0.9.12 also fails with a comparable error distribution, treat the
+  historical tolerance as non-reproducible on the current machine/toolchain
+  and investigate/redefine the release numerical contract from evidence;
+- do not weaken the threshold before this comparison.
+
+Because the first differential failure sets the RC failure flag, several
+independent public-surface/stress gates were not executed in that run. A full
+Wave 7 qualification rerun remains required after the differential issue is
+resolved.
 
 ## Wave 7 exit gate
 
