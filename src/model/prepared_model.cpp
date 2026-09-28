@@ -159,14 +159,16 @@ Status validate_prepared_model_semantics(const PreparedModelSemantics& prepared)
             "prepared Qwen2 execution requires full, even head-dimension RoPE");
     }
 
-    const auto owns = [&prepared](const TensorDescriptor* tensor, bool optional = false) {
-        if (!tensor) return optional;
-        return owns_descriptor(*prepared.source_model, tensor);
+    // Ownership is meaningful only for a bound descriptor. Missing required
+    // roles are classified later by require_shape() as data errors; otherwise
+    // null would be misreported as a foreign descriptor.
+    const auto owns_if_bound = [&prepared](const TensorDescriptor* tensor) {
+        return !tensor || owns_descriptor(*prepared.source_model, tensor);
     };
-    if (!owns(prepared.token_embedding_weight) ||
-        !owns(prepared.output_norm_weight) ||
-        !owns(prepared.output_weight) ||
-        !owns(prepared.output_bias, true)) {
+    if (!owns_if_bound(prepared.token_embedding_weight) ||
+        !owns_if_bound(prepared.output_norm_weight) ||
+        !owns_if_bound(prepared.output_weight) ||
+        !owns_if_bound(prepared.output_bias)) {
         return Status::invalid_argument(
             "prepared semantic top-level binding does not belong to canonical model");
     }
@@ -217,14 +219,14 @@ Status validate_prepared_model_semantics(const PreparedModelSemantics& prepared)
                  layer.ffn_gate_weight,
                  layer.ffn_up_weight,
                  layer.ffn_down_weight}) {
-            if (!owns(tensor)) {
+            if (!owns_if_bound(tensor)) {
                 return Status::invalid_argument(
                     "prepared semantic required layer binding does not belong to canonical model");
             }
         }
         for (const auto* tensor : {
                  layer.query_bias, layer.key_bias, layer.value_bias}) {
-            if (!owns(tensor, true)) {
+            if (!owns_if_bound(tensor)) {
                 return Status::invalid_argument(
                     "prepared semantic optional layer binding does not belong to canonical model");
             }
