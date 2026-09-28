@@ -311,6 +311,78 @@ Root-cause fix:
 
 A complete Wave 7 rerun remains required.
 
+## Third machine qualification attempt
+
+The next full isolated Wave 7 run completed the product qualification program
+and reduced the remaining failure to one browser-doctor harness check.
+
+Product and runtime results:
+
+```text
+12/12 CTests PASS
+
+differential_verification_strict=9
+differential_verification_baseline=0
+differential_verification=0
+
+qualification=0
+manifest_current=0
+legacy_manifest_rejected=0
+cmake_consumer=0
+
+server_ready=0
+generation_doctor=0
+native_decision=0
+native_generate=0
+openai_completions=0
+openai_chat=0
+unsupported_field_rejected=0
+conflicting_fields_rejected=0
+light_stress=0
+resource_reclamation=0
+server_shutdown=0
+bounded_overload=0
+overload_resource_reclamation=0
+overload_server_shutdown=0
+
+web_doctor=1
+overall_fail=1
+```
+
+The archived browser-doctor evidence shows that both source and installed web
+trees are AIR Web `3.2.0`, all 12 JavaScript files parse, all live runtime
+endpoints return HTTP 200, all served `v320` script bytes return HTTP 200 and
+parse successfully, and the legacy `setup.js` path is not served.
+
+The failure is caused solely by stale expectations inside
+`scripts/air-web-doctor.sh`:
+
+```text
+EXPECTED=3.1.0
+expected entry=main-v310.js
+actual web=3.2.0
+actual entry=main-v320.js
+```
+
+Root-cause fix:
+
+- the web doctor no longer hard-codes a historical web version;
+- canonical source `web/index.html` owns the expected web version and main
+  entry script for the check;
+- the installed web tree must match both identities;
+- the served page must match both identities;
+- JavaScript parsing, live endpoint checks, legacy-path rejection, and launcher
+  checks remain unchanged.
+
+No AIR production C++, CUDA, scheduler, serving, model, or web application
+bytes were changed by this fix.
+
+Because all other Wave 7 gates already passed on the isolated product and the
+remaining change is qualification-harness-only, a targeted browser requalification
+against that exact isolated prefix is sufficient before AIR-local Wave 7
+closure. A full product rebuild is not required unless the targeted check
+exposes an actual served-application defect.
+
 ## Wave 7 exit gate
 
 Wave 7 may close only when:
