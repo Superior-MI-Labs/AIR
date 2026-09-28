@@ -45,7 +45,7 @@ mkdir -p "$OUT"
 AIR_ENABLE_CUDA=ON \
 BUILD_DIR="$BUILD_DIR" \
 PREFIX="$PREFIX" \
-"$ROOT/scripts/install-local.sh" 2>&1 | \
+bash "$ROOT/scripts/install-local.sh" 2>&1 | \
     tee "$OUT/install-and-ctest.txt"
 
 
@@ -82,7 +82,7 @@ AIR_BIN_DIR="$PREFIX/bin" \
 AIR_RC_OUT="$RC_OUT" \
 AIR_RC_ARCHIVE="$RC_ARCHIVE" \
 AIR_VERIFICATION_BASELINE_JSON="$BASELINE_JSON" \
-"$ROOT/scripts/validate-rc-machine.sh" "$MODEL" "$PORT" 2>&1 | \
+bash "$ROOT/scripts/validate-rc-machine.sh" "$MODEL" "$PORT" 2>&1 | \
     tee "$OUT/validate-rc.txt"
 
 {
