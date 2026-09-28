@@ -595,6 +595,19 @@ void test_qwen2_structure_contract_failures() {
     auto wrong_shape_result = air::ReferenceExecutor::create(wrong_shape_model);
     check(!wrong_shape_result && wrong_shape_result.status().code() == air::ErrorCode::data_error,
           "shape-incompatible Qwen2 semantic tensor is rejected before execution");
+
+    auto duplicate_tensors = base->tensors();
+    duplicate_tensors.push_back(duplicate_tensors.front());
+    auto duplicate_model = std::make_shared<air::ModelDefinition>(
+        air::ModelFingerprint{"test", "qwen2", "duplicate-source-tensor"},
+        base->config(), base->tokenizer(), std::move(duplicate_tensors), base->storage());
+    auto duplicate_adapter = air::detail::resolve_model_architecture(*duplicate_model);
+    check(duplicate_adapter.is_ok(), "duplicate-source fixture still resolves by architecture identity");
+    if (duplicate_adapter) {
+        auto duplicate_result = duplicate_adapter.value()->prepare(*duplicate_model);
+        check(!duplicate_result && duplicate_result.status().code() == air::ErrorCode::invalid_argument,
+              "canonical ModelDefinition rejects duplicate tensor identity before semantic preparation");
+    }
 }
 
 void test_qwen2_optional_qkv_bias_contract() {
@@ -614,6 +627,20 @@ void test_qwen2_optional_qkv_bias_contract() {
 
     auto biased = builder.finish(base->config(), base->tokenizer(),
                                   "air-reference-qwen2-qkv-bias.bin");
+    auto adapter_result = air::detail::resolve_model_architecture(*biased);
+    check(adapter_result.is_ok(), "biased Qwen2 fixture resolves through the architecture adapter");
+    if (adapter_result) {
+        auto prepared_result = adapter_result.value()->prepare(*biased);
+        check(prepared_result.is_ok(), "optional Q/K/V biases prepare as semantic bindings");
+        if (prepared_result && !prepared_result.value().layers.empty()) {
+            const auto& layer = prepared_result.value().layers.front();
+            check(layer.query_bias != nullptr &&
+                      layer.key_bias != nullptr &&
+                      layer.value_bias != nullptr,
+                  "optional Q/K/V source tensors bind to explicit semantic bias roles");
+        }
+    }
+
     auto executor = air::ReferenceExecutor::create(biased);
     check(executor.is_ok(), "optional Qwen2 Q/K/V biases are accepted by the execution contract");
     if (!executor) return;
