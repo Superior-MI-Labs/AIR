@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <span>
+#include <unordered_set>
 
 namespace air::detail {
 
@@ -47,6 +48,24 @@ bool owns_descriptor(const ModelDefinition& model, const TensorDescriptor* descr
         });
 }
 
+bool same_geometry(const ModelConfig& left, const ModelConfig& right) {
+    return left.architecture == right.architecture &&
+           left.layer_count == right.layer_count &&
+           left.embedding_size == right.embedding_size &&
+           left.feed_forward_size == right.feed_forward_size &&
+           left.attention_head_count == right.attention_head_count &&
+           left.kv_head_count == right.kv_head_count &&
+           left.attention_sliding_window == right.attention_sliding_window &&
+           left.rope_dimension_count == right.rope_dimension_count &&
+           left.context_length == right.context_length &&
+           left.vocabulary_size == right.vocabulary_size &&
+           left.rope_frequency_base == right.rope_frequency_base &&
+           left.rope_scaling_type == right.rope_scaling_type &&
+           left.rope_scaling_factor == right.rope_scaling_factor &&
+           left.rope_scale_linear == right.rope_scale_linear &&
+           left.rms_norm_epsilon == right.rms_norm_epsilon;
+}
+
 Status require_shape(const TensorDescriptor* tensor,
                      std::span<const std::uint64_t> expected,
                      const char* role,
@@ -82,6 +101,10 @@ Status validate_prepared_model_semantics(const PreparedModelSemantics& prepared)
         prepared.architecture != config.architecture ||
         config.architecture != prepared.source_model->config().architecture) {
         return Status::invalid_argument("prepared semantic architecture identity is inconsistent");
+    }
+    if (!same_geometry(config, prepared.source_model->config())) {
+        return Status::invalid_argument(
+            "prepared semantic geometry diverges from canonical model");
     }
     if (config.layer_count == 0U || config.embedding_size == 0U ||
         config.attention_head_count == 0U || config.kv_head_count == 0U ||
@@ -216,6 +239,18 @@ Status validate_prepared_model_semantics(const PreparedModelSemantics& prepared)
         status = require_shape(
             layer.ffn_down_weight, ffn_out_shape, "layer.ffn_down_weight");
         if (!status) return status;
+    }
+
+    std::unordered_set<const TensorDescriptor*> unique_execution_tensors;
+    for (const auto* tensor : prepared.execution_tensors()) {
+        if (!tensor) {
+            return Status::invalid_argument(
+                "prepared semantic execution tensor set contains null");
+        }
+        if (!unique_execution_tensors.insert(tensor).second) {
+            return Status::invalid_argument(
+                "prepared semantic roles duplicate one physical tensor descriptor");
+        }
     }
 
     return Status::ok();
