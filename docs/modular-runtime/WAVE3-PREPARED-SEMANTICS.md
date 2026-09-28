@@ -95,6 +95,8 @@ Wave 3 adds direct tests for:
 - semantic Q/K/V role binding;
 - preservation of source TensorDescriptor names for provenance;
 - absent optional Q/K/V bias bindings;
+- present optional Q/K/V tensors becoming explicit semantic bias roles;
+- canonical duplicate tensor identity being rejected before semantic preparation;
 - de-duplicated execution tensor enumeration for tied output.
 
 Existing Wave 1 tests continue to protect:
