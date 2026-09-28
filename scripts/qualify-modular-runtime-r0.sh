@@ -64,7 +64,7 @@ echo "precheck_strict_verify_exit=$PRECHECK_RC" >> "$OUT/identity.txt"
 
 BASELINE_OUT="$OUT/v0912-baseline"
 AIR_VERIFY_BASELINE_OUT="$BASELINE_OUT" \
-"$ROOT/scripts/compare-v0912-verification.sh" \
+bash "$ROOT/scripts/compare-v0912-verification.sh" \
     "$MODEL" "$PRECHECK_JSON" 2>&1 | \
     tee "$OUT/v0912-baseline-comparison.txt"
 
