@@ -2939,9 +2939,9 @@ Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(
 
     auto status = activate_device(impl_->device_ordinal);
     if (!status) return status;
-    const auto& config = impl_->model->config();
+    const auto& config = impl_->prepared->geometry;
     const std::uint32_t count = static_cast<std::uint32_t>(tokens.size());
-    const std::uint32_t head_dimension = config.embedding_size / config.attention_head_count;
+    const std::uint32_t head_dimension = impl_->prepared->head_dimension;
     const std::uint64_t embedding_width = config.embedding_size;
     const std::uint64_t kv_width = static_cast<std::uint64_t>(config.kv_head_count) * head_dimension;
 
@@ -2978,26 +2978,23 @@ Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(
         if (!status) return fail(status);
     }
 
-    const auto* embedding = impl_->tensor("token_embd.weight");
+    const auto* embedding = impl_->tensor(impl_->prepared->token_embedding_weight);
     if (!embedding) return fail(Status::internal_error("resident token embedding is missing"));
     status = impl_->load_rows(*embedding, tokens, embedding_width, impl_->workspace.hidden);
     if (!status) return fail(status);
 
-    const auto block_name = [](std::uint32_t layer, const char* suffix) {
-        return "blk." + std::to_string(layer) + "." + suffix;
-    };
-
     for (std::uint32_t layer = 0; layer < config.layer_count; ++layer) {
         ScopedProfileRange layer_range("air.decode.batch.layer");
-        const auto* attn_norm = impl_->tensor(block_name(layer, "attn_norm.weight"));
-        const auto* q_weight = impl_->tensor(block_name(layer, "attn_q.weight"));
-        const auto* k_weight = impl_->tensor(block_name(layer, "attn_k.weight"));
-        const auto* v_weight = impl_->tensor(block_name(layer, "attn_v.weight"));
-        const auto* attn_output = impl_->tensor(block_name(layer, "attn_output.weight"));
-        const auto* ffn_norm = impl_->tensor(block_name(layer, "ffn_norm.weight"));
-        const auto* gate_weight = impl_->tensor(block_name(layer, "ffn_gate.weight"));
-        const auto* up_weight = impl_->tensor(block_name(layer, "ffn_up.weight"));
-        const auto* down_weight = impl_->tensor(block_name(layer, "ffn_down.weight"));
+        const auto& bindings = impl_->prepared->layers[static_cast<std::size_t>(layer)];
+        const auto* attn_norm = impl_->tensor(bindings.attention_norm_weight);
+        const auto* q_weight = impl_->tensor(bindings.query_weight);
+        const auto* k_weight = impl_->tensor(bindings.key_weight);
+        const auto* v_weight = impl_->tensor(bindings.value_weight);
+        const auto* attn_output = impl_->tensor(bindings.attention_output_weight);
+        const auto* ffn_norm = impl_->tensor(bindings.ffn_norm_weight);
+        const auto* gate_weight = impl_->tensor(bindings.ffn_gate_weight);
+        const auto* up_weight = impl_->tensor(bindings.ffn_up_weight);
+        const auto* down_weight = impl_->tensor(bindings.ffn_down_weight);
         if (!attn_norm || !q_weight || !k_weight || !v_weight || !attn_output ||
             !ffn_norm || !gate_weight || !up_weight || !down_weight) {
             return fail(Status::internal_error("resident Qwen2 layer tensor is missing"));
@@ -3009,9 +3006,9 @@ Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(
         status = impl_->matmul(*q_weight, impl_->workspace.normalized, impl_->workspace.q, count, block_linear); if (!status) return fail(status);
         status = impl_->matmul(*k_weight, impl_->workspace.normalized, impl_->workspace.k, count, block_linear); if (!status) return fail(status);
         status = impl_->matmul(*v_weight, impl_->workspace.normalized, impl_->workspace.v, count, block_linear); if (!status) return fail(status);
-        status = impl_->add_optional_tensor_batch(impl_->workspace.q, block_name(layer, "attn_q.bias"), embedding_width, count); if (!status) return fail(status);
-        status = impl_->add_optional_tensor_batch(impl_->workspace.k, block_name(layer, "attn_k.bias"), kv_width, count); if (!status) return fail(status);
-        status = impl_->add_optional_tensor_batch(impl_->workspace.v, block_name(layer, "attn_v.bias"), kv_width, count); if (!status) return fail(status);
+        status = impl_->add_optional_tensor_batch(impl_->workspace.q, bindings.query_bias, embedding_width, count); if (!status) return fail(status);
+        status = impl_->add_optional_tensor_batch(impl_->workspace.k, bindings.key_bias, kv_width, count); if (!status) return fail(status);
+        status = impl_->add_optional_tensor_batch(impl_->workspace.v, bindings.value_bias, kv_width, count); if (!status) return fail(status);
 
         for (std::uint32_t item = 0; item < count; ++item) {
             const auto position = kvs[item]->token_count;
@@ -3053,19 +3050,19 @@ Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(
         }
     }
 
-    const auto* output_norm = impl_->tensor("output_norm.weight");
+    const auto* output_norm = impl_->tensor(impl_->prepared->output_norm_weight);
     if (!output_norm) return fail(Status::internal_error("resident output norm is missing"));
     status = impl_->rms_norm_batch(impl_->workspace.hidden, *output_norm, embedding_width,
                                    static_cast<float>(config.rms_norm_epsilon),
                                    impl_->workspace.normalized, count); if (!status) return fail(status);
-    const auto* output_weight = impl_->tensor(impl_->model->find_tensor("output.weight") ? "output.weight" : "token_embd.weight");
+    const auto* output_weight = impl_->tensor(impl_->prepared->output_weight);
     if (!output_weight) return fail(Status::internal_error("resident output weight is missing"));
     {
         ScopedProfileRange output_range("air.decode.batch.output_projection");
         status = impl_->matmul(*output_weight, impl_->workspace.normalized, impl_->workspace.logits, count, output_linear);
     }
     if (!status) return fail(status);
-    status = impl_->add_optional_tensor_batch(impl_->workspace.logits, "output.bias", config.vocabulary_size, count); if (!status) return fail(status);
+    status = impl_->add_optional_tensor_batch(impl_->workspace.logits, impl_->prepared->output_bias, config.vocabulary_size, count); if (!status) return fail(status);
 
     std::vector<TokenId> selected;
     selected.reserve(count);
