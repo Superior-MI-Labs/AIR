@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 1 Architecture Census
 
-Status: CHARACTERIZATION GATE IN PROGRESS
+Status: CLOSED / QUALIFIED
 Source branch: `architecture/modular-runtime-r0`
 Source baseline: `f57f860515e5deab8b4c31d190b1f091bbbbb15d`
 
@@ -299,13 +299,17 @@ Wave 1 added characterization coverage for the remaining high-value contract gap
 
 The new tests are characterization only. No production source is changed by that commit.
 
-## Wave 1 close conditions still outstanding
+## Wave 1 qualification result
 
-Before Wave 1 is CLOSED:
+WolfCat-Studio qualification on the exact characterization branch reported:
 
-- update the modular-runtime worktree to the characterization-test commit;
-- run the complete build/CTest suite on that exact commit;
-- require 12/12 tests to pass with CUDA enabled;
-- record the resulting exact HEAD and machine evidence.
+```text
+Release build
+CUDA=ON
+12/12 CTests PASS
+0 failures
+```
 
-Do not start Wave 2 implementation before those gates are met.
+Wave 1 is therefore CLOSED / QUALIFIED.
+
+The census and characterization tests are now the regression authority for the first architecture-boundary extraction.
