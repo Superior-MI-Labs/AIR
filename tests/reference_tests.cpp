@@ -514,6 +514,68 @@ void test_output_bias_and_scaled_rope_contracts() {
           "Qwen2 sliding-window attention is rejected until its semantics are implemented");
 }
 
+
+void test_qwen2_structure_contract_failures() {
+    auto base = make_tiny_qwen2();
+
+    auto missing_tensors = base->tensors();
+    missing_tensors.erase(
+        std::remove_if(missing_tensors.begin(), missing_tensors.end(),
+                       [](const air::TensorDescriptor& tensor) {
+                           return tensor.name == "blk.0.attn_q.weight";
+                       }),
+        missing_tensors.end());
+    auto missing = std::make_shared<air::ModelDefinition>(
+        air::ModelFingerprint{"test", "qwen2", "missing-query-weight"},
+        base->config(), base->tokenizer(), std::move(missing_tensors), base->storage());
+    auto missing_result = air::ReferenceExecutor::create(missing);
+    check(!missing_result && missing_result.status().code() == air::ErrorCode::data_error,
+          "missing required Qwen2 semantic tensor is rejected before execution");
+
+    auto wrong_shape_tensors = base->tensors();
+    const auto wrong_shape = std::find_if(
+        wrong_shape_tensors.begin(), wrong_shape_tensors.end(),
+        [](const air::TensorDescriptor& tensor) {
+            return tensor.name == "blk.0.attn_q.weight";
+        });
+    if (wrong_shape != wrong_shape_tensors.end()) {
+        wrong_shape->shape.dimensions = {4, 3};
+    }
+    auto wrong_shape_model = std::make_shared<air::ModelDefinition>(
+        air::ModelFingerprint{"test", "qwen2", "wrong-query-shape"},
+        base->config(), base->tokenizer(), std::move(wrong_shape_tensors), base->storage());
+    auto wrong_shape_result = air::ReferenceExecutor::create(wrong_shape_model);
+    check(!wrong_shape_result && wrong_shape_result.status().code() == air::ErrorCode::data_error,
+          "shape-incompatible Qwen2 semantic tensor is rejected before execution");
+}
+
+void test_qwen2_optional_qkv_bias_contract() {
+    auto base = make_tiny_qwen2();
+
+    ModelBuilder builder;
+    for (const auto& tensor : base->tensors()) {
+        auto bytes = base->tensor_bytes(tensor);
+        if (!bytes) throw std::runtime_error(bytes.status().message());
+        builder.add_raw(tensor.name, tensor.type, tensor.format_type, tensor.shape.dimensions,
+                        std::vector<std::byte>(bytes.value().begin(), bytes.value().end()));
+    }
+
+    builder.add_f32("blk.0.attn_q.bias", {4}, zeros(4));
+    builder.add_f32("blk.0.attn_k.bias", {2}, zeros(2));
+    builder.add_f32("blk.0.attn_v.bias", {2}, zeros(2));
+
+    auto biased = builder.finish(base->config(), base->tokenizer(),
+                                  "air-reference-qwen2-qkv-bias.bin");
+    auto executor = air::ReferenceExecutor::create(biased);
+    check(executor.is_ok(), "optional Qwen2 Q/K/V biases are accepted by the execution contract");
+    if (!executor) return;
+
+    air::ReferenceKvCache cache(1, 1, 2, 8);
+    auto logits = executor.value()->step(2, cache);
+    check(logits.is_ok() && cache.size() == 1,
+          "optional Qwen2 Q/K/V bias path executes through normal reference inference");
+}
+
 void test_reference_rejects_wrong_architecture() {
     auto model = make_tiny_qwen2();
     air::ModelConfig config = model->config();
@@ -536,6 +598,8 @@ int main() {
     test_kv_transaction();
     test_qwen2_reference_executor();
     test_output_bias_and_scaled_rope_contracts();
+    test_qwen2_structure_contract_failures();
+    test_qwen2_optional_qkv_bias_contract();
     test_reference_rejects_wrong_architecture();
 
     if (failures != 0) {
