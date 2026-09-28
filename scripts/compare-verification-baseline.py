@@ -21,6 +21,7 @@ def summary(doc):
         "max_abs_error": max(max_abs, default=0.0),
         "max_rms_error": max(rms, default=0.0),
         "max_mean_abs_error": max(mean_abs, default=0.0),
+        "error_vectors": list(zip(max_abs, rms, mean_abs)),
         "teacher_forced_tokens": doc.get("teacher_forced_tokens", []),
         "decision_tops": [
             (
@@ -32,7 +33,7 @@ def summary(doc):
         ],
     }
 
-def not_worse(current, baseline, rel=0.01, abs_eps=1e-7):
+def not_worse(current, baseline, rel=0.0, abs_eps=1e-7):
     limit = baseline * (1.0 + rel) + abs_eps
     return current <= limit, limit
 
@@ -69,12 +70,24 @@ def main():
     checks["max_rms_error_not_worse"] = rms_ok
     checks["max_mean_abs_error_not_worse"] = mean_ok
 
+    per_decision_not_worse = (
+        len(current["error_vectors"]) == len(baseline["error_vectors"])
+        and all(
+            c_max <= b_max + 1e-7
+            and c_rms <= b_rms + 1e-7
+            and c_mean <= b_mean + 1e-7
+            for (c_max, c_rms, c_mean), (b_max, b_rms, b_mean)
+            in zip(current["error_vectors"], baseline["error_vectors"])
+        )
+    )
+    checks["per_decision_error_not_worse"] = per_decision_not_worse
+
     result = {
         "schema": "air.verification.baseline-comparison.v1",
         "current": current,
         "baseline": baseline,
         "limits": {
-            "relative_headroom": 0.01,
+            "relative_headroom": 0.0,
             "absolute_epsilon": 1e-7,
             "max_abs_error": max_limit,
             "max_rms_error": rms_limit,
