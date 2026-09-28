@@ -48,11 +48,40 @@ PREFIX="$PREFIX" \
 "$ROOT/scripts/install-local.sh" 2>&1 | \
     tee "$OUT/install-and-ctest.txt"
 
+
+# Produce the current report once, then build frozen v0.9.12 on this exact
+# machine/toolchain and retain its verification JSON as the numerical baseline.
+PRECHECK_JSON="$OUT/precheck-verification.json"
+set +e
+"$PREFIX/bin/air-verify" -m "$MODEL" \
+    --prompt "The capital of France is" \
+    --generate 16 --top-k 8 --atol 0.001 --device 0 \
+    --output "$PRECHECK_JSON" \
+    > "$OUT/precheck-verification.txt" 2>&1
+PRECHECK_RC="$?"
+set -e
+echo "precheck_strict_verify_exit=$PRECHECK_RC" >> "$OUT/identity.txt"
+
+BASELINE_OUT="$OUT/v0912-baseline"
+AIR_VERIFY_BASELINE_OUT="$BASELINE_OUT" \
+"$ROOT/scripts/compare-v0912-verification.sh" \
+    "$MODEL" "$PRECHECK_JSON" 2>&1 | \
+    tee "$OUT/v0912-baseline-comparison.txt"
+
+BASELINE_JSON="$BASELINE_OUT/v0.9.12-verification.json"
+if [[ ! -f "$BASELINE_JSON" ]]; then
+    echo "ERROR: frozen v0.9.12 verification baseline was not produced." >&2
+    exit 1
+fi
+echo "verification_baseline_json=$BASELINE_JSON" >> "$OUT/identity.txt"
+echo "verification_baseline_sha256=$(sha256sum "$BASELINE_JSON" | awk '{print $1}')" >> "$OUT/identity.txt"
+
 PATH="$PREFIX/bin:$PATH" \
 AIR_PREFIX="$PREFIX" \
 AIR_BIN_DIR="$PREFIX/bin" \
 AIR_RC_OUT="$RC_OUT" \
 AIR_RC_ARCHIVE="$RC_ARCHIVE" \
+AIR_VERIFICATION_BASELINE_JSON="$BASELINE_JSON" \
 "$ROOT/scripts/validate-rc-machine.sh" "$MODEL" "$PORT" 2>&1 | \
     tee "$OUT/validate-rc.txt"
 
