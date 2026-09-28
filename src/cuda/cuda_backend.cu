@@ -3275,9 +3275,8 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
 
     auto status = activate_device(impl_->device_ordinal);
     if (!status) return status;
-    const auto& config = impl_->model->config();
-    const std::uint32_t head_dimension =
-        config.embedding_size / config.attention_head_count;
+    const auto& config = impl_->prepared->geometry;
+    const std::uint32_t head_dimension = impl_->prepared->head_dimension;
     const std::uint64_t embedding_width = config.embedding_size;
     const std::uint64_t kv_width =
         static_cast<std::uint64_t>(config.kv_head_count) * head_dimension;
@@ -3312,10 +3311,6 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
             }
         }
     }
-
-    const auto block_name = [](std::uint32_t layer, const char* suffix) {
-        return "blk." + std::to_string(layer) + "." + suffix;
-    };
 
     struct RoundPart {
         std::size_t item_index{0};
@@ -3385,7 +3380,7 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
             return failure;
         };
 
-        const auto* embedding = impl_->tensor("token_embd.weight");
+        const auto* embedding = impl_->tensor(impl_->prepared->token_embedding_weight);
         if (!embedding) {
             return fail_round(
                 Status::internal_error("resident token embedding is missing"));
@@ -3398,24 +3393,16 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
 
         for (std::uint32_t layer = 0; layer < config.layer_count; ++layer) {
             ScopedProfileRange layer_range("air.prefill.multi_sequence.layer");
-            const auto* attn_norm =
-                impl_->tensor(block_name(layer, "attn_norm.weight"));
-            const auto* q_weight =
-                impl_->tensor(block_name(layer, "attn_q.weight"));
-            const auto* k_weight =
-                impl_->tensor(block_name(layer, "attn_k.weight"));
-            const auto* v_weight =
-                impl_->tensor(block_name(layer, "attn_v.weight"));
-            const auto* attn_output =
-                impl_->tensor(block_name(layer, "attn_output.weight"));
-            const auto* ffn_norm =
-                impl_->tensor(block_name(layer, "ffn_norm.weight"));
-            const auto* gate_weight =
-                impl_->tensor(block_name(layer, "ffn_gate.weight"));
-            const auto* up_weight =
-                impl_->tensor(block_name(layer, "ffn_up.weight"));
-            const auto* down_weight =
-                impl_->tensor(block_name(layer, "ffn_down.weight"));
+            const auto& bindings = impl_->prepared->layers[static_cast<std::size_t>(layer)];
+            const auto* attn_norm = impl_->tensor(bindings.attention_norm_weight);
+            const auto* q_weight = impl_->tensor(bindings.query_weight);
+            const auto* k_weight = impl_->tensor(bindings.key_weight);
+            const auto* v_weight = impl_->tensor(bindings.value_weight);
+            const auto* attn_output = impl_->tensor(bindings.attention_output_weight);
+            const auto* ffn_norm = impl_->tensor(bindings.ffn_norm_weight);
+            const auto* gate_weight = impl_->tensor(bindings.ffn_gate_weight);
+            const auto* up_weight = impl_->tensor(bindings.ffn_up_weight);
+            const auto* down_weight = impl_->tensor(bindings.ffn_down_weight);
             if (!attn_norm || !q_weight || !k_weight || !v_weight ||
                 !attn_output || !ffn_norm || !gate_weight || !up_weight ||
                 !down_weight) {
@@ -3443,15 +3430,15 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
             if (!status) return fail_round(status);
 
             status = impl_->add_optional_tensor_batch(
-                impl_->workspace.q, block_name(layer, "attn_q.bias"),
+                impl_->workspace.q, bindings.query_bias,
                 embedding_width, total);
             if (!status) return fail_round(status);
             status = impl_->add_optional_tensor_batch(
-                impl_->workspace.k, block_name(layer, "attn_k.bias"),
+                impl_->workspace.k, bindings.key_bias,
                 kv_width, total);
             if (!status) return fail_round(status);
             status = impl_->add_optional_tensor_batch(
-                impl_->workspace.v, block_name(layer, "attn_v.bias"),
+                impl_->workspace.v, bindings.value_bias,
                 kv_width, total);
             if (!status) return fail_round(status);
 
@@ -3554,15 +3541,12 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
                 continue;
             }
 
-            const auto* output_norm = impl_->tensor("output_norm.weight");
+            const auto* output_norm = impl_->tensor(impl_->prepared->output_norm_weight);
             if (!output_norm) {
                 return fail_round(
                     Status::internal_error("resident output norm is missing"));
             }
-            const auto* output_weight = impl_->tensor(
-                impl_->model->find_tensor("output.weight")
-                    ? "output.weight"
-                    : "token_embd.weight");
+            const auto* output_weight = impl_->tensor(impl_->prepared->output_weight);
             if (!output_weight) {
                 return fail_round(
                     Status::internal_error("resident output weight is missing"));
@@ -3582,7 +3566,7 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
                 impl_->workspace.logits);
             if (!status) return fail_round(status);
             status = impl_->add_optional_tensor(
-                impl_->workspace.logits, "output.bias",
+                impl_->workspace.logits, impl_->prepared->output_bias,
                 config.vocabulary_size);
             if (!status) return fail_round(status);
 
