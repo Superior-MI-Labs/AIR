@@ -1,6 +1,8 @@
 #include "air/reference.hpp"
 #include "air/storage.hpp"
 #include "model/architecture_adapter.hpp"
+#include "model/prepared_model.hpp"
+#include "reference/reference_executor_factory.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -13,6 +15,7 @@
 #include <memory>
 #include <random>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -136,6 +139,88 @@ std::shared_ptr<const air::ModelDefinition> make_tiny_qwen2() {
     const auto validation = model->validate();
     if (!validation) throw std::runtime_error(validation.message());
     return model;
+}
+
+struct AliasSemanticFixture {
+    std::shared_ptr<const air::ModelDefinition> model;
+    air::detail::PreparedModelSemantics prepared;
+};
+
+AliasSemanticFixture make_alias_semantic_fixture() {
+    constexpr std::uint32_t embedding = 4;
+    constexpr std::uint32_t vocab = 4;
+    constexpr std::uint32_t ffn = 6;
+
+    air::ModelConfig config;
+    config.architecture = "qwen2";
+    config.layer_count = 1;
+    config.embedding_size = embedding;
+    config.feed_forward_size = ffn;
+    config.attention_head_count = 2;
+    config.kv_head_count = 1;
+    config.rope_dimension_count = 2;
+    config.context_length = 8;
+    config.vocabulary_size = vocab;
+    config.rope_frequency_base = 10000.0;
+    config.rms_norm_epsilon = 1.0e-5;
+
+    air::TokenizerDefinition tokenizer;
+    tokenizer.model = "gpt2";
+    tokenizer.pre_tokenizer = "gpt2";
+    tokenizer.vocabulary = {"a", "b", "c", "d"};
+    tokenizer.token_types = {1, 1, 1, 1};
+    tokenizer.special_ids.eos = 3;
+
+    const std::vector<float> identity = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    };
+
+    ModelBuilder builder;
+    builder.add_f32("alien.embedding", {embedding, vocab}, identity);
+    builder.add_f32("alien.final_norm", {embedding}, ones(embedding));
+    builder.add_f32("layer-zero.pre-attention", {embedding}, ones(embedding));
+    builder.add_f32("projection.query", {embedding, embedding},
+                    zeros(embedding * embedding));
+    builder.add_f32("projection.key", {embedding, 2}, zeros(embedding * 2));
+    builder.add_f32("projection.value", {embedding, 2}, zeros(embedding * 2));
+    builder.add_f32("projection.attention_out", {embedding, embedding},
+                    zeros(embedding * embedding));
+    builder.add_f32("layer-zero.pre-ffn", {embedding}, ones(embedding));
+    builder.add_f32("mlp.gate", {embedding, ffn}, zeros(embedding * ffn));
+    builder.add_f32("mlp.expand", {embedding, ffn}, zeros(embedding * ffn));
+    builder.add_f32("mlp.contract", {ffn, embedding}, zeros(ffn * embedding));
+
+    auto model = builder.finish(
+        config, tokenizer, "air-reference-semantic-alias.bin");
+
+    air::detail::PreparedModelSemantics prepared;
+    prepared.source_model = model.get();
+    prepared.architecture = "qwen2";
+    prepared.geometry = config;
+    prepared.head_dimension = 2;
+    prepared.token_embedding_weight = model->find_tensor("alien.embedding");
+    prepared.output_norm_weight = model->find_tensor("alien.final_norm");
+    prepared.output_weight = prepared.token_embedding_weight;
+    prepared.output_weight_tied = true;
+
+    air::detail::PreparedLayerTensorBindings layer;
+    layer.attention_norm_weight =
+        model->find_tensor("layer-zero.pre-attention");
+    layer.query_weight = model->find_tensor("projection.query");
+    layer.key_weight = model->find_tensor("projection.key");
+    layer.value_weight = model->find_tensor("projection.value");
+    layer.attention_output_weight =
+        model->find_tensor("projection.attention_out");
+    layer.ffn_norm_weight = model->find_tensor("layer-zero.pre-ffn");
+    layer.ffn_gate_weight = model->find_tensor("mlp.gate");
+    layer.ffn_up_weight = model->find_tensor("mlp.expand");
+    layer.ffn_down_weight = model->find_tensor("mlp.contract");
+    prepared.layers.push_back(layer);
+
+    return {std::move(model), std::move(prepared)};
 }
 
 std::shared_ptr<const air::ModelDefinition> make_tensor_fixture() {
@@ -651,6 +736,88 @@ void test_qwen2_optional_qkv_bias_contract() {
           "optional Qwen2 Q/K/V bias path executes through normal reference inference");
 }
 
+void test_semantic_alias_execution_falsification() {
+    auto canonical = make_tiny_qwen2();
+    auto canonical_executor = air::ReferenceExecutor::create(canonical);
+    check(canonical_executor.is_ok(),
+          "canonical Qwen2 reference executor remains constructible");
+    if (!canonical_executor) return;
+
+    auto alias = make_alias_semantic_fixture();
+    const auto semantic_status =
+        air::detail::validate_prepared_model_semantics(alias.prepared);
+    check(semantic_status.is_ok(),
+          "renamed source tensors form a valid prepared semantic model");
+    if (!semantic_status) return;
+
+    check(alias.model->find_tensor("token_embd.weight") == nullptr &&
+              alias.model->find_tensor("blk.0.attn_q.weight") == nullptr &&
+              alias.model->find_tensor("output_norm.weight") == nullptr,
+          "alias fixture contains no canonical Qwen2 execution tensor names");
+
+    auto alias_executor = air::detail::ReferenceExecutorFactory::create(
+        alias.model, alias.prepared);
+    check(alias_executor.is_ok(),
+          "reference executor accepts prepared semantic bindings with renamed sources");
+    if (!alias_executor) return;
+
+    air::ReferenceKvCache canonical_cache(1, 1, 2, 8);
+    air::ReferenceKvCache alias_cache(1, 1, 2, 8);
+    auto expected = canonical_executor.value()->step(2, canonical_cache);
+    auto actual = alias_executor.value()->step(2, alias_cache);
+    check(expected.is_ok() && actual.is_ok(),
+          "canonical and renamed semantic reference models both execute");
+    if (expected && actual) {
+        check(expected.value().size() == actual.value().size(),
+              "renamed semantic execution preserves logit width");
+        if (expected.value().size() == actual.value().size()) {
+            bool equal = true;
+            for (std::size_t i = 0; i < expected.value().size(); ++i) {
+                equal = equal && near(expected.value()[i], actual.value()[i]);
+            }
+            check(equal,
+                  "reference numerical output is independent of source tensor names");
+        }
+    }
+}
+
+void test_prepared_semantic_tamper_rejection() {
+    auto alias = make_alias_semantic_fixture();
+
+    auto missing = alias.prepared;
+    missing.layers.front().query_weight = nullptr;
+    auto status = air::detail::validate_prepared_model_semantics(missing);
+    check(!status && status.code() == air::ErrorCode::data_error,
+          "prepared validation rejects a missing required semantic role");
+
+    auto bad_geometry = alias.prepared;
+    bad_geometry.head_dimension = 3;
+    status = air::detail::validate_prepared_model_semantics(bad_geometry);
+    check(!status && status.code() == air::ErrorCode::data_error,
+          "prepared validation rejects inconsistent derived geometry");
+
+    auto bad_tie = alias.prepared;
+    bad_tie.output_weight = bad_tie.layers.front().query_weight;
+    bad_tie.output_weight_tied = true;
+    status = air::detail::validate_prepared_model_semantics(bad_tie);
+    check(!status && status.code() == air::ErrorCode::invalid_argument,
+          "prepared validation rejects a forged tied-output binding");
+
+    auto foreign_fixture = make_tiny_qwen2();
+    auto foreign = alias.prepared;
+    foreign.layers.front().query_weight =
+        foreign_fixture->find_tensor("blk.0.attn_q.weight");
+    status = air::detail::validate_prepared_model_semantics(foreign);
+    check(!status && status.code() == air::ErrorCode::invalid_argument,
+          "prepared validation rejects a descriptor from another canonical model");
+
+    auto factory_rejection = air::detail::ReferenceExecutorFactory::create(
+        alias.model, std::move(foreign));
+    check(!factory_rejection &&
+              factory_rejection.status().code() == air::ErrorCode::invalid_argument,
+          "reference factory cannot bypass prepared semantic validation");
+}
+
 void test_reference_rejects_wrong_architecture() {
     auto model = make_tiny_qwen2();
     air::ModelConfig config = model->config();
@@ -676,6 +843,8 @@ int main() {
     test_prepared_semantic_model_contract();
     test_qwen2_structure_contract_failures();
     test_qwen2_optional_qkv_bias_contract();
+    test_semantic_alias_execution_falsification();
+    test_prepared_semantic_tamper_rejection();
     test_reference_rejects_wrong_architecture();
 
     if (failures != 0) {
