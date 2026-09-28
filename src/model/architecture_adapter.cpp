@@ -10,19 +10,11 @@ public:
         return "qwen2";
     }
 
-    [[nodiscard]] Status validate(const ModelDefinition& model) const override {
-        return validate_qwen2_structure(model);
-    }
-
     [[nodiscard]] Result<PreparedModelSemantics> prepare(
         const ModelDefinition& model) const override {
         return prepare_qwen2_semantics(model);
     }
 
-    [[nodiscard]] std::vector<std::string> execution_tensor_names(
-        const ModelDefinition& model) const override {
-        return qwen2_execution_tensor_names(model);
-    }
 };
 
 const Qwen2ArchitectureAdapter qwen2_adapter{};
