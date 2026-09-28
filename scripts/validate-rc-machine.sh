@@ -51,19 +51,6 @@ record() {
     fi
 }
 
-for TOOL in air-cli air-server air-bench air-qualify air-verify; do
-    RESOLVED="$(command -v "$TOOL" 2>/dev/null || true)"
-    if [[ "$RESOLVED" == "$BIN/"* ]]; then
-        echo "$TOOL=$RESOLVED" >> "$OUT/binary-origins.txt"
-    else
-        echo "$TOOL=${RESOLVED:-missing}" >> "$OUT/binary-origins.txt"
-        record installed_binary_origin 94
-    fi
-done
-if ! grep -q '^installed_binary_origin=' "$OUT/exit-codes.txt"; then
-    record installed_binary_origin 0
-fi
-
 http_status() {
     URL="$1"
     DATA="$2"
@@ -87,6 +74,21 @@ wait_ready() {
 
 : > "$OUT/exit-codes.txt"
 : > "$OUT/curl-stderr.txt"
+: > "$OUT/binary-origins.txt"
+
+for TOOL in air-cli air-server air-bench air-qualify air-verify; do
+    RESOLVED="$(command -v "$TOOL" 2>/dev/null || true)"
+    if [[ "$RESOLVED" == "$BIN/"* ]]; then
+        echo "$TOOL=$RESOLVED" >> "$OUT/binary-origins.txt"
+    else
+        echo "$TOOL=${RESOLVED:-missing}" >> "$OUT/binary-origins.txt"
+        record installed_binary_origin 94
+    fi
+done
+if ! grep -q '^installed_binary_origin=' "$OUT/exit-codes.txt"; then
+    record installed_binary_origin 0
+fi
+
 
 {
     echo "date: $(date -Is)"
