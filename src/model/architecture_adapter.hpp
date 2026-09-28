@@ -3,6 +3,7 @@
 #include "air/model.hpp"
 #include "air/result.hpp"
 #include "air/status.hpp"
+#include "model/prepared_model.hpp"
 
 #include <string>
 #include <string_view>
@@ -16,6 +17,8 @@ public:
 
     [[nodiscard]] virtual std::string_view architecture() const noexcept = 0;
     [[nodiscard]] virtual Status validate(const ModelDefinition& model) const = 0;
+    [[nodiscard]] virtual Result<PreparedModelSemantics> prepare(
+        const ModelDefinition& model) const = 0;
     [[nodiscard]] virtual std::vector<std::string> execution_tensor_names(
         const ModelDefinition& model) const = 0;
 };
