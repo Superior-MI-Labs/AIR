@@ -164,6 +164,7 @@ if(AIR_BUILD_TESTS)
 air_enable_warnings(air-core-tests)
 
     add_executable(air-reference-tests tests/reference_tests.cpp)
+    target_include_directories(air-reference-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(air-reference-tests PRIVATE AIR::core)
 air_enable_warnings(air-reference-tests)
 
