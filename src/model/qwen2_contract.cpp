@@ -186,6 +186,8 @@ Result<PreparedModelSemantics> prepare_qwen2_semantics(const ModelDefinition& mo
         prepared.layers.push_back(bindings);
     }
 
+    const auto prepared_status = validate_prepared_model_semantics(prepared);
+    if (!prepared_status) return prepared_status;
     return prepared;
 }
 
