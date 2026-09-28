@@ -1,6 +1,8 @@
 #include "air/cuda.hpp"
 #include "air/reference.hpp"
 #include "air/storage.hpp"
+#include "cuda/cuda_executor_factory.hpp"
+#include "model/prepared_model.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -138,6 +140,96 @@ std::shared_ptr<const air::ModelDefinition> tiny_qwen2() {
     return builder.finish(std::move(config), std::move(tokenizer));
 }
 
+struct AliasSemanticFixture {
+    std::shared_ptr<const air::ModelDefinition> model;
+    air::detail::PreparedModelSemantics prepared;
+};
+
+AliasSemanticFixture alias_qwen2_semantics() {
+    constexpr std::uint32_t embedding = 4;
+    constexpr std::uint32_t vocab = 4;
+    constexpr std::uint32_t ffn = 6;
+
+    air::ModelConfig config;
+    config.architecture = "qwen2";
+    config.layer_count = 1;
+    config.embedding_size = embedding;
+    config.feed_forward_size = ffn;
+    config.attention_head_count = 2;
+    config.kv_head_count = 1;
+    config.rope_dimension_count = 2;
+    config.context_length = 8;
+    config.vocabulary_size = vocab;
+    config.rope_frequency_base = 10000.0;
+    config.rms_norm_epsilon = 1.0e-5;
+
+    air::TokenizerDefinition tokenizer;
+    tokenizer.model = "gpt2";
+    tokenizer.pre_tokenizer = "gpt2";
+    tokenizer.vocabulary = {"a", "b", "c", "d"};
+    tokenizer.token_types = {1, 1, 1, 1};
+    tokenizer.special_ids.eos = 3;
+
+    const std::vector<float> identity = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    };
+
+    ModelBuilder builder;
+    builder.add_f32("semantic.embedding.source", {embedding, vocab}, identity);
+    builder.add_f32("semantic.final.norm.source", {embedding}, ones(embedding));
+    builder.add_f32("semantic.layer0.attn.norm", {embedding}, ones(embedding));
+    builder.add_f32("semantic.layer0.query", {embedding, embedding},
+                    zeros(embedding * embedding));
+    builder.add_f32("semantic.layer0.key", {embedding, 2}, zeros(embedding * 2));
+    builder.add_f32("semantic.layer0.value", {embedding, 2}, zeros(embedding * 2));
+    builder.add_f32("semantic.layer0.attn.out", {embedding, embedding},
+                    zeros(embedding * embedding));
+    builder.add_f32("semantic.layer0.ffn.norm", {embedding}, ones(embedding));
+    builder.add_f32("semantic.layer0.ffn.gate", {embedding, ffn},
+                    zeros(embedding * ffn));
+    builder.add_f32("semantic.layer0.ffn.up", {embedding, ffn},
+                    zeros(embedding * ffn));
+    builder.add_f32("semantic.layer0.ffn.down", {ffn, embedding},
+                    zeros(ffn * embedding));
+
+    auto model = builder.finish(config, tokenizer);
+
+    air::detail::PreparedModelSemantics prepared;
+    prepared.source_model = model.get();
+    prepared.architecture = "qwen2";
+    prepared.geometry = config;
+    prepared.head_dimension = 2;
+    prepared.token_embedding_weight =
+        model->find_tensor("semantic.embedding.source");
+    prepared.output_norm_weight =
+        model->find_tensor("semantic.final.norm.source");
+    prepared.output_weight = prepared.token_embedding_weight;
+    prepared.output_weight_tied = true;
+
+    air::detail::PreparedLayerTensorBindings layer;
+    layer.attention_norm_weight =
+        model->find_tensor("semantic.layer0.attn.norm");
+    layer.query_weight = model->find_tensor("semantic.layer0.query");
+    layer.key_weight = model->find_tensor("semantic.layer0.key");
+    layer.value_weight = model->find_tensor("semantic.layer0.value");
+    layer.attention_output_weight =
+        model->find_tensor("semantic.layer0.attn.out");
+    layer.ffn_norm_weight =
+        model->find_tensor("semantic.layer0.ffn.norm");
+    layer.ffn_gate_weight =
+        model->find_tensor("semantic.layer0.ffn.gate");
+    layer.ffn_up_weight =
+        model->find_tensor("semantic.layer0.ffn.up");
+    layer.ffn_down_weight =
+        model->find_tensor("semantic.layer0.ffn.down");
+    prepared.layers.push_back(layer);
+
+    return {std::move(model), std::move(prepared)};
+}
+
 bool near(float left, float right, float tolerance = 1.0e-4F) {
     return std::fabs(left - right) <= tolerance;
 }
@@ -164,6 +256,75 @@ air::TokenId greedy_token(std::span<const float> logits) {
     return static_cast<air::TokenId>(
         std::distance(logits.begin(),
                       std::max_element(logits.begin(), logits.end())));
+}
+
+int verify_cuda_alias_semantics() {
+    auto canonical_model = tiny_qwen2();
+    auto canonical_reference = air::ReferenceExecutor::create(canonical_model);
+    if (!canonical_reference) {
+        std::cerr << "canonical reference fixture failed: "
+                  << canonical_reference.status().message() << '\n';
+        return 1;
+    }
+
+    auto alias = alias_qwen2_semantics();
+    auto semantic_status =
+        air::detail::validate_prepared_model_semantics(alias.prepared);
+    if (!semantic_status) {
+        std::cerr << "alias prepared semantics failed validation: "
+                  << semantic_status.message() << '\n';
+        return 1;
+    }
+
+    if (alias.model->find_tensor("token_embd.weight") ||
+        alias.model->find_tensor("blk.0.attn_q.weight") ||
+        alias.model->find_tensor("output_norm.weight")) {
+        std::cerr << "alias CUDA fixture unexpectedly contains canonical Qwen2 names\n";
+        return 1;
+    }
+
+    auto alias_cuda = air::detail::CudaExecutorFactory::create(
+        alias.model, 0, alias.prepared);
+    if (!alias_cuda) {
+        std::cerr << "alias CUDA executor failed: "
+                  << alias_cuda.status().message() << '\n';
+        return 1;
+    }
+
+    auto tactic_status = alias_cuda.value()->prepare_linear_tactic(
+        air::QuantizedLinearExecutionKind::dense_f32_cublas);
+    if (!tactic_status) {
+        std::cerr << "alias dense-FP32 semantic tactic preparation failed: "
+                  << tactic_status.message() << '\n';
+        return 1;
+    }
+
+    air::ReferenceKvCache reference_cache(1, 1, 2, 8);
+    auto expected = canonical_reference.value()->step(2, reference_cache);
+    auto cuda_cache = alias_cuda.value()->create_kv_cache();
+    if (!expected || !cuda_cache) {
+        std::cerr << "alias CUDA semantic fixture setup failed\n";
+        return 1;
+    }
+
+    auto actual = alias_cuda.value()->step(
+        2,
+        *cuda_cache.value(),
+        air::QuantizedLinearExecutionKind::dense_f32_cublas,
+        air::QuantizedLinearExecutionKind::baseline,
+        air::AttentionExecutionKind::baseline);
+    if (!actual) {
+        std::cerr << "alias CUDA semantic execution failed: "
+                  << actual.status().message() << '\n';
+        return 1;
+    }
+    if (!same_logits(actual.value(), expected.value(),
+                     "renamed semantic CUDA decode")) {
+        return 1;
+    }
+
+    std::cout << "CUDA execution and dense tactic are independent of Qwen2 source names\n";
+    return 0;
 }
 
 int verify_cuda_reference_parity() {
@@ -328,7 +489,9 @@ int main() {
         return 0;
     }
 
-    return verify_cuda_reference_parity();
+    const int parity = verify_cuda_reference_parity();
+    if (parity != 0) return parity;
+    return verify_cuda_alias_semantics();
 #else
     if (air::cuda_compiled()) {
         std::cerr << "CPU-only build incorrectly reports compiled CUDA support\n";
