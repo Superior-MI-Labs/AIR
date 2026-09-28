@@ -16,6 +16,10 @@
 
 namespace air {
 
+namespace detail {
+class CudaExecutorFactory;
+}
+
 struct CudaExecutionStats {
     std::uint64_t resident_model_bytes{0};
     std::uint64_t workspace_bytes{0};
@@ -200,6 +204,8 @@ private:
         std::vector<float>* target_logprobs, QuantizedLinearExecutionKind linear,
         AttentionExecutionKind attention);
     std::unique_ptr<Impl> impl_;
+
+    friend class detail::CudaExecutorFactory;
 };
 
 } // namespace air
