@@ -1784,24 +1784,23 @@ struct CudaExecutor::Impl {
         if (!adapter_result) return adapter_result.status();
         const auto* adapter = adapter_result.value();
 
-        status = adapter->validate(*model);
-        if (!status) return status;
-        const auto names = adapter->execution_tensor_names(*model);
+        auto prepared_result = adapter->prepare(*model);
+        if (!prepared_result) return prepared_result.status();
+        const auto execution_tensors = prepared_result.value().execution_tensors();
         std::uint64_t total_bytes = 0U;
         struct Placement { const TensorDescriptor* tensor; std::uint64_t offset; CudaTensorKernel kernel; };
         std::vector<Placement> placements;
-        placements.reserve(names.size());
-        for (const auto& name : names) {
-            const auto* descriptor = model->find_tensor(name);
-            if (!descriptor) return Status::internal_error("Qwen2 execution contract omitted required tensor: " + name);
+        placements.reserve(execution_tensors.size());
+        for (const auto* descriptor : execution_tensors) {
+            if (!descriptor) return Status::internal_error("prepared model contains a null execution tensor");
             if (!descriptor->byte_size_exact || !supports_cuda_tensor(descriptor->type)) {
                 return Status::unsupported("CUDA executor does not support " + std::string(to_string(descriptor->type)) +
-                                           " tensor: " + name);
+                                           " tensor: " + descriptor->name);
             }
             const auto block_elements = quant_block_elements(descriptor->type);
             if (descriptor->shape.dimensions.size() == 2U &&
                 descriptor->shape.dimensions[0] % block_elements != 0U) {
-                return Status::data_error("CUDA quantized matrix row is not block-aligned: " + name);
+                return Status::data_error("CUDA quantized matrix row is not block-aligned: " + descriptor->name);
             }
             total_bytes = align_up(total_bytes, 256U);
             if (descriptor->byte_size > std::numeric_limits<std::uint64_t>::max() - total_bytes) {
