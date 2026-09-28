@@ -98,7 +98,7 @@ std::shared_ptr<const air::ModelDefinition> make_tiny_qwen2() {
     constexpr std::uint32_t ffn = 6;
 
     air::ModelConfig config;
-    config.architecture = "qwen2";
+    config.architecture = std::move(architecture);
     config.layer_count = 1;
     config.embedding_size = embedding;
     config.feed_forward_size = ffn;
@@ -109,6 +109,8 @@ std::shared_ptr<const air::ModelDefinition> make_tiny_qwen2() {
     config.vocabulary_size = vocab;
     config.rope_frequency_base = 10000.0;
     config.rms_norm_epsilon = 1.0e-5;
+    config.rope_scaling_factor = rope_scaling_factor;
+    config.attention_sliding_window = sliding_window;
 
     air::TokenizerDefinition tokenizer;
     tokenizer.model = "gpt2";
@@ -146,7 +148,10 @@ struct AliasSemanticFixture {
     air::detail::PreparedModelSemantics prepared;
 };
 
-AliasSemanticFixture make_alias_semantic_fixture() {
+AliasSemanticFixture make_alias_semantic_fixture(
+    double rope_scaling_factor = 1.0,
+    std::uint64_t sliding_window = 0U,
+    std::string architecture = "qwen2") {
     constexpr std::uint32_t embedding = 4;
     constexpr std::uint32_t vocab = 4;
     constexpr std::uint32_t ffn = 6;
@@ -198,7 +203,7 @@ AliasSemanticFixture make_alias_semantic_fixture() {
 
     air::detail::PreparedModelSemantics prepared;
     prepared.source_model = model.get();
-    prepared.architecture = "qwen2";
+    prepared.architecture = config.architecture;
     prepared.geometry = config;
     prepared.head_dimension = 2;
     prepared.token_embedding_weight = model->find_tensor("alien.embedding");
@@ -755,6 +760,10 @@ void test_semantic_alias_execution_falsification() {
               alias.model->find_tensor("output_norm.weight") == nullptr,
           "alias fixture contains no canonical Qwen2 execution tensor names");
 
+    auto public_alias = air::ReferenceExecutor::create(alias.model);
+    check(!public_alias && public_alias.status().code() == air::ErrorCode::data_error,
+          "renamed source tensors do not silently broaden public Qwen2 support");
+
     auto alias_executor = air::detail::ReferenceExecutorFactory::create(
         alias.model, alias.prepared);
     check(alias_executor.is_ok(),
@@ -829,6 +838,21 @@ void test_prepared_semantic_tamper_rejection() {
     check(!factory_rejection &&
               factory_rejection.status().code() == air::ErrorCode::invalid_argument,
           "reference factory cannot bypass prepared semantic validation");
+
+    auto scaled = make_alias_semantic_fixture(2.0);
+    status = air::detail::validate_prepared_model_semantics(scaled.prepared);
+    check(!status && status.code() == air::ErrorCode::unsupported,
+          "prepared semantic factory cannot bypass unsupported Qwen2 RoPE scaling");
+
+    auto sliding = make_alias_semantic_fixture(1.0, 4U);
+    status = air::detail::validate_prepared_model_semantics(sliding.prepared);
+    check(!status && status.code() == air::ErrorCode::unsupported,
+          "prepared semantic factory cannot bypass unsupported Qwen2 sliding-window attention");
+
+    auto other_arch = make_alias_semantic_fixture(1.0, 0U, "qwen3");
+    status = air::detail::validate_prepared_model_semantics(other_arch.prepared);
+    check(!status && status.code() == air::ErrorCode::unsupported,
+          "prepared semantic execution does not silently admit an unqualified architecture");
 }
 
 void test_reference_rejects_wrong_architecture() {
