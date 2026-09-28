@@ -1,6 +1,7 @@
 #pragma once
 
 #include "air/model.hpp"
+#include "air/status.hpp"
 #include "air/tensor.hpp"
 
 #include <cstdint>
@@ -43,5 +44,8 @@ struct PreparedModelSemantics {
 
     [[nodiscard]] std::vector<const TensorDescriptor*> execution_tensors() const;
 };
+
+[[nodiscard]] Status validate_prepared_model_semantics(
+    const PreparedModelSemantics& prepared);
 
 } // namespace air::detail
