@@ -303,14 +303,13 @@ Status ReferenceExecutor::validate_model() const {
     if (!adapter_result) return adapter_result.status();
     const auto* adapter = adapter_result.value();
 
-    auto status = adapter->validate(*model_);
-    if (!status) return status;
-    for (const auto& name : adapter->execution_tensor_names(*model_)) {
-        const auto* tensor = model_->find_tensor(name);
-        if (!tensor) return Status::internal_error("Qwen2 execution contract omitted required tensor: " + name);
+    auto prepared_result = adapter->prepare(*model_);
+    if (!prepared_result) return prepared_result.status();
+    for (const auto* tensor : prepared_result.value().execution_tensors()) {
+        if (!tensor) return Status::internal_error("prepared model contains a null execution tensor");
         if (!ReferenceTensorReader::supports(tensor->type)) {
             return Status::unsupported("reference executor does not support " +
-                                       std::string(to_string(tensor->type)) + " tensor: " + name);
+                                       std::string(to_string(tensor->type)) + " tensor: " + tensor->name);
         }
     }
     return Status::ok();
