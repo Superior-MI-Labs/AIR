@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 2 Architecture Adapter
 
-Status: IMPLEMENTED / AWAITING MACHINE QUALIFICATION
+Status: CLOSED / QUALIFIED
 
 ## Objective
 
@@ -84,14 +84,17 @@ Wave 1 characterization protects:
 - unsupported sliding-window behavior;
 - existing Qwen2 reference execution.
 
-## Wave 2 exit gate
+## Wave 2 qualification result
 
-Wave 2 may close only when the exact branch HEAD:
+WolfCat-Studio qualification reported:
 
-1. configures and builds with CUDA enabled on WolfCat-Studio;
-2. passes all 12 CTests;
-3. preserves explicit unsupported behavior for an unknown architecture;
-4. introduces no second executor or scheduler path;
-5. leaves public AIR and frozen MEF R0 contracts unchanged.
+```text
+Release build
+CUDA=ON
+12/12 CTests PASS
+0 failures
+```
 
-If qualification fails, fix the owning defect in this seam. Do not bypass the adapter or weaken existing tests.
+The architecture-adapter boundary therefore closed without requiring a second executor, scheduler, public API change, Builder change, or MEF change.
+
+Wave 2 is CLOSED / QUALIFIED.
