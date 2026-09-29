@@ -50,39 +50,74 @@ AIR does not own:
 - Prefer data and explicit contracts over model-family conditionals when evidence justifies the seam.
 - Do not generalize from one implementation when the second implementation has not tested the abstraction.
 
-## Modular Runtime R0 program
+## Frozen Modular Runtime R0 program
 
-The active architecture program is documented under:
+The previous architecture program is frozen under:
 
 `docs/modular-runtime/`
 
-Its public endpoint is intended to be AIR 0.10.0, if qualification succeeds.
+It produced the qualified public AIR 0.10.0 release.
 
-The goal is narrow:
+Do not reopen that program casually. Treat `v0.10.0` as immutable release
+evidence.
 
-> separate model-family interpretation and semantic tensor binding from backend execution while preserving AIR's existing runtime, scheduler, serving, state, and public behavior.
+## Active Adaptive Execution Substrate R0 program
 
-This program does not authorize a universal Neural IR, arbitrary GGUF support, Builder-to-AIR compilation, a new scheduler, a new inference engine, or a second model registry.
+The active architecture program is:
+
+`docs/adaptive-execution/`
+
+Start with:
+
+1. `docs/adaptive-execution/START-HERE.md`
+2. `docs/adaptive-execution/CURRENT.md`
+3. `docs/adaptive-execution/PROGRAM.md`
+4. `docs/adaptive-execution/WAVE0.md`
+
+Mission:
+
+> evolve AIR into a standalone machine-to-computation compiler/runtime where
+> semantic computation, hardware topology, dynamic execution environment,
+> physical execution plans, and measured performance evidence are explicit
+> separate data.
+
+This program may broaden AIR beyond token-generation workloads, but it must
+earn abstractions from concrete implementations. Qwen2 is implementation family
+#1; a real multi-component image workflow is the intended second structural
+discriminator.
+
+Unknown semantics must fail explicitly. Do not create a model-family engine per
+architecture. Do not design a universal Neural IR from theory alone.
 
 ## Change discipline
 
 For each implementation wave:
 
 1. refresh the exact repository head;
-2. read the active modular-runtime plan and baseline;
-3. identify the owning seam before editing;
-4. add or preserve characterization and regression tests;
-5. make the smallest coherent change;
-6. run the applicable build and qualification gates;
-7. preserve negative results and failure evidence;
-8. do not advance the wave when its exit gate is not satisfied.
+2. read the active program START-HERE, CURRENT, PROGRAM, and current wave;
+3. load only the source/tests needed for the current ownership seam;
+4. identify the current owner before editing;
+5. add or preserve characterization and regression tests;
+6. make the smallest coherent change;
+7. delete/retire superseded paths instead of preserving permanent bridges;
+8. run the applicable build and qualification gates;
+9. preserve negative results and failure evidence;
+10. update the active program handoff before context becomes unreliable;
+11. do not advance the wave when its exit gate is not satisfied.
+
+For coding-agent context discipline, follow
+`docs/adaptive-execution/AGENT-WORKFLOW.md`.
 
 Root-cause fixes are preferred over shims or compatibility branches.
 
-## Frozen AIR 0.9.12
+## Frozen releases
 
-The public AIR 0.9.12 release remains immutable evidence for that release.
+The public AIR 0.9.12 and AIR 0.10.0 releases remain immutable evidence for
+their respective release claims.
 
-Do not rewrite the meaning of `v0.9.12` while developing later architecture.
+AIR 0.10.0 qualified source:
+`3b728a1e45ae3c908aeb859b60cba3c2f5463506`
 
-Current development may move beyond 0.9.12 on branches or main only through explicit qualification and release work.
+Do not rewrite the meaning of a frozen tag while developing later architecture.
+New work proceeds on explicit branches and earns new release claims through
+qualification.
