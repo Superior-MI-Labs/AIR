@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 - Wave 7 Full-System Qualification
 
-Status: AIR-LOCAL CLOSED / EXTERNAL MEF R0 GATE PENDING
+Status: CLOSED / QUALIFIED
 
 ## Objective
 
@@ -432,6 +432,45 @@ qualification and evidence packaging unchanged.
 
 The gate requires the previously qualified llama.cpp R0 endpoint to be
 available independently.
+
+## External frozen MEF R0 qualification result
+
+Frozen MEF tag `mef-r0-qualified`, resolving to commit
+`33f63246244f91acfba5659bba80447e6e181108`, independently qualified the
+Wave 7 AIR product through `provider.air.http`.
+
+Observed result:
+
+```text
+PRE-SUBMIT: PASS
+VERIFY: PASS
+
+PASS destructive: missing policy rejected
+PASS destructive: stale evidence rejected
+PASS destructive: tampered evidence rejected
+PASS destructive: cross-provider qualification rejected
+PASS destructive: unreachable provider rejected
+
+MEF R0 QUALIFIED PROVIDER SUBSTITUTION: PASS
+provider.llamacpp.http
+provider.air.http
+
+mef_r0_qualification=0
+air_shutdown=0
+WAVE 7 EXTERNAL MEF R0 COMPATIBILITY: PASS
+```
+
+Retained external evidence archive:
+
+```text
+Superior-MI-MEF-R0-Evidence-20260929T184315Z.zip
+SHA-256:
+ab2fe1ff76b5d4d5227f1b1eb1f570e495c9a8836992753dfd7ba99cfd1ac395
+```
+
+No MEF provider/core change was required.
+
+Wave 7 is therefore CLOSED / QUALIFIED and Wave 8 release freeze is authorized.
 
 ## Wave 7 exit gate
 
