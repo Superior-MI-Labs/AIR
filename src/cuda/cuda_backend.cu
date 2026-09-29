@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -52,6 +53,31 @@ public:
 Status cuda_status(cudaError_t code, const char* operation) {
     if (code == cudaSuccess) return Status::ok();
     return Status::internal_error(std::string(operation) + ": " + cudaGetErrorString(code));
+}
+
+using ObservationClock = std::chrono::steady_clock;
+
+void observe_cuda_host_operation(
+    const ExecutionCorrelation& correlation,
+    ExecutionSpanCategory category,
+    std::string_view phase,
+    ObservationClock::time_point start,
+    ObservationClock::time_point end,
+    std::uint64_t work_units,
+    bool success) noexcept {
+    if (!correlation.sink) return;
+    correlation.sink->observe_backend(
+        correlation,
+        BackendExecutionObservation{
+            category,
+            phase,
+            "cuda",
+            start,
+            end,
+            1U,
+            work_units,
+            success,
+        });
 }
 
 Status cublas_status(cublasStatus_t code, const char* operation) {
