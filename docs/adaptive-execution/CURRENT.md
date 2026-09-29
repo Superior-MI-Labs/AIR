@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
 Updated: 2026-09-29
-Status: WAVE 0 CURRENT
+Status: WAVE 0 CURRENT / PROMPT 1 LIVE QUALIFICATION PENDING
 
 ## Frozen baseline
 
@@ -63,19 +63,47 @@ HardwareGraph. Current topology mixes relatively stable physical facts with
 dynamic available capacity and empirical link measurements, making
 fact/state/measurement separation a primary Wave 0 question.
 
+## AIR 0.11 release strategy
+
+The active release strategy is:
+
+`docs/adaptive-execution/RELEASE-0.11-STRATEGY.md`
+
+Prompt 1 is:
+
+`docs/adaptive-execution/PROMPT-01.md`
+
+Testing/user-validation authority:
+
+`docs/adaptive-execution/TESTING-STRATEGY.md`
+
+## Prompt 1 implementation state
+
+Implemented:
+
+- host CPU/RAM discovery;
+- topology fingerprinting that excludes dynamic availability and empirical
+  link measurements;
+- separate hardware environment availability snapshot;
+- CUDA device augmentation;
+- standalone machine-info CLI in human and JSON form;
+- qualification script for CPU-only and CUDA builds.
+
+No planner/scheduler adaptation is enabled by this work.
+
 ## Immediate next action
 
-Continue Wave 0 source characterization in this order:
+Run the Prompt 1 qualifier on WolfCat-Studio:
 
-1. locate every producer/consumer of `HardwareTopology`;
-2. locate every producer/consumer of `RuntimeSnapshot`;
-3. trace CUDA stream, copy, synchronization, and timing behavior;
-4. trace model/prepared-artifact allocation and residency;
-5. trace runtime JSON/event serialization and browser refresh cadence;
-6. add characterization tests for any unprotected behavior that a later
-   refactor would move.
+```text
+bash scripts/qualify-adaptive-prompt1.sh
+```
 
-Do not implement the generalized semantic program or execution graph yet.
+Prompt 1 must not close until the CPU-only and CUDA builds/tests pass and the
+captured machine JSON matches the real development machine.
+
+If qualification fails, repair the owning discovery/build/test layer before
+starting Prompt 2.
 
 ## Current architectural hypothesis
 
