@@ -1,6 +1,6 @@
 # AIR Modular Runtime R0 Plan
 
-Status: ACTIVE
+Status: WAVE 8 RELEASE FREEZE
 Target public endpoint: AIR 0.10.0, subject to qualification
 Development branch: `architecture/modular-runtime-r0`
 
