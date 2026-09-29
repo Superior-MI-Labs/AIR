@@ -148,6 +148,71 @@ Any new public symbol or moved ownership requires a four-part interface audit:
 
 Do not move symbols to the wrong library just to fix a linker error.
 
+### Failure F - correlation change broke every PreparedModel test double
+
+Observed:
+
+Prompt 3 correlation work changed the pure-virtual signatures of
+`PreparedModel::create_sequence` and `restore_sequence`. The CPU preflight
+then rejected `FakePreparedModel` in scheduler tests because its existing
+overrides no longer matched and the class became abstract.
+
+Root cause:
+
+Correlation evidence was pushed into an existing backend implementation
+contract even though existing backends did not need to understand correlation
+to create a sequence.
+
+Why it escaped review:
+
+The interface audit checked real Reference/CUDA implementations but did not
+enumerate all derived implementations and test doubles before changing a pure
+virtual method.
+
+Permanent controls:
+
+- before changing any pure virtual method, search for every derived override
+  and test double first;
+- prefer additive wrappers/adapters over widening a pure virtual contract when
+  the new concern can be layered after the existing operation;
+- treat compile impact on test fakes as architecture evidence, not test noise.
+
+Prompt 3 was redesigned so the original pure-virtual create/restore signatures
+remain unchanged. Additive overloads delegate to them and bind
+`ExecutionCorrelation` to the returned `SequenceState`.
+
+### Failure G - correlation test violated Reference test dependency isolation
+
+Observed:
+
+A direct correlation test added `runtime/backend.hpp` usage to
+`air-reference-tests`. That target links only `AIR::core`, while
+`backend.cpp` also owns CUDA-facing prepared backend code. Linking then
+produced a large CUDA undefined-symbol cascade.
+
+Root cause:
+
+The test selected an implementation-heavy path to verify a small contract and
+crossed an intentional CMake dependency boundary.
+
+Why it escaped review:
+
+The review focused on whether the test exercised the desired behavior, not
+whether the chosen test target was the narrowest owner for that behavior.
+
+Permanent controls:
+
+- before adding an internal include/call to a test, inspect that test target's
+  current link dependencies;
+- do not widen a narrow correctness target merely for convenience;
+- prefer a small dedicated fake-based contract test when the behavior can be
+  tested without real backend implementations;
+- a new test must state which production dependency boundary it intentionally
+  exercises.
+
+The correlation wrapper now has a dedicated core-only
+`air-observation-contract-tests` target.
+
 ## Mandatory pre-publish review
 
 Before asking a user to pull/run a new adaptive-execution code update:
