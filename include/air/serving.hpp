@@ -4,6 +4,7 @@
 #include "air/decision.hpp"
 #include "air/execution.hpp"
 #include "air/model.hpp"
+#include "air/observation.hpp"
 #include "air/manifest.hpp"
 #include "air/result.hpp"
 #include "air/types.hpp"
@@ -59,6 +60,10 @@ struct SchedulerConfig {
     // Maximum decoded stream events buffered per request. Delivery happens on
     // the caller thread so a slow client cannot block the inference scheduler.
     std::uint32_t stream_queue_capacity{256};
+    // Typed execution observations are bounded and remain evidence only.
+    ExecutionObservationLevel execution_observation_level{
+        ExecutionObservationLevel::normal};
+    std::uint32_t execution_span_capacity{2048};
 };
 
 struct ChatMessage {
@@ -275,6 +280,8 @@ public:
     [[nodiscard]] Result<std::string> render_chat(const std::vector<ChatMessage>& messages) const;
     [[nodiscard]] ServiceSnapshot snapshot() const;
     [[nodiscard]] std::vector<RuntimeEvent> recent_events(std::size_t limit = 64) const;
+    [[nodiscard]] ExecutionTimelineSnapshot execution_timeline(
+        std::size_t limit = 256) const;
     [[nodiscard]] const ModelDefinition& model() const noexcept;
     [[nodiscard]] std::string backend_name() const;
     void shutdown() noexcept;
