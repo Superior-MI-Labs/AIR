@@ -3,10 +3,13 @@
 AIR is research software. This roadmap describes areas of investigation, not
 promised release dates.
 
-## Current public checkpoint: 0.9.12
+## Current public checkpoint: 0.10.0
 
 The current release establishes:
 
+- an internal architecture-adapter and prepared-semantic model boundary;
+- Reference/CUDA execution independent of Qwen2 source tensor naming below preparation;
+- Qwen2 as the sole qualified production model architecture;
 - one production inference path;
 - bounded scheduling/backpressure;
 - reference and CUDA execution;
