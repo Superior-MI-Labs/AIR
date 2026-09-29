@@ -2519,7 +2519,7 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
     auto devices = cuda_devices();
     if (!devices) return devices.status();
 
-    const auto* host_memory = std::find_if(
+    const auto host_memory = std::find_if(
         discovery.topology.nodes.begin(), discovery.topology.nodes.end(),
         [](const HardwareNode& node) {
             return node.kind == HardwareNodeKind::host_memory;
