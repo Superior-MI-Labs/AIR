@@ -264,6 +264,13 @@ struct InferenceService::Impl {
 
     std::deque<RuntimeEvent> events;
     std::uint64_t next_event{1};
+
+    Clock::time_point observation_origin{Clock::now()};
+    std::uint64_t observation_origin_unix_ms{unix_ms_now()};
+    std::deque<ExecutionSpan> execution_spans;
+    std::uint64_t next_execution_span{1};
+    std::uint64_t evicted_execution_spans{0};
+
     std::filesystem::path event_log_path;
     std::ofstream event_log;
 
@@ -288,6 +295,71 @@ struct InferenceService::Impl {
                 event_log.flush();
             }
         }
+    }
+
+    [[nodiscard]] std::uint64_t observation_ns(Clock::time_point point) const noexcept {
+        if (point <= observation_origin) return 0U;
+        const auto value = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            point - observation_origin).count();
+        return value <= 0 ? 0U : static_cast<std::uint64_t>(value);
+    }
+
+    void execution_span(
+        RequestId request_id,
+        SequenceId sequence_id,
+        ExecutionSpanCategory category,
+        std::string phase,
+        std::string backend_name,
+        Clock::time_point start,
+        Clock::time_point end,
+        std::uint32_t participant_count = 1U,
+        std::uint64_t work_units = 0U,
+        bool success = true) {
+        if (config.execution_observation_level == ExecutionObservationLevel::off) return;
+        if (end < start) end = start;
+
+        ExecutionSpan record;
+        record.request_id = request_id;
+        record.sequence_id = sequence_id;
+        record.scope = ExecutionSpanScope::service;
+        record.category = category;
+        record.phase = std::move(phase);
+        record.backend = std::move(backend_name);
+        record.start_ns = observation_ns(start);
+        record.end_ns = observation_ns(end);
+        record.participant_count = std::max<std::uint32_t>(1U, participant_count);
+        record.work_units = work_units;
+        record.success = success;
+
+        std::lock_guard lock(mutex);
+        record.observation_sequence = next_execution_span++;
+        execution_spans.push_back(std::move(record));
+        while (execution_spans.size() > config.execution_span_capacity) {
+            execution_spans.pop_front();
+            ++evicted_execution_spans;
+        }
+    }
+
+    void execution_span(
+        const WorkItem& item,
+        ExecutionSpanCategory category,
+        std::string phase,
+        Clock::time_point start,
+        Clock::time_point end,
+        std::uint64_t work_units = 0U,
+        bool success = true) {
+        execution_span(
+            item.request_id,
+            item.sequence_id,
+            category,
+            std::move(phase),
+            item.plan_ready ? std::string(to_string(item.plan.backend))
+                            : std::string("unplanned"),
+            start,
+            end,
+            1U,
+            work_units,
+            success);
     }
 
     [[nodiscard]] runtime_detail::PreparedModel* prepared_for(BackendKind backend_kind) noexcept {
@@ -2079,7 +2151,9 @@ Result<std::unique_ptr<InferenceService>> InferenceService::create(
     if (!valid) return valid;
     if (scheduler.max_active_requests == 0U || scheduler.token_budget_per_cycle == 0U ||
         scheduler.prefill_quantum_tokens == 0U || scheduler.reference_kv_page_tokens == 0U ||
-        scheduler.cuda_kv_page_tokens == 0U || scheduler.stream_queue_capacity == 0U) {
+        scheduler.cuda_kv_page_tokens == 0U || scheduler.stream_queue_capacity == 0U ||
+        (scheduler.execution_observation_level != ExecutionObservationLevel::off &&
+         scheduler.execution_span_capacity == 0U)) {
         return Status::invalid_argument("scheduler limits must all be non-zero");
     }
     if (manifest.require && !manifest.enabled) {
