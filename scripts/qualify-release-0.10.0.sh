@@ -85,7 +85,7 @@ echo "=== AIR 0.10.0 FINAL LOCAL QUALIFICATION ==="
 AIR_W7_OUT="$AIR_OUT" bash "$ROOT/scripts/qualify-modular-runtime-r0.sh" "$MODEL" "$PORT"
 
 PREFIX="$AIR_OUT/prefix"
-for tool in air-cli air-server air-bench air-qualify air-verify; do
+for tool in air-cli air-server air-bench air-qualify; do
     OUTPUT="$("$PREFIX/bin/$tool" --version 2>&1)"
     echo "$tool=$OUTPUT" >> "$OUT/version-surfaces.txt"
     if ! grep -Fq "$EXPECTED_VERSION" <<<"$OUTPUT"; then
@@ -93,6 +93,13 @@ for tool in air-cli air-server air-bench air-qualify air-verify; do
         exit 5
     fi
 done
+
+VERIFY_HELP="$("$PREFIX/bin/air-verify" --help 2>&1)"
+printf 'air-verify=%s\n' "$(head -n1 <<<"$VERIFY_HELP")" >> "$OUT/version-surfaces.txt"
+if ! grep -Fq "$EXPECTED_VERSION" <<<"$VERIFY_HELP"; then
+    echo "ERROR: air-verify help does not report AIR $EXPECTED_VERSION" >&2
+    exit 5
+fi
 
 CMAKE_VERSION_FILE="$PREFIX/lib/cmake/AIR/AIRConfigVersion.cmake"
 if ! grep -Fq 'set(PACKAGE_VERSION "0.10.0")' "$CMAKE_VERSION_FILE"; then
