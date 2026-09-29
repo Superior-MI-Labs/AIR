@@ -15,8 +15,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.9.12">
-    <img src="https://img.shields.io/badge/release-v0.9.12-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.9.12">
+  <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.10.0">
+    <img src="https://img.shields.io/badge/release-v0.9.12-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.10.0">
   </a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-55d9ff?style=for-the-badge&labelColor=07131d" alt="C++20">
   <img src="https://img.shields.io/badge/CTest-12%2F12%20PASS-42c98b?style=for-the-badge&labelColor=07131d" alt="12 of 12 CTests passing">
@@ -30,7 +30,7 @@
   <strong>
     <a href="https://huggingface.co/spaces/Superior-Mind-Labs/AIR">Hugging Face Space</a>
     &nbsp;•&nbsp;
-    <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.9.12">Release 0.9.12</a>
+    <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.10.0">Release 0.10.0</a>
     &nbsp;•&nbsp;
     <a href="#quick-start-on-linux">Quick Start</a>
     &nbsp;•&nbsp;
@@ -38,8 +38,12 @@
   </strong>
 </p>
 
-**AIR 0.9.12** is the first public R&D release of the Adaptive Inference Runtime
-from **Superior MI Labs**.
+**AIR 0.10.0** is the modular model-architecture boundary release of the
+Adaptive Inference Runtime from **Superior MI Labs**.
+
+This release separates qualified model-family interpretation and semantic
+tensor binding from backend execution. Qwen2 remains the only qualified
+production model architecture in AIR 0.10.0.
 
 AIR is a standalone C++20 inference runtime built around a simple systems idea:
 model execution should have explicit ownership, bounded resources, observable
@@ -67,6 +71,10 @@ Space provides an interactive research and presentation surface:
 - one scheduler architecture;
 - reference/CPU and NVIDIA CUDA execution paths behind the same contracts;
 - GGUF model loading for the current qualified Qwen2-family scope;
+- an internal architecture-adapter boundary that resolves model-family rules
+  into validated semantic tensor bindings before execution;
+- Reference and CUDA executors that consume the same prepared semantic model
+  contract instead of reconstructing Qwen2/GGUF tensor names;
 - bounded request queues and explicit HTTP 503 backpressure;
 - deterministic cleanup and cancellation;
 - backend-neutral sequence-state contracts;
@@ -100,9 +108,9 @@ The command center provides:
 
 The browser is a **surface over AIR**, not another runtime or state owner.
 
-The `main` branch may contain post-release browser UX improvements. The
-qualified `v0.9.12` release archive remains the authority for the frozen
-release.
+The `v0.10.0` release tag and published release artifacts are the authority
+for the frozen 0.10.0 release. Historical `v0.9.12` artifacts remain the
+authority for that earlier release.
 
 ## Quick start on Linux
 
@@ -287,7 +295,7 @@ AIR's design rules include:
 - source/tests/machine evidence outrank narrative;
 - negative results remain useful research evidence.
 
-## AIR 0.9.12 qualification
+## AIR 0.10.0 qualification
 
 The frozen release passed a destructive public-release program including:
 
@@ -315,7 +323,7 @@ Qualified release archive SHA-256:
 
 ## Current V1 limitations
 
-AIR 0.9.12 does not claim:
+AIR 0.10.0 does not claim:
 
 - calibrated Decision confidence/probability;
 - `qualified-auto` production Decision scorer selection;
