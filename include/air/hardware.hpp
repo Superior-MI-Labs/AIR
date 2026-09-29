@@ -112,9 +112,18 @@ struct HardwareEnvironmentValidation {
     const HardwareTopology& topology,
     const HardwareEnvironmentSnapshot& environment);
 
-// Read-only discovery of host execution resources AIR can directly inspect.
-// The first qualified implementation is Linux CPU + host memory. Accelerator
-// implementations augment this discovery through their existing AIR backend.
+// Read-only discovery of stable-ish host structure AIR can directly inspect.
+// The first qualified implementation is Linux CPU + host memory.
+[[nodiscard]] Result<HardwareTopology> discover_host_topology();
+
+// Read-only observation of volatile host resource availability against one
+// already-discovered topology.
+[[nodiscard]] Result<HardwareEnvironmentSnapshot> observe_host_environment(
+    const HardwareTopology& topology);
+
+// Compatibility composition retained for callers that want one snapshot.
+// New code should keep topology discovery and environment observation
+// conceptually separate.
 [[nodiscard]] Result<HardwareDiscovery> discover_host_hardware();
 
 } // namespace air
