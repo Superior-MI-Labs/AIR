@@ -309,8 +309,8 @@ struct InferenceService::Impl {
         RequestId request_id,
         SequenceId sequence_id,
         ExecutionSpanCategory category,
-        std::string phase,
-        std::string backend_name,
+        std::string_view phase,
+        std::string_view backend_name,
         Clock::time_point start,
         Clock::time_point end,
         std::uint32_t participant_count = 1U,
@@ -325,8 +325,8 @@ struct InferenceService::Impl {
             record.sequence_id = sequence_id;
             record.scope = ExecutionSpanScope::service;
             record.category = category;
-            record.phase = std::move(phase);
-            record.backend = std::move(backend_name);
+            record.phase.assign(phase);
+            record.backend.assign(backend_name);
             record.start_ns = observation_ns(start);
             record.end_ns = observation_ns(end);
             record.participant_count = std::max<std::uint32_t>(1U, participant_count);
@@ -348,7 +348,7 @@ struct InferenceService::Impl {
     void execution_span(
         const WorkItem& item,
         ExecutionSpanCategory category,
-        std::string phase,
+        std::string_view phase,
         Clock::time_point start,
         Clock::time_point end,
         std::uint64_t work_units = 0U,
@@ -357,9 +357,9 @@ struct InferenceService::Impl {
             item.request_id,
             item.sequence_id,
             category,
-            std::move(phase),
-            item.plan_ready ? std::string(to_string(item.plan.backend))
-                            : std::string("unplanned"),
+            phase,
+            item.plan_ready ? std::string_view(to_string(item.plan.backend))
+                            : std::string_view("unplanned"),
             start,
             end,
             1U,
@@ -1239,7 +1239,7 @@ struct InferenceService::Impl {
             0,
             ExecutionSpanCategory::backend_call,
             "prefill-batch",
-            std::string(to_string(first.plan.backend)),
+            std::string_view(to_string(first.plan.backend)),
             compute_start,
             compute_end,
             static_cast<std::uint32_t>(items.size()),
@@ -1418,7 +1418,7 @@ struct InferenceService::Impl {
             0,
             ExecutionSpanCategory::backend_call,
             "decode-batch",
-            std::string(to_string(first.plan.backend)),
+            std::string_view(to_string(first.plan.backend)),
             compute_start,
             compute_end,
             static_cast<std::uint32_t>(items.size()),
