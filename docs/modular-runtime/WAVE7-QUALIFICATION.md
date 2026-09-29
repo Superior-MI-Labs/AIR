@@ -417,6 +417,22 @@ AIR-local Wave 7 is CLOSED / QUALIFIED.
 The only remaining Wave 7 authority is the independent frozen MEF R0
 `provider.air.http` compatibility gate.
 
+External compatibility entrypoint:
+
+```text
+scripts/qualify-wave7-mef-r0.sh
+```
+
+This gate reuses only the exact isolated AIR product already qualified in
+Wave 7, refuses reuse if any product-affecting AIR source changed afterward,
+checks out frozen `mef-r0-qualified` in a detached MEF worktree, verifies the
+tag resolves to commit
+`33f63246244f91acfba5659bba80447e6e181108`, and runs MEF's own R0
+qualification and evidence packaging unchanged.
+
+The gate requires the previously qualified llama.cpp R0 endpoint to be
+available independently.
+
 ## Wave 7 exit gate
 
 Wave 7 may close only when:
