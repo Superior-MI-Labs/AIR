@@ -246,6 +246,86 @@ void test_service_scheduler_prefix_and_streaming() {
     check(std::any_of(events.begin(), events.end(), [](const air::RuntimeEvent& event) {
               return event.type == "prefix_hit";
           }), "runtime event log records prefix decisions");
+
+    const auto timeline = service->execution_timeline(512);
+    check(timeline.level == air::ExecutionObservationLevel::normal &&
+          timeline.origin_unix_ms != 0U && timeline.capacity >= timeline.spans.size(),
+          "execution timeline exposes bounded normal observation authority");
+    check(!timeline.spans.empty(), "normal execution timeline records service spans");
+
+    bool sequence_monotonic = true;
+    bool intervals_valid = true;
+    bool correlated = true;
+    bool saw_queue = false;
+    bool saw_prefill = false;
+    bool saw_decode = false;
+    bool saw_request = false;
+    std::uint64_t previous_sequence = 0U;
+    for (const auto& span : timeline.spans) {
+        if (span.observation_sequence <= previous_sequence) sequence_monotonic = false;
+        previous_sequence = span.observation_sequence;
+        if (span.end_ns < span.start_ns) intervals_valid = false;
+        if (span.request_id == 0U || span.sequence_id == 0U) correlated = false;
+        saw_queue = saw_queue ||
+            span.category == air::ExecutionSpanCategory::queue;
+        saw_prefill = saw_prefill ||
+            (span.category == air::ExecutionSpanCategory::backend_call &&
+             span.phase == "prefill");
+        saw_decode = saw_decode ||
+            (span.category == air::ExecutionSpanCategory::backend_call &&
+             span.phase == "decode");
+        saw_request = saw_request ||
+            span.category == air::ExecutionSpanCategory::request;
+    }
+    check(sequence_monotonic, "execution span sequence is strictly monotonic");
+    check(intervals_valid, "execution spans never end before they start");
+    check(correlated, "serial reference execution spans retain request/sequence correlation");
+    check(saw_queue && saw_prefill && saw_decode && saw_request,
+          "typed timeline covers queue, prefill, decode, and request-total phases");
+}
+
+void test_execution_observation_modes_and_bounds() {
+    air::InferenceRequest request;
+    request.prompt = "a";
+    request.generation.max_new_tokens = 2;
+    request.generation.sampling.temperature = 0.0;
+
+    air::SchedulerConfig off_scheduler;
+    off_scheduler.execution_observation_level = air::ExecutionObservationLevel::off;
+    off_scheduler.execution_span_capacity = 0U;
+    auto off_service = air::InferenceService::create(
+        tiny_model(), air::BackendPreference::reference, 0, off_scheduler);
+    check(off_service.is_ok(), "observation-off service starts");
+    if (off_service) {
+        auto response = off_service.value()->generate(request);
+        check(response.is_ok(), "observation-off request completes");
+        const auto timeline = off_service.value()->execution_timeline(64);
+        check(timeline.level == air::ExecutionObservationLevel::off &&
+              timeline.spans.empty() && timeline.evicted_spans == 0U,
+              "observation-off mode emits no typed spans");
+    }
+
+    air::SchedulerConfig bounded_scheduler;
+    bounded_scheduler.execution_observation_level =
+        air::ExecutionObservationLevel::normal;
+    bounded_scheduler.execution_span_capacity = 3U;
+    auto bounded_service = air::InferenceService::create(
+        tiny_model(), air::BackendPreference::reference, 0, bounded_scheduler);
+    check(bounded_service.is_ok(), "bounded observation service starts");
+    if (bounded_service) {
+        auto response = bounded_service.value()->generate(request);
+        check(response.is_ok(), "bounded observation request completes");
+        const auto timeline = bounded_service.value()->execution_timeline(64);
+        check(timeline.spans.size() <= 3U && timeline.evicted_spans > 0U,
+              "execution observation history is bounded and reports eviction");
+        bool monotonic = true;
+        std::uint64_t previous = 0U;
+        for (const auto& span : timeline.spans) {
+            if (span.observation_sequence <= previous) monotonic = false;
+            previous = span.observation_sequence;
+        }
+        check(monotonic, "retained bounded spans preserve monotonic observation order");
+    }
 }
 
 void test_benchmark_uses_serving_pipeline() {
@@ -676,6 +756,7 @@ void test_adaptive_manifest_is_consumed_by_service() {
 int main() {
     test_paged_kv_fork_and_cow();
     test_service_scheduler_prefix_and_streaming();
+    test_execution_observation_modes_and_bounds();
     test_benchmark_uses_serving_pipeline();
     test_cancellation_and_reclamation();
     test_shutdown_cancels_work();
