@@ -1,5 +1,6 @@
 #include "air/cuda.hpp"
 #include "air/format.hpp"
+#include "air/hardware.hpp"
 #include "air/manifest.hpp"
 #include "air/reference.hpp"
 #include "air/tokenizer.hpp"
@@ -16,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include <boost/json.hpp>
+
 namespace {
 
 void print_usage() {
@@ -27,6 +30,7 @@ void print_usage() {
               << "  air-cli fingerprint <model.gguf>\n"
               << "  air-cli tokenize <model.gguf> <text>\n"
               << "  air-cli reference <model.gguf> <text> [--tokens N]\n"
+              << "  air-cli machine-info [--json]\n"
               << "  air-cli cuda-info\n"
               << "  air-cli cuda <model.gguf> <text> [--tokens N] [--device N]\n"
               << "  air-cli cuda-compare <model.gguf> <text> [--device N] [--atol X]\n";
@@ -201,6 +205,161 @@ int reference_generate(const std::filesystem::path& path, const std::string& tex
     return 0;
 }
 
+
+boost::json::object hardware_node_json(const air::HardwareNode& node) {
+    boost::json::object out;
+    out["id"] = node.id;
+    out["kind"] = air::to_string(node.kind);
+    out["name"] = node.name;
+    out["backend"] = node.backend;
+    out["architecture"] = node.architecture;
+    out["ordinal"] = node.ordinal;
+    out["numa_node"] = node.numa_node;
+    out["total_bytes"] = node.total_bytes;
+    out["logical_processors"] = node.logical_processors;
+    boost::json::array capabilities;
+    for (const auto& capability : node.capabilities) capabilities.push_back(capability);
+    out["capabilities"] = std::move(capabilities);
+    return out;
+}
+
+boost::json::object hardware_link_json(const air::HardwareLink& link) {
+    boost::json::object out;
+    out["source_id"] = link.source_id;
+    out["target_id"] = link.target_id;
+    out["kind"] = air::to_string(link.kind);
+    out["measured"] = link.measured;
+    if (link.measured) {
+        out["bandwidth_bytes_per_second"] = link.bandwidth_bytes_per_second;
+        out["latency_microseconds"] = link.latency_microseconds;
+    }
+    return out;
+}
+
+boost::json::object machine_discovery_json(const air::HardwareDiscovery& discovery) {
+    boost::json::object root;
+    root["air_version"] = air::version_string();
+    root["cuda_compiled"] = air::cuda_compiled();
+
+    boost::json::object topology;
+    topology["schema_version"] = discovery.topology.schema_version;
+    topology["fingerprint"] = discovery.topology.fingerprint;
+    boost::json::array nodes;
+    for (const auto& node : discovery.topology.nodes) {
+        nodes.push_back(hardware_node_json(node));
+    }
+    topology["nodes"] = std::move(nodes);
+    boost::json::array links;
+    for (const auto& link : discovery.topology.links) {
+        links.push_back(hardware_link_json(link));
+    }
+    topology["links"] = std::move(links);
+    root["topology"] = std::move(topology);
+
+    boost::json::object environment;
+    environment["schema_version"] = discovery.environment.schema_version;
+    environment["topology_fingerprint"] = discovery.environment.topology_fingerprint;
+    environment["observed_unix_ms"] = discovery.environment.observed_unix_ms;
+    boost::json::array resources;
+    for (const auto& resource : discovery.environment.resources) {
+        boost::json::object item;
+        item["node_id"] = resource.node_id;
+        item["available_bytes"] = resource.available_bytes;
+        resources.push_back(std::move(item));
+    }
+    environment["resources"] = std::move(resources);
+    root["environment"] = std::move(environment);
+
+    return root;
+}
+
+std::uint64_t available_bytes_for(
+    const air::HardwareEnvironmentSnapshot& environment,
+    std::string_view node_id) {
+    const auto it = std::find_if(
+        environment.resources.begin(), environment.resources.end(),
+        [&](const air::HardwareResourceState& resource) {
+            return resource.node_id == node_id;
+        });
+    return it == environment.resources.end() ? 0U : it->available_bytes;
+}
+
+int machine_info(bool json_output) {
+    auto discovered = air::discover_host_hardware();
+    if (!discovered) {
+        std::cerr << "machine discovery failed: " << discovered.status().message() << '\n';
+        return 5;
+    }
+
+    auto discovery = std::move(discovered).value();
+    const auto cuda_status = air::augment_hardware_discovery_with_cuda(discovery);
+    if (!cuda_status) {
+        std::cerr << "CUDA machine discovery failed: " << cuda_status.message() << '\n';
+        return 5;
+    }
+
+    const auto topology_valid = air::validate_hardware_topology(discovery.topology);
+    const auto environment_valid =
+        air::validate_hardware_environment(discovery.topology, discovery.environment);
+    if (!topology_valid.valid || !environment_valid.valid) {
+        std::cerr << "machine discovery produced invalid state: "
+                  << (!topology_valid.valid ? topology_valid.message : environment_valid.message)
+                  << '\n';
+        return 5;
+    }
+
+    if (json_output) {
+        std::cout << boost::json::serialize(machine_discovery_json(discovery)) << '\n';
+        return 0;
+    }
+
+    std::cout << "AIR Machine Discovery\n\n"
+              << "AIR version:          " << air::version_string() << '\n'
+              << "Topology fingerprint: " << discovery.topology.fingerprint << '\n'
+              << "CUDA compiled:        " << (air::cuda_compiled() ? "yes" : "no") << '\n'
+              << "Observed unix ms:     " << discovery.environment.observed_unix_ms << "\n\n";
+
+    for (const auto& node : discovery.topology.nodes) {
+        std::cout << '[' << node.id << "] " << air::to_string(node.kind)
+                  << "  " << node.name << '\n'
+                  << "  backend:      " << node.backend << '\n'
+                  << "  architecture: " << node.architecture << '\n';
+        if (node.logical_processors != 0U) {
+            std::cout << "  logical CPUs: " << node.logical_processors << '\n';
+        }
+        if (node.total_bytes != 0U) {
+            std::cout << "  total:        " << human_bytes(node.total_bytes) << '\n'
+                      << "  available:    "
+                      << human_bytes(available_bytes_for(discovery.environment, node.id))
+                      << '\n';
+        }
+        if (!node.capabilities.empty()) {
+            std::cout << "  capabilities:";
+            for (const auto& capability : node.capabilities) {
+                std::cout << ' ' << capability;
+            }
+            std::cout << '\n';
+        }
+        std::cout << '\n';
+    }
+
+    if (!discovery.topology.links.empty()) {
+        std::cout << "Links:\n";
+        for (const auto& link : discovery.topology.links) {
+            std::cout << "  " << link.source_id << " -> " << link.target_id
+                      << "  " << air::to_string(link.kind);
+            if (link.measured) {
+                std::cout << "  bandwidth=" << link.bandwidth_bytes_per_second
+                          << " B/s latency=" << link.latency_microseconds << " us";
+            } else {
+                std::cout << "  unmeasured";
+            }
+            std::cout << '\n';
+        }
+    }
+
+    return 0;
+}
 
 int cuda_info() {
     auto devices = air::cuda_devices();
@@ -498,6 +657,19 @@ int main(int argc, char** argv) {
             }
         }
         return reference_generate(argv[2], argv[3], max_tokens);
+    }
+
+    if (command == "machine-info") {
+        if (argc != 2 && argc != 3) {
+            std::cerr << "machine-info takes only optional --json\n";
+            return 2;
+        }
+        const bool json_output = argc == 3 && std::string(argv[2]) == "--json";
+        if (argc == 3 && !json_output) {
+            std::cerr << "unknown machine-info option: " << argv[2] << '\n';
+            return 2;
+        }
+        return machine_info(json_output);
     }
 
     if (command == "cuda-info") {
