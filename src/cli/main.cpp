@@ -336,8 +336,13 @@ int machine_info(bool json_output) {
         }
         if (!node.capabilities.empty()) {
             std::cout << "  capabilities:";
-            for (const auto& capability : node.capabilities) {
-                std::cout << ' ' << capability;
+            constexpr std::size_t display_limit = 16U;
+            const auto count = std::min(display_limit, node.capabilities.size());
+            for (std::size_t i = 0; i < count; ++i) {
+                std::cout << ' ' << node.capabilities[i];
+            }
+            if (node.capabilities.size() > count) {
+                std::cout << " ... (+" << (node.capabilities.size() - count) << " more)";
             }
             std::cout << '\n';
         }
