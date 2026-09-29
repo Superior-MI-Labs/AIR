@@ -31,9 +31,11 @@ public:
 
 class SequenceState {
 public:
-    explicit SequenceState(ExecutionCorrelation correlation = {}) noexcept
-        : correlation_(correlation) {}
     virtual ~SequenceState() = default;
+
+    void bind_execution_correlation(ExecutionCorrelation correlation) noexcept {
+        correlation_ = correlation;
+    }
 
     [[nodiscard]] const ExecutionCorrelation& execution_correlation() const noexcept {
         return correlation_;
@@ -112,12 +114,29 @@ public:
     [[nodiscard]] virtual const BackendCapabilities& capabilities() const noexcept = 0;
     [[nodiscard]] virtual const ModelDefinition& model() const noexcept = 0;
     [[nodiscard]] virtual Result<std::unique_ptr<SequenceState>> create_sequence(
-        const ExecutionPlan& plan,
-        ExecutionCorrelation correlation = {}) = 0;
+        const ExecutionPlan& plan) = 0;
     [[nodiscard]] virtual Result<std::unique_ptr<SequenceState>> restore_sequence(
+        const ExecutionPlan& plan, const SequenceCheckpoint& checkpoint) = 0;
+
+    // Additive correlation-aware wrappers preserve the existing backend
+    // implementation contract. Correlation is execution evidence, not a new
+    // requirement for every PreparedModel implementation/test double.
+    [[nodiscard]] Result<std::unique_ptr<SequenceState>> create_sequence(
+        const ExecutionPlan& plan, ExecutionCorrelation correlation) {
+        auto sequence = create_sequence(plan);
+        if (!sequence) return sequence.status();
+        sequence.value()->bind_execution_correlation(correlation);
+        return sequence;
+    }
+    [[nodiscard]] Result<std::unique_ptr<SequenceState>> restore_sequence(
         const ExecutionPlan& plan,
         const SequenceCheckpoint& checkpoint,
-        ExecutionCorrelation correlation = {}) = 0;
+        ExecutionCorrelation correlation) {
+        auto sequence = restore_sequence(plan, checkpoint);
+        if (!sequence) return sequence.status();
+        sequence.value()->bind_execution_correlation(correlation);
+        return sequence;
+    }
     // Optional backend-global prepared artifacts are resources, not model truth.
     // Admission may forecast their incremental device cost before materializing
     // them. The caller may trim artifacts only while no sequence is active.
