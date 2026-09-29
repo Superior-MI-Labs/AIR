@@ -124,6 +124,18 @@ A follow-up review also moved canonical machine discovery into
 `air/machine.hpp` and made `/machine` structural-only while
 `/environment` performs live observation separately.
 
+## Second Prompt 2 qualification result
+
+The next live run passed compilation until link time for
+`air-hardware-topology-tests`.
+
+The test now exercises backend-neutral canonical machine discovery, but its
+CMake target linked only `AIR::core`. It now links `AIR::core AIR::cuda`,
+which means CPU-only builds resolve through the explicit CUDA stub and CUDA
+builds resolve through the real backend.
+
+No machine API was moved into core to work around the linker.
+
 ## Immediate next action
 
 Rerun:
