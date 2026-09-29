@@ -48,5 +48,7 @@ struct ParsedRequest {
 [[nodiscard]] std::string models_json(const ModelDefinition& model);
 [[nodiscard]] std::string metrics_text(const ServiceSnapshot& snapshot);
 [[nodiscard]] std::string events_json(const std::vector<RuntimeEvent>& events);
+[[nodiscard]] std::string execution_timeline_json(
+    const ExecutionTimelineSnapshot& timeline);
 
 } // namespace air::server
