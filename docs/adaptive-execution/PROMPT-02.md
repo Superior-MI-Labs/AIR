@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 2
 
-Status: IN PROGRESS
+Status: CLOSED / QUALIFIED
 Title: Hardware topology / execution environment authority split
 
 ## Prompt objective
@@ -174,6 +174,51 @@ This preserves the ownership decision. Machine-discovery implementation symbols
 were not moved back into `air_core` merely to satisfy the test.
 
 Prompt 2 remains open pending a clean rerun.
+
+## Final live qualification
+
+Prompt 2 qualified on WolfCat-Studio after the failure-derived fixes.
+
+Qualified Prompt 2 source:
+
+`abc74fda8bc02c9dd4e023bba422f5632ee44c9c`
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt2-20260929-184345`
+
+Results:
+
+- nested Prompt 1 nonregression: PASS;
+- CPU-only build/test matrix: 12/12 PASS;
+- CUDA build/test matrix: 12/12 PASS;
+- `GET /machine`: PASS;
+- `GET /environment`: PASS;
+- endpoint schema/identity validation: PASS;
+- CPU topology fingerprint:
+  `hardware-topology:v1:963f1082652c41fb`;
+- CUDA topology fingerprint:
+  `hardware-topology:v1:f521e9bdd95ed645`.
+
+The CUDA environment observation demonstrated the intended separation:
+
+```text
+gpu0 available before server/model: 14121304064 bytes
+gpu0 available with model loaded:   13111066624 bytes
+delta:                              -1010237440 bytes
+```
+
+The structural CUDA topology fingerprint remained unchanged while live device
+availability changed.
+
+Final gate:
+
+```text
+PROMPT2_TOPOLOGY_ENVIRONMENT=PASS
+qualifier_rc=0
+```
+
+Prompt 2 is closed.
 
 ## Tests
 
