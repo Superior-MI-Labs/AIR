@@ -667,6 +667,7 @@ std::string execution_timeline_json(
     root["origin_unix_ms"] = timeline.origin_unix_ms;
     root["capacity"] = timeline.capacity;
     root["evicted_spans"] = timeline.evicted_spans;
+    root["dropped_spans"] = timeline.dropped_spans;
 
     json::array spans;
     for (const auto& span : timeline.spans) {
