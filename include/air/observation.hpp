@@ -2,8 +2,10 @@
 
 #include "air/types.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace air {
@@ -34,6 +36,33 @@ enum class ExecutionSpanCategory {
 [[nodiscard]] const char* to_string(ExecutionObservationLevel level) noexcept;
 [[nodiscard]] const char* to_string(ExecutionSpanScope scope) noexcept;
 [[nodiscard]] const char* to_string(ExecutionSpanCategory category) noexcept;
+
+class ExecutionObservationSink;
+
+struct ExecutionCorrelation {
+    RequestId request_id{0};
+    SequenceId sequence_id{0};
+    ExecutionObservationSink* sink{nullptr};
+};
+
+struct BackendExecutionObservation {
+    ExecutionSpanCategory category{ExecutionSpanCategory::backend_call};
+    std::string_view phase;
+    std::string_view backend;
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point end;
+    std::uint32_t participant_count{1};
+    std::uint64_t work_units{0};
+    bool success{true};
+};
+
+class ExecutionObservationSink {
+public:
+    virtual ~ExecutionObservationSink() = default;
+    virtual void observe_backend(
+        const ExecutionCorrelation& correlation,
+        const BackendExecutionObservation& observation) noexcept = 0;
+};
 
 struct ExecutionSpan {
     std::uint32_t schema_version{execution_observation_schema_version};
