@@ -2496,11 +2496,100 @@ Result<std::vector<DeviceInfo>> cuda_devices() {
         std::size_t total_bytes = 0;
         status = cudaMemGetInfo(&free_bytes, &total_bytes);
         if (status != cudaSuccess) return cuda_status(status, "cudaMemGetInfo");
-        devices.push_back(DeviceInfo{DeviceKind::cuda, ordinal, properties.name, properties.major, properties.minor,
-                                     static_cast<std::uint64_t>(total_bytes), static_cast<std::uint64_t>(free_bytes)});
+        devices.push_back(DeviceInfo{
+            DeviceKind::cuda,
+            ordinal,
+            properties.name,
+            properties.major,
+            properties.minor,
+            static_cast<std::uint64_t>(total_bytes),
+            static_cast<std::uint64_t>(free_bytes),
+            properties.multiProcessorCount,
+            properties.asyncEngineCount,
+            properties.concurrentKernels != 0,
+            properties.unifiedAddressing != 0,
+            properties.managedMemory != 0,
+        });
     }
     cudaSetDevice(original);
     return devices;
+}
+
+Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
+    auto devices = cuda_devices();
+    if (!devices) return devices.status();
+
+    const auto* host_memory = std::find_if(
+        discovery.topology.nodes.begin(), discovery.topology.nodes.end(),
+        [](const HardwareNode& node) {
+            return node.kind == HardwareNodeKind::host_memory;
+        });
+    const std::string host_memory_id =
+        host_memory == discovery.topology.nodes.end() ? std::string{} : host_memory->id;
+
+    for (const auto& device : devices.value()) {
+        const std::string node_id = "gpu" + std::to_string(device.ordinal);
+        if (find_hardware_node(discovery.topology, node_id)) {
+            return Status::invalid_state(
+                "CUDA discovery node collides with existing hardware node: " + node_id);
+        }
+
+        std::vector<std::string> capabilities;
+        capabilities.push_back("cuda");
+        if (device.concurrent_kernels) capabilities.push_back("concurrent-kernels");
+        if (device.async_engine_count > 0) capabilities.push_back("async-copy");
+        if (device.unified_addressing) capabilities.push_back("unified-addressing");
+        if (device.managed_memory) capabilities.push_back("managed-memory");
+
+        discovery.topology.nodes.push_back(HardwareNode{
+            node_id,
+            HardwareNodeKind::accelerator,
+            device.name,
+            "cuda",
+            "sm" + std::to_string(device.compute_major) +
+                std::to_string(device.compute_minor),
+            device.ordinal,
+            -1,
+            device.total_memory_bytes,
+            0U,
+            std::move(capabilities),
+            0U,
+        });
+        discovery.environment.resources.push_back(
+            HardwareResourceState{node_id, device.free_memory_bytes});
+
+        if (!host_memory_id.empty()) {
+            discovery.topology.links.push_back(HardwareLink{
+                host_memory_id,
+                node_id,
+                HardwareLinkKind::host_device,
+                false,
+                0.0,
+                0.0,
+            });
+        }
+    }
+
+    discovery.topology.fingerprint =
+        hardware_topology_fingerprint(discovery.topology);
+    discovery.environment.topology_fingerprint =
+        discovery.topology.fingerprint;
+
+    const auto topology_valid =
+        validate_hardware_topology(discovery.topology);
+    if (!topology_valid.valid) {
+        return Status::internal_error(
+            "CUDA augmentation produced invalid hardware topology: " +
+            topology_valid.message);
+    }
+    const auto environment_valid =
+        validate_hardware_environment(discovery.topology, discovery.environment);
+    if (!environment_valid.valid) {
+        return Status::internal_error(
+            "CUDA augmentation produced invalid hardware environment: " +
+            environment_valid.message);
+    }
+    return Status::ok();
 }
 
 CudaKvCache::CudaKvCache(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
