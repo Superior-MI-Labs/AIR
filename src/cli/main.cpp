@@ -1,6 +1,7 @@
 #include "air/cuda.hpp"
 #include "air/format.hpp"
 #include "air/hardware.hpp"
+#include "air/hardware_json.hpp"
 #include "air/manifest.hpp"
 #include "air/reference.hpp"
 #include "air/tokenizer.hpp"
@@ -18,7 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/json.hpp>
 
 namespace {
 
@@ -207,75 +207,6 @@ int reference_generate(const std::filesystem::path& path, const std::string& tex
 }
 
 
-boost::json::object hardware_node_json(const air::HardwareNode& node) {
-    boost::json::object out;
-    out["id"] = node.id;
-    out["kind"] = air::to_string(node.kind);
-    out["name"] = node.name;
-    out["backend"] = node.backend;
-    out["architecture"] = node.architecture;
-    out["ordinal"] = node.ordinal;
-    out["numa_node"] = node.numa_node;
-    out["total_bytes"] = node.total_bytes;
-    out["logical_processors"] = node.logical_processors;
-    boost::json::array capabilities;
-    for (const auto& capability : node.capabilities) {
-        capabilities.push_back(boost::json::value(capability));
-    }
-    out["capabilities"] = std::move(capabilities);
-    return out;
-}
-
-boost::json::object hardware_link_json(const air::HardwareLink& link) {
-    boost::json::object out;
-    out["source_id"] = link.source_id;
-    out["target_id"] = link.target_id;
-    out["kind"] = air::to_string(link.kind);
-    out["measured"] = link.measured;
-    if (link.measured) {
-        out["bandwidth_bytes_per_second"] = link.bandwidth_bytes_per_second;
-        out["latency_microseconds"] = link.latency_microseconds;
-    }
-    return out;
-}
-
-boost::json::object machine_discovery_json(const air::HardwareDiscovery& discovery) {
-    boost::json::object root;
-    root["air_version"] = air::version_string();
-    root["cuda_compiled"] = air::cuda_compiled();
-
-    boost::json::object topology;
-    topology["schema_version"] = discovery.topology.schema_version;
-    topology["fingerprint"] = discovery.topology.fingerprint;
-    boost::json::array nodes;
-    for (const auto& node : discovery.topology.nodes) {
-        nodes.push_back(hardware_node_json(node));
-    }
-    topology["nodes"] = std::move(nodes);
-    boost::json::array links;
-    for (const auto& link : discovery.topology.links) {
-        links.push_back(hardware_link_json(link));
-    }
-    topology["links"] = std::move(links);
-    root["topology"] = std::move(topology);
-
-    boost::json::object environment;
-    environment["schema_version"] = discovery.environment.schema_version;
-    environment["topology_fingerprint"] = discovery.environment.topology_fingerprint;
-    environment["observed_unix_ms"] = discovery.environment.observed_unix_ms;
-    boost::json::array resources;
-    for (const auto& resource : discovery.environment.resources) {
-        boost::json::object item;
-        item["node_id"] = resource.node_id;
-        item["available_bytes"] = resource.available_bytes;
-        resources.push_back(std::move(item));
-    }
-    environment["resources"] = std::move(resources);
-    root["environment"] = std::move(environment);
-
-    return root;
-}
-
 std::uint64_t available_bytes_for(
     const air::HardwareEnvironmentSnapshot& environment,
     std::string_view node_id) {
@@ -288,18 +219,13 @@ std::uint64_t available_bytes_for(
 }
 
 int machine_info(bool json_output) {
-    auto discovered = air::discover_host_hardware();
+    auto discovered = air::discover_machine_hardware();
     if (!discovered) {
         std::cerr << "machine discovery failed: " << discovered.status().message() << '\n';
         return 5;
     }
 
     auto discovery = std::move(discovered).value();
-    const auto cuda_status = air::augment_hardware_discovery_with_cuda(discovery);
-    if (!cuda_status) {
-        std::cerr << "CUDA machine discovery failed: " << cuda_status.message() << '\n';
-        return 5;
-    }
 
     const auto topology_valid = air::validate_hardware_topology(discovery.topology);
     const auto environment_valid =
@@ -312,7 +238,8 @@ int machine_info(bool json_output) {
     }
 
     if (json_output) {
-        std::cout << boost::json::serialize(machine_discovery_json(discovery)) << '\n';
+        std::cout << air::hardware_discovery_json(
+            discovery, air::version_string(), air::cuda_compiled()) << '\n';
         return 0;
     }
 
