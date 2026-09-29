@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AIR VERSION 0.9.12 LANGUAGES CXX)
+project(AIR VERSION 0.10.0 LANGUAGES CXX)
 
 option(AIR_BUILD_TESTS "Build AIR tests" ON)
 option(AIR_ENABLE_CUDA "Build the NVIDIA CUDA executor" OFF)
