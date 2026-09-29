@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 1
 
-Status: IN PROGRESS
+Status: IMPLEMENTED / LIVE MACHINE QUALIFICATION PENDING
 Title: Release contract and machine discovery foundation
 
 ## Prompt objective
@@ -74,6 +74,27 @@ No model path is required.
 - discovery does not benchmark links automatically;
 - observed free memory is dynamic state, not topology identity;
 - no shell execution from package metadata.
+
+## Implemented in Prompt 1
+
+The branch now contains:
+
+- a read-only Linux host discovery API;
+- deterministic structural topology fingerprinting;
+- a separate `HardwareEnvironmentSnapshot` for volatile availability;
+- environment/topology validation;
+- richer CUDA device capability observations;
+- CUDA augmentation of the canonical discovery result;
+- CPU-only-safe CUDA stub behavior;
+- `air-cli machine-info`;
+- `air-cli machine-info --json`;
+- characterization tests for topology identity and environment binding;
+- `scripts/qualify-adaptive-prompt1.sh` for CPU-only + CUDA qualification.
+
+No scheduler, planner, model execution, or server behavior was intentionally
+changed.
+
+The remaining Prompt 1 authority is live qualification on WolfCat-Studio.
 
 ## Prompt 1 tests
 
