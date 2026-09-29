@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
 Updated: 2026-09-29
-Status: WAVE 0 CURRENT / PROMPT 1 LIVE QUALIFICATION PENDING
+Status: WAVE 0 CURRENT / PROMPT 2 CURRENT
 
 ## Frozen baseline
 
@@ -77,46 +77,52 @@ Testing/user-validation authority:
 
 `docs/adaptive-execution/TESTING-STRATEGY.md`
 
-## Prompt 1 implementation state
+## Prompt 1 qualified baseline
 
-Implemented:
+Prompt 1 is CLOSED / QUALIFIED.
 
-- host CPU/RAM discovery;
-- topology fingerprinting that excludes dynamic availability and empirical
-  link measurements;
-- separate hardware environment availability snapshot;
-- CUDA device augmentation;
-- standalone machine-info CLI in human and JSON form;
-- qualification script for CPU-only and CUDA builds.
+Qualified source:
+`15cc24f3946707dbe2ee9843d9e8379c77b08e1e`
 
-No planner/scheduler adaptation is enabled by this work.
+WolfCat evidence:
+`/home/emerson/Downloads/AIR-0.11-Prompt1-20260929-175415`
 
-## Latest Prompt 1 evidence
+Both CPU-only and CUDA builds passed 12/12 CTests. Canonical machine discovery
+correctly identified the i7-11800H, 31.08 GiB RAM, and RTX 3080 Laptop GPU
+(`sm86`) while keeping dynamic availability separate from structural
+fingerprinting.
 
-The first live WolfCat qualification failed in the CPU-only build before
-CTest.
+## Prompt 2 current
 
-Root causes were fixed:
+Prompt 2 authority:
 
-- explicit Boost.JSON string construction in `air-cli machine-info --json`;
-- missing CPU-only CUDA stub definitions for target-logprob executor methods.
+`docs/adaptive-execution/PROMPT-02.md`
 
-The failure also validated the value of keeping CPU-only builds as a permanent
-release gate: it exposed backend-contract drift that the CUDA path had hidden.
+Implemented in source for qualification:
+
+- separate host topology discovery and environment observation;
+- separate CUDA topology augmentation and environment augmentation;
+- canonical `discover_machine_hardware()` composition;
+- one shared topology/environment/discovery JSON serializer;
+- CLI migrated to the canonical composed discovery and shared JSON schema;
+- read-only `GET /machine`;
+- read-only `GET /environment`;
+- Prompt 2 qualifier that re-runs Prompt 1 nonregression and then tests
+  CPU-only and CUDA server surfaces.
+
+No planner/scheduler/inference policy change is intended.
 
 ## Immediate next action
 
-Rerun the Prompt 1 qualifier on WolfCat-Studio:
+Run:
 
 ```text
-bash scripts/qualify-adaptive-prompt1.sh
+bash scripts/qualify-adaptive-prompt2.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
 ```
 
-Prompt 1 must not close until the CPU-only and CUDA builds/tests pass and the
-captured machine JSON matches the real development machine.
-
-If qualification fails, repair the owning discovery/build/test layer before
-starting Prompt 2.
+Prompt 2 closes only after the full CPU-only + CUDA qualification and endpoint
+identity checks pass on WolfCat-Studio.
 
 ## Current architectural hypothesis
 
