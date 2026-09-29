@@ -1,3 +1,5 @@
+#include "air/cuda.hpp"
+#include "air/hardware_json.hpp"
 #include "air/serving.hpp"
 #include "air/version.hpp"
 #include "protocol.hpp"
@@ -349,6 +351,28 @@ void handle_request(tcp::socket socket,
     }
     if (request.method() == http::verb::get && target == "/runtime") {
         write_text(socket, http::status::ok, air::server::service_snapshot_json(service.snapshot()));
+        return;
+    }
+    if (request.method() == http::verb::get && target == "/machine") {
+        auto discovered = air::discover_machine_hardware();
+        if (!discovered) {
+            write_error(socket, http::status::internal_server_error,
+                        discovered.status().message());
+            return;
+        }
+        write_text(socket, http::status::ok,
+                   air::hardware_topology_json(discovered.value().topology));
+        return;
+    }
+    if (request.method() == http::verb::get && target == "/environment") {
+        auto discovered = air::discover_machine_hardware();
+        if (!discovered) {
+            write_error(socket, http::status::internal_server_error,
+                        discovered.status().message());
+            return;
+        }
+        write_text(socket, http::status::ok,
+                   air::hardware_environment_json(discovered.value().environment));
         return;
     }
     if (request.method() == http::verb::get && target == "/events") {
