@@ -111,6 +111,41 @@ fingerprint it belongs to.
 
 These are additive endpoints. Existing 0.10 public endpoints remain unchanged.
 
+## First live qualification result
+
+The first WolfCat-Studio Prompt 2 qualification failed during the nested
+Prompt 1 CPU-only nonregression build.
+
+Failure:
+
+```text
+failed_stage=prompt1-nonregression
+nested failed_stage=cpu-build
+```
+
+Root cause:
+
+`observe_host_environment()` assigned the iterator returned by
+`std::find_if` to `const auto*`.
+
+This was a direct C++ implementation defect in the new topology/environment
+split, not a topology-design or machine-evidence failure.
+
+The iterator declaration was corrected.
+
+The follow-up static review also tightened ownership:
+
+- canonical machine discovery moved out of `cuda.hpp` into backend-neutral
+  `air/machine.hpp`;
+- `discover_machine_topology()` now owns structural machine discovery;
+- `observe_machine_environment(topology)` owns volatile observation;
+- `GET /machine` performs structural discovery only;
+- `GET /environment` performs a fresh environment observation against the
+  discovered topology;
+- CUDA remains an augmenter of those contracts rather than their owner.
+
+Prompt 2 remains open pending rerun.
+
 ## Tests
 
 ### Unit
