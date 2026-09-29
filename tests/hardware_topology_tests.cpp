@@ -1,6 +1,7 @@
 #include "air/cuda.hpp"
 #include "air/hardware.hpp"
 #include "air/hardware_json.hpp"
+#include "air/machine.hpp"
 
 #include <boost/json.hpp>
 
