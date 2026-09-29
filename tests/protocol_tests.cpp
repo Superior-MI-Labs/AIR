@@ -176,6 +176,32 @@ int main() {
               std::string::npos,
           "Prometheus metrics expose decision and overload counters");
 
+    air::ExecutionTimelineSnapshot timeline;
+    timeline.level = air::ExecutionObservationLevel::normal;
+    timeline.origin_unix_ms = 1234U;
+    timeline.capacity = 16U;
+    timeline.evicted_spans = 2U;
+    air::ExecutionSpan span;
+    span.observation_sequence = 7U;
+    span.request_id = 3U;
+    span.sequence_id = 4U;
+    span.scope = air::ExecutionSpanScope::service;
+    span.category = air::ExecutionSpanCategory::backend_call;
+    span.phase = "prefill";
+    span.backend = "reference";
+    span.start_ns = 10U;
+    span.end_ns = 20U;
+    span.work_units = 2U;
+    timeline.spans.push_back(span);
+    const auto timeline_body = air::server::execution_timeline_json(timeline);
+    check(timeline_body.find("\"level\":\"normal\"") != std::string::npos &&
+          timeline_body.find("\"clock\":\"steady_clock\"") != std::string::npos &&
+          timeline_body.find("\"category\":\"backend-call\"") != std::string::npos &&
+          timeline_body.find("\"phase\":\"prefill\"") != std::string::npos &&
+          timeline_body.find("\"start_ns\":10") != std::string::npos &&
+          timeline_body.find("\"end_ns\":20") != std::string::npos,
+          "execution timeline serialization preserves typed clock and span semantics");
+
     if (failures != 0) {
         std::cerr << failures << " protocol test(s) failed\n";
         return 1;
