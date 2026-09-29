@@ -109,6 +109,46 @@ If a test/qualification gate fails:
 - do not weaken thresholds merely to pass;
 - retain negative evidence.
 
+Every failure review must also answer:
+
+1. what failed;
+2. what owning-layer defect caused it;
+3. why the previous review/test process missed it;
+4. what practical permanent check can catch that class earlier.
+
+If a practical prevention exists, implement it before advancing.
+
+The accumulated failure-derived rules are maintained in
+`docs/adaptive-execution/FAILURE-RETROSPECTIVE.md`.
+
+## Mandatory pre-publish preflight
+
+Before asking a user to pull/run new adaptive-execution code, the integration
+agent must perform a dedicated pre-publish review.
+
+Audit:
+
+- every changed public declaration and its definition owner;
+- real backend and disabled/stub parity;
+- each consumer target and its CMake link dependency;
+- install/export implications of public headers;
+- iterator/pointer/value type correctness;
+- Result/Status propagation;
+- overload/signature consistency;
+- string/JSON compatibility conversions;
+- lifetime-sensitive span/string_view usage;
+- qualifier failure/cleanup behavior.
+
+Then run, or obtain a passing CI result for:
+
+```text
+bash scripts/preflight-adaptive.sh
+```
+
+This CPU-only gate is mandatory even when the active work is CUDA-focused.
+
+CUDA/device qualification remains a separate live-machine gate.
+
 ## Parallel-agent rule
 
 Parallel agents may investigate independent questions.
