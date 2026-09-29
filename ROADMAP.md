@@ -20,6 +20,32 @@ The current release establishes:
 - browser command center;
 - release qualification and evidence discipline.
 
+## Active architecture research: Adaptive Execution Substrate
+
+The next AIR architecture program is exploring a standalone adaptive execution
+substrate.
+
+The research direction separates:
+
+```text
+semantic computation
+hardware topology
+dynamic execution environment
+physical execution plan
+measured performance evidence
+```
+
+The goal is not to hard-code every future model family. It is to make new
+semantics and new hardware enter through explicit contracts while AIR derives
+qualified physical execution strategies from measured evidence.
+
+Current work begins with hardware/execution assumption census and observability.
+Qwen2 remains the qualified baseline. A multi-component image generation
+workflow is the intended second architecture used to falsify proposed common
+abstractions.
+
+The program is documented under `docs/adaptive-execution/`.
+
 ## Near-term public research
 
 ### Long-context concurrent prefill
