@@ -99,7 +99,7 @@ if curl -fsS --max-time 1 "$AIR_ENDPOINT/health" >/dev/null 2>&1; then
 fi
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$HOME/Downloads/AIR-MEF-R0-Requal-$STAMP"
+OUT="${AIR_MEF_OUT:-$HOME/Downloads/AIR-MEF-R0-Requal-$STAMP}"
 MEF_WT="$OUT/mef-r0-qualified"
 mkdir -p "$OUT"
 
