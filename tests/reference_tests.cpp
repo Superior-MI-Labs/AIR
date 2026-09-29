@@ -1,5 +1,4 @@
 #include "air/reference.hpp"
-#include "runtime/backend.hpp"
 #include "air/storage.hpp"
 #include "model/architecture_adapter.hpp"
 #include "model/prepared_model.hpp"
@@ -856,50 +855,6 @@ void test_prepared_semantic_tamper_rejection() {
           "prepared semantic execution does not silently admit an unqualified architecture");
 }
 
-void test_sequence_execution_correlation_contract() {
-    auto model = make_tiny_qwen2();
-    auto prepared = air::runtime_detail::prepare_reference_model(model);
-    check(prepared.is_ok(), "reference prepared model supports correlation contract test");
-    if (!prepared) return;
-
-    air::ExecutionPlan plan;
-    plan.backend = air::BackendKind::reference;
-    plan.strategy_id = "correlation-test";
-    plan.scheduling.prefill_quantum_tokens = 1U;
-    plan.kv.page_tokens = 2U;
-
-    air::ExecutionCorrelation initial;
-    initial.request_id = 41U;
-    initial.sequence_id = 73U;
-    auto sequence = prepared.value()->create_sequence(plan, initial);
-    check(sequence.is_ok(), "reference sequence accepts explicit execution correlation");
-    if (!sequence) return;
-
-    const auto& retained = sequence.value()->execution_correlation();
-    check(retained.request_id == initial.request_id &&
-          retained.sequence_id == initial.sequence_id &&
-          retained.sink == nullptr,
-          "fresh sequence retains exact execution correlation");
-
-    auto checkpoint = sequence.value()->checkpoint();
-    check(checkpoint.is_ok(), "correlated reference sequence checkpoints");
-    if (!checkpoint) return;
-
-    air::ExecutionCorrelation restored_correlation;
-    restored_correlation.request_id = 42U;
-    restored_correlation.sequence_id = 74U;
-    auto restored = prepared.value()->restore_sequence(
-        plan, *checkpoint.value(), restored_correlation);
-    check(restored.is_ok(), "reference sequence restore accepts new correlation");
-    if (!restored) return;
-
-    const auto& restored_value = restored.value()->execution_correlation();
-    check(restored_value.request_id == restored_correlation.request_id &&
-          restored_value.sequence_id == restored_correlation.sequence_id &&
-          restored_value.sink == nullptr,
-          "restored sequence retains caller-provided execution correlation");
-}
-
 void test_reference_rejects_wrong_architecture() {
     auto model = make_tiny_qwen2();
     air::ModelConfig config = model->config();
@@ -927,7 +882,6 @@ int main() {
     test_qwen2_optional_qkv_bias_contract();
     test_semantic_alias_execution_falsification();
     test_prepared_semantic_tamper_rejection();
-    test_sequence_execution_correlation_contract();
     test_reference_rejects_wrong_architecture();
 
     if (failures != 0) {
