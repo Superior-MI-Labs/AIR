@@ -219,7 +219,9 @@ boost::json::object hardware_node_json(const air::HardwareNode& node) {
     out["total_bytes"] = node.total_bytes;
     out["logical_processors"] = node.logical_processors;
     boost::json::array capabilities;
-    for (const auto& capability : node.capabilities) capabilities.push_back(capability);
+    for (const auto& capability : node.capabilities) {
+        capabilities.push_back(boost::json::value(capability));
+    }
     out["capabilities"] = std::move(capabilities);
     return out;
 }
