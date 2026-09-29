@@ -8,8 +8,47 @@ Result<std::vector<DeviceInfo>> cuda_devices() {
     return Status::unsupported("AIR was built without CUDA support");
 }
 
-Status augment_hardware_discovery_with_cuda(HardwareDiscovery&) {
+Status augment_hardware_topology_with_cuda(HardwareTopology& topology) {
+    topology.fingerprint = hardware_topology_fingerprint(topology);
     return Status::ok();
+}
+
+Status augment_hardware_environment_with_cuda(
+    const HardwareTopology& topology,
+    HardwareEnvironmentSnapshot& environment) {
+    if (environment.topology_fingerprint != topology.fingerprint) {
+        return Status::invalid_argument(
+            "CUDA-disabled environment requires matching topology fingerprint");
+    }
+    return Status::ok();
+}
+
+Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
+    auto status = augment_hardware_topology_with_cuda(discovery.topology);
+    if (!status) return status;
+    discovery.environment.topology_fingerprint = discovery.topology.fingerprint;
+    return augment_hardware_environment_with_cuda(
+        discovery.topology, discovery.environment);
+}
+
+Result<HardwareDiscovery> discover_machine_hardware() {
+    auto topology = discover_host_topology();
+    if (!topology) return topology.status();
+
+    auto topology_status = augment_hardware_topology_with_cuda(topology.value());
+    if (!topology_status) return topology_status;
+
+    auto environment = observe_host_environment(topology.value());
+    if (!environment) return environment.status();
+
+    auto environment_status =
+        augment_hardware_environment_with_cuda(topology.value(), environment.value());
+    if (!environment_status) return environment_status;
+
+    return HardwareDiscovery{
+        std::move(topology).value(),
+        std::move(environment).value(),
+    };
 }
 
 struct CudaKvCache::Impl {};
