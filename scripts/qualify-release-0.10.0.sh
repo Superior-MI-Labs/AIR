@@ -49,9 +49,12 @@ require_text() {
 }
 
 require_text 'AIR 0.10.0' README.md
+require_text 'Qwen2 remains the only qualified production model architecture in AIR 0.10.0.' README.md
 require_text 'schema_version = 10' docs/PUBLIC_CONTRACTS.md
 require_text 'air.benchmark.v11' docs/PUBLIC_CONTRACTS.md
-require_text 'Qwen2 remains the sole qualified production model architecture' docs/RELEASE-0.10.0.md
+require_text 'AIR 0.10.0 production model support remains intentionally narrow:' docs/RELEASE-0.10.0.md
+require_text '`qwen2` architecture metadata;' docs/RELEASE-0.10.0.md
+require_text 'additional qualified production model families.' docs/RELEASE-0.10.0.md
 
 echo "Release preflight: version/docs/source-boundary checks PASS"
 
