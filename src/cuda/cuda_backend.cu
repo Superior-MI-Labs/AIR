@@ -2515,19 +2515,19 @@ Result<std::vector<DeviceInfo>> cuda_devices() {
     return devices;
 }
 
-Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
+Status augment_hardware_topology_with_cuda(HardwareTopology& topology) {
     auto devices = cuda_devices();
     if (!devices) return devices.status();
 
     const auto host_memory = std::find_if(
-        discovery.topology.nodes.begin(), discovery.topology.nodes.end(),
+        topology.nodes.begin(), topology.nodes.end(),
         [](const HardwareNode& node) {
             return node.kind == HardwareNodeKind::host_memory;
         });
     const std::string host_memory_id =
-        host_memory == discovery.topology.nodes.end() ? std::string{} : host_memory->id;
+        host_memory == topology.nodes.end() ? std::string{} : host_memory->id;
 
-    if (!devices.value().empty() && host_memory != discovery.topology.nodes.end()) {
+    if (!devices.value().empty() && host_memory != topology.nodes.end()) {
         auto& host_capabilities = host_memory->capabilities;
         if (std::find(host_capabilities.begin(), host_capabilities.end(),
                       "pinned-capable") == host_capabilities.end()) {
@@ -2537,7 +2537,7 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
 
     for (const auto& device : devices.value()) {
         const std::string node_id = "gpu" + std::to_string(device.ordinal);
-        if (find_hardware_node(discovery.topology, node_id)) {
+        if (find_hardware_node(topology, node_id)) {
             return Status::invalid_state(
                 "CUDA discovery node collides with existing hardware node: " + node_id);
         }
@@ -2549,7 +2549,7 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
         if (device.unified_addressing) capabilities.push_back("unified-addressing");
         if (device.managed_memory) capabilities.push_back("managed-memory");
 
-        discovery.topology.nodes.push_back(HardwareNode{
+        topology.nodes.push_back(HardwareNode{
             node_id,
             HardwareNodeKind::accelerator,
             device.name,
@@ -2563,11 +2563,9 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
             std::move(capabilities),
             0U,
         });
-        discovery.environment.resources.push_back(
-            HardwareResourceState{node_id, device.free_memory_bytes});
 
         if (!host_memory_id.empty()) {
-            discovery.topology.links.push_back(HardwareLink{
+            topology.links.push_back(HardwareLink{
                 host_memory_id,
                 node_id,
                 HardwareLinkKind::host_device,
@@ -2578,26 +2576,87 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
         }
     }
 
-    discovery.topology.fingerprint =
-        hardware_topology_fingerprint(discovery.topology);
-    discovery.environment.topology_fingerprint =
-        discovery.topology.fingerprint;
-
-    const auto topology_valid =
-        validate_hardware_topology(discovery.topology);
-    if (!topology_valid.valid) {
+    topology.fingerprint = hardware_topology_fingerprint(topology);
+    const auto valid = validate_hardware_topology(topology);
+    if (!valid.valid) {
         return Status::internal_error(
             "CUDA augmentation produced invalid hardware topology: " +
-            topology_valid.message);
-    }
-    const auto environment_valid =
-        validate_hardware_environment(discovery.topology, discovery.environment);
-    if (!environment_valid.valid) {
-        return Status::internal_error(
-            "CUDA augmentation produced invalid hardware environment: " +
-            environment_valid.message);
+            valid.message);
     }
     return Status::ok();
+}
+
+Status augment_hardware_environment_with_cuda(
+    const HardwareTopology& topology,
+    HardwareEnvironmentSnapshot& environment) {
+    if (environment.topology_fingerprint != topology.fingerprint) {
+        return Status::invalid_argument(
+            "CUDA environment augmentation requires matching topology fingerprint");
+    }
+
+    auto devices = cuda_devices();
+    if (!devices) return devices.status();
+
+    for (const auto& device : devices.value()) {
+        const std::string node_id = "gpu" + std::to_string(device.ordinal);
+        const auto* node = find_hardware_node(topology, node_id);
+        if (!node || node->kind != HardwareNodeKind::accelerator ||
+            node->backend != "cuda") {
+            return Status::invalid_state(
+                "CUDA environment observed device absent from topology: " + node_id);
+        }
+        const auto duplicate = std::find_if(
+            environment.resources.begin(), environment.resources.end(),
+            [&](const HardwareResourceState& resource) {
+                return resource.node_id == node_id;
+            });
+        if (duplicate != environment.resources.end()) {
+            return Status::invalid_state(
+                "CUDA environment resource already exists: " + node_id);
+        }
+        environment.resources.push_back(
+            HardwareResourceState{node_id, device.free_memory_bytes});
+    }
+
+    const auto valid = validate_hardware_environment(topology, environment);
+    if (!valid.valid) {
+        return Status::internal_error(
+            "CUDA augmentation produced invalid hardware environment: " +
+            valid.message);
+    }
+    return Status::ok();
+}
+
+Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
+    auto status = augment_hardware_topology_with_cuda(discovery.topology);
+    if (!status) return status;
+
+    // The host environment may have been observed against the pre-CUDA
+    // topology. Rebind it to the now-complete structural identity before
+    // adding accelerator state.
+    discovery.environment.topology_fingerprint = discovery.topology.fingerprint;
+    return augment_hardware_environment_with_cuda(
+        discovery.topology, discovery.environment);
+}
+
+Result<HardwareDiscovery> discover_machine_hardware() {
+    auto topology = discover_host_topology();
+    if (!topology) return topology.status();
+
+    auto topology_status = augment_hardware_topology_with_cuda(topology.value());
+    if (!topology_status) return topology_status;
+
+    auto environment = observe_host_environment(topology.value());
+    if (!environment) return environment.status();
+
+    auto environment_status =
+        augment_hardware_environment_with_cuda(topology.value(), environment.value());
+    if (!environment_status) return environment_status;
+
+    return HardwareDiscovery{
+        std::move(topology).value(),
+        std::move(environment).value(),
+    };
 }
 
 CudaKvCache::CudaKvCache(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
