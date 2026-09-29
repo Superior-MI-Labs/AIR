@@ -9,7 +9,7 @@ namespace {
 json::object node_json(const HardwareNode& node) {
     json::object out;
     out["id"] = json::value(node.id);
-    out["kind"] = json::value(to_string(node.kind));
+    out["kind"] = json::value(std::string(to_string(node.kind)));
     out["name"] = json::value(node.name);
     out["backend"] = json::value(node.backend);
     out["architecture"] = json::value(node.architecture);
@@ -30,7 +30,7 @@ json::object link_json(const HardwareLink& link) {
     json::object out;
     out["source_id"] = json::value(link.source_id);
     out["target_id"] = json::value(link.target_id);
-    out["kind"] = json::value(to_string(link.kind));
+    out["kind"] = json::value(std::string(to_string(link.kind)));
     out["measured"] = link.measured;
     if (link.measured) {
         out["bandwidth_bytes_per_second"] = link.bandwidth_bytes_per_second;
@@ -92,7 +92,7 @@ std::string hardware_discovery_json(
     std::optional<bool> cuda_compiled) {
     json::object root;
     if (!air_version.empty()) {
-        root["air_version"] = json::value(air_version);
+        root["air_version"] = json::value(std::string(air_version));
     }
     if (cuda_compiled.has_value()) {
         root["cuda_compiled"] = *cuda_compiled;
