@@ -167,11 +167,11 @@ int main() {
             "hardware discovery JSON is invalid");
 
     require(
-        topology_value.as_object().at("fingerprint").as_string() ==
+        std::string(topology_value.as_object().at("fingerprint").as_string()) ==
             discovered.value().topology.fingerprint,
         "topology JSON fingerprint does not match authority");
     require(
-        environment_value.as_object().at("topology_fingerprint").as_string() ==
+        std::string(environment_value.as_object().at("topology_fingerprint").as_string()) ==
             discovered.value().topology.fingerprint,
         "environment JSON is not bound to topology authority");
 
