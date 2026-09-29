@@ -662,8 +662,8 @@ std::string execution_timeline_json(
     json::object root;
     root["schema_version"] = timeline.schema_version;
     root["level"] = json::value(std::string(to_string(timeline.level)));
-    root["clock"] = "steady_clock";
-    root["time_unit"] = "nanoseconds_from_origin";
+    root["clock"] = json::value(std::string("steady_clock"));
+    root["time_unit"] = json::value(std::string("nanoseconds_from_origin"));
     root["origin_unix_ms"] = timeline.origin_unix_ms;
     root["capacity"] = timeline.capacity;
     root["evicted_spans"] = timeline.evicted_spans;
