@@ -1928,14 +1928,28 @@ struct CudaExecutor::Impl {
     }
 
     Status load_rows(const ResidentTensor& tensor, std::span<const TokenId> tokens,
-                     std::uint64_t width, float* output) {
+                     std::uint64_t width, float* output,
+                     const ExecutionCorrelation* correlation = nullptr) {
         ScopedProfileRange range("air.cuda.embedding_rows");
         if (tokens.empty() || tokens.size() > kMaxNativePrefillBatch) {
             return Status::invalid_argument("CUDA native prefill batch width is unsupported");
         }
-        auto status = cuda_status(cudaMemcpyAsync(workspace.token_ids, tokens.data(),
-                                                  tokens.size_bytes(), cudaMemcpyHostToDevice, stream),
-                                  "cudaMemcpyAsync(prefill tokens)");
+        const auto copy_start = ObservationClock::now();
+        const auto copy_code = cudaMemcpyAsync(
+            workspace.token_ids, tokens.data(), tokens.size_bytes(),
+            cudaMemcpyHostToDevice, stream);
+        const auto copy_end = ObservationClock::now();
+        auto status = cuda_status(copy_code, "cudaMemcpyAsync(prefill tokens)");
+        if (correlation) {
+            observe_cuda_host_operation(
+                *correlation,
+                ExecutionSpanCategory::transfer,
+                "h2d-prefill-token-enqueue",
+                copy_start,
+                copy_end,
+                tokens.size_bytes(),
+                copy_code == cudaSuccess);
+        }
         if (!status) return status;
         host_to_device_bytes.fetch_add(tokens.size_bytes(), std::memory_order_relaxed);
         const auto total = static_cast<std::uint64_t>(tokens.size()) * width;
@@ -3370,7 +3384,9 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
 
         const auto* embedding = impl_->tensor(impl_->prepared->token_embedding_weight);
         if (!embedding) return fail(Status::internal_error("resident token embedding is missing"));
-        status = impl_->load_rows(*embedding, chunk, config.embedding_size, impl_->workspace.hidden);
+        status = impl_->load_rows(
+            *embedding, chunk, config.embedding_size, impl_->workspace.hidden,
+            &kv.execution_correlation);
         if (!status) return fail(status);
         const std::uint64_t embedding_width = config.embedding_size;
         const std::uint64_t kv_width = static_cast<std::uint64_t>(config.kv_head_count) * head_dimension;
