@@ -2394,14 +2394,28 @@ struct CudaExecutor::Impl {
         ScopedProfileRange range("air.cuda.logit_readback");
         const auto vocab = prepared->geometry.vocabulary_size;
         std::vector<float> logits(static_cast<std::size_t>(vocab));
-        auto status = cuda_status(cudaMemcpyAsync(logits.data(), workspace.logits,
-                                                  logits.size() * sizeof(float),
-                                                  cudaMemcpyDeviceToHost, stream),
-                                  "cudaMemcpyAsync(logits)");
-        if (!status) return status;
-        status = cuda_status(cudaStreamSynchronize(stream), "cudaStreamSynchronize(logits)");
-        if (!status) return status;
         const auto bytes = static_cast<std::uint64_t>(logits.size()) * sizeof(float);
+        const auto copy_start = ObservationClock::now();
+        const auto copy_code = cudaMemcpyAsync(
+            logits.data(), workspace.logits, logits.size() * sizeof(float),
+            cudaMemcpyDeviceToHost, stream);
+        const auto copy_end = ObservationClock::now();
+        auto status = cuda_status(copy_code, "cudaMemcpyAsync(logits)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::transfer,
+            "d2h-logits-enqueue", copy_start, copy_end, bytes,
+            copy_code == cudaSuccess);
+        if (!status) return status;
+
+        const auto sync_start = ObservationClock::now();
+        const auto sync_code = cudaStreamSynchronize(stream);
+        const auto sync_end = ObservationClock::now();
+        status = cuda_status(sync_code, "cudaStreamSynchronize(logits)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::synchronization,
+            "cuda-stream-wait-logits", sync_start, sync_end, 0U,
+            sync_code == cudaSuccess);
+        if (!status) return status;
         device_to_host_bytes.fetch_add(bytes, std::memory_order_relaxed);
         full_logit_readbacks.fetch_add(1U, std::memory_order_relaxed);
         if (!std::all_of(logits.begin(), logits.end(), [](float value) { return std::isfinite(value); })) {
@@ -2434,11 +2448,26 @@ struct CudaExecutor::Impl {
         if (!status) return status;
 
         TokenId result[2]{-1, 0};
-        status = cuda_status(cudaMemcpyAsync(result, workspace.selected_token, sizeof(result),
-                                             cudaMemcpyDeviceToHost, stream),
-                             "cudaMemcpyAsync(argmax result)");
+        const auto copy_start = ObservationClock::now();
+        const auto copy_code = cudaMemcpyAsync(
+            result, workspace.selected_token, sizeof(result),
+            cudaMemcpyDeviceToHost, stream);
+        const auto copy_end = ObservationClock::now();
+        status = cuda_status(copy_code, "cudaMemcpyAsync(argmax result)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::transfer,
+            "d2h-greedy-result-enqueue", copy_start, copy_end,
+            sizeof(result), copy_code == cudaSuccess);
         if (!status) return status;
-        status = cuda_status(cudaStreamSynchronize(stream), "cudaStreamSynchronize(argmax)");
+
+        const auto sync_start = ObservationClock::now();
+        const auto sync_code = cudaStreamSynchronize(stream);
+        const auto sync_end = ObservationClock::now();
+        status = cuda_status(sync_code, "cudaStreamSynchronize(argmax)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::synchronization,
+            "cuda-stream-wait-greedy", sync_start, sync_end, 0U,
+            sync_code == cudaSuccess);
         if (!status) return status;
         device_to_host_bytes.fetch_add(sizeof(result), std::memory_order_relaxed);
         greedy_token_readbacks.fetch_add(1U, std::memory_order_relaxed);
@@ -2472,10 +2501,19 @@ struct CudaExecutor::Impl {
             }
         }
         const auto token_bytes = static_cast<std::uint64_t>(target_tokens.size()) * sizeof(TokenId);
-        auto status = cuda_status(cudaMemcpyAsync(workspace.token_ids, target_tokens.data(),
-                                                  static_cast<std::size_t>(token_bytes),
-                                                  cudaMemcpyHostToDevice, stream),
-                                  "cudaMemcpyAsync(target logprob tokens)");
+        const auto token_copy_start = ObservationClock::now();
+        const auto token_copy_code = cudaMemcpyAsync(
+            workspace.token_ids, target_tokens.data(),
+            static_cast<std::size_t>(token_bytes),
+            cudaMemcpyHostToDevice, stream);
+        const auto token_copy_end = ObservationClock::now();
+        auto status = cuda_status(
+            token_copy_code, "cudaMemcpyAsync(target logprob tokens)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::transfer,
+            "h2d-target-token-enqueue",
+            token_copy_start, token_copy_end, token_bytes,
+            token_copy_code == cudaSuccess);
         if (!status) return status;
         host_to_device_bytes.fetch_add(token_bytes, std::memory_order_relaxed);
         status = cuda_status(cudaMemsetAsync(workspace.nonfinite_flag, 0, sizeof(TokenId), stream),
@@ -2492,16 +2530,43 @@ struct CudaExecutor::Impl {
         std::vector<float> scores(target_tokens.size());
         TokenId nonfinite = 0;
         const auto score_bytes = static_cast<std::uint64_t>(scores.size()) * sizeof(float);
-        status = cuda_status(cudaMemcpyAsync(scores.data(), workspace.argmax_values,
-                                             static_cast<std::size_t>(score_bytes),
-                                             cudaMemcpyDeviceToHost, stream),
-                             "cudaMemcpyAsync(target logprobs)");
+        const auto score_copy_start = ObservationClock::now();
+        const auto score_copy_code = cudaMemcpyAsync(
+            scores.data(), workspace.argmax_values,
+            static_cast<std::size_t>(score_bytes),
+            cudaMemcpyDeviceToHost, stream);
+        const auto score_copy_end = ObservationClock::now();
+        status = cuda_status(score_copy_code, "cudaMemcpyAsync(target logprobs)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::transfer,
+            "d2h-target-logprobs-enqueue",
+            score_copy_start, score_copy_end, score_bytes,
+            score_copy_code == cudaSuccess);
         if (!status) return status;
-        status = cuda_status(cudaMemcpyAsync(&nonfinite, workspace.nonfinite_flag, sizeof(nonfinite),
-                                             cudaMemcpyDeviceToHost, stream),
-                             "cudaMemcpyAsync(target logprob nonfinite)");
+
+        const auto flag_copy_start = ObservationClock::now();
+        const auto flag_copy_code = cudaMemcpyAsync(
+            &nonfinite, workspace.nonfinite_flag, sizeof(nonfinite),
+            cudaMemcpyDeviceToHost, stream);
+        const auto flag_copy_end = ObservationClock::now();
+        status = cuda_status(
+            flag_copy_code, "cudaMemcpyAsync(target logprob nonfinite)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::transfer,
+            "d2h-target-logprob-flag-enqueue",
+            flag_copy_start, flag_copy_end, sizeof(nonfinite),
+            flag_copy_code == cudaSuccess);
         if (!status) return status;
-        status = cuda_status(cudaStreamSynchronize(stream), "cudaStreamSynchronize(target logprobs)");
+
+        const auto sync_start = ObservationClock::now();
+        const auto sync_code = cudaStreamSynchronize(stream);
+        const auto sync_end = ObservationClock::now();
+        status = cuda_status(
+            sync_code, "cudaStreamSynchronize(target logprobs)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::synchronization,
+            "cuda-stream-wait-target-logprobs",
+            sync_start, sync_end, 0U, sync_code == cudaSuccess);
         if (!status) return status;
         device_to_host_bytes.fetch_add(score_bytes + sizeof(nonfinite), std::memory_order_relaxed);
         target_logprob_readbacks.fetch_add(1U, std::memory_order_relaxed);
@@ -2514,8 +2579,15 @@ struct CudaExecutor::Impl {
 
     Status synchronize_outputless_prefill(
         ExecutionCorrelation correlation = {}) {
-        const auto status = cuda_status(cudaStreamSynchronize(stream),
-                                        "cudaStreamSynchronize(outputless prefill)");
+        const auto sync_start = ObservationClock::now();
+        const auto sync_code = cudaStreamSynchronize(stream);
+        const auto sync_end = ObservationClock::now();
+        const auto status = cuda_status(
+            sync_code, "cudaStreamSynchronize(outputless prefill)");
+        observe_cuda_host_operation(
+            correlation, ExecutionSpanCategory::synchronization,
+            "cuda-stream-wait-outputless-prefill",
+            sync_start, sync_end, 0U, sync_code == cudaSuccess);
         if (status) outputless_prefill_chunks.fetch_add(1U, std::memory_order_relaxed);
         return status;
     }
