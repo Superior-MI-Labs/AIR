@@ -200,7 +200,7 @@ struct WorkItem {
 
 } // namespace
 
-struct InferenceService::Impl {
+struct InferenceService::Impl : ExecutionObservationSink {
     std::shared_ptr<ModelDefinition> model;
     std::unique_ptr<Tokenizer> tokenizer;
     BackendPreference requested_backend{BackendPreference::automatic};
@@ -305,7 +305,8 @@ struct InferenceService::Impl {
         return value <= 0 ? 0U : static_cast<std::uint64_t>(value);
     }
 
-    void execution_span(
+    void record_execution_span(
+        ExecutionSpanScope scope,
         RequestId request_id,
         SequenceId sequence_id,
         ExecutionSpanCategory category,
@@ -323,7 +324,7 @@ struct InferenceService::Impl {
             ExecutionSpan record;
             record.request_id = request_id;
             record.sequence_id = sequence_id;
-            record.scope = ExecutionSpanScope::service;
+            record.scope = scope;
             record.category = category;
             record.phase.assign(phase);
             record.backend.assign(backend_name);
@@ -346,6 +347,31 @@ struct InferenceService::Impl {
     }
 
     void execution_span(
+        RequestId request_id,
+        SequenceId sequence_id,
+        ExecutionSpanCategory category,
+        std::string_view phase,
+        std::string_view backend_name,
+        Clock::time_point start,
+        Clock::time_point end,
+        std::uint32_t participant_count = 1U,
+        std::uint64_t work_units = 0U,
+        bool success = true) noexcept {
+        record_execution_span(
+            ExecutionSpanScope::service,
+            request_id,
+            sequence_id,
+            category,
+            phase,
+            backend_name,
+            start,
+            end,
+            participant_count,
+            work_units,
+            success);
+    }
+
+    void execution_span(
         const WorkItem& item,
         ExecutionSpanCategory category,
         std::string_view phase,
@@ -365,6 +391,35 @@ struct InferenceService::Impl {
             1U,
             work_units,
             success);
+    }
+
+    void observe_backend(
+        const ExecutionCorrelation& correlation,
+        const BackendExecutionObservation& observation) noexcept override {
+        if (config.execution_observation_level != ExecutionObservationLevel::detailed) return;
+        record_execution_span(
+            ExecutionSpanScope::backend,
+            correlation.request_id,
+            correlation.sequence_id,
+            observation.category,
+            observation.phase,
+            observation.backend,
+            observation.start,
+            observation.end,
+            observation.participant_count,
+            observation.work_units,
+            observation.success);
+    }
+
+    [[nodiscard]] ExecutionCorrelation correlation_for(
+        const WorkItem& item) noexcept {
+        return ExecutionCorrelation{
+            item.request_id,
+            item.sequence_id,
+            config.execution_observation_level == ExecutionObservationLevel::detailed
+                ? this
+                : nullptr,
+        };
     }
 
     [[nodiscard]] runtime_detail::PreparedModel* prepared_for(BackendKind backend_kind) noexcept {
@@ -688,8 +743,12 @@ struct InferenceService::Impl {
 
         std::vector<std::unique_ptr<runtime_detail::SequenceState>> restored;
         restored.reserve(candidate.slots.size());
-        for (const auto& checkpoint : checkpoints) {
-            auto sequence = prepared->restore_sequence(candidate.plan, *checkpoint);
+        for (std::size_t index = 0; index < checkpoints.size(); ++index) {
+            auto& item = *active[candidate.slots[index]];
+            auto sequence = prepared->restore_sequence(
+                candidate.plan,
+                *checkpoints[index],
+                correlation_for(item));
             if (!sequence) {
                 event("regime_transition_failed", 0,
                       "stage=restore strategy=" + candidate.plan.strategy_id +
@@ -857,7 +916,10 @@ struct InferenceService::Impl {
                 continue;
             }
             auto branch =
-                prepared->restore_sequence(item.plan, *item.decision_prefix_checkpoint);
+                prepared->restore_sequence(
+                    item.plan,
+                    *item.decision_prefix_checkpoint,
+                    correlation_for(item));
             if (!branch) return branch.status();
             item.session = std::move(branch).value();
             item.decision_token_position = 1U;
@@ -974,7 +1036,8 @@ struct InferenceService::Impl {
             item.submitted_at,
             item.admitted_at);
         item.prefill_started_at = item.admitted_at;
-        auto session_result = prepared->create_sequence(item.plan);
+        auto session_result =
+            prepared->create_sequence(item.plan, correlation_for(item));
         if (!session_result) return session_result.status();
         item.session = std::move(session_result).value();
         {
@@ -998,7 +1061,10 @@ struct InferenceService::Impl {
                 runtime_detail::make_sequence_state_compatibility(prepared->model(), item.plan);
             auto match = sequence_state_store.longest(item.prompt_tokens, compatibility);
             if (match) {
-                auto restored = prepared->restore_sequence(item.plan, *match->checkpoint);
+                auto restored = prepared->restore_sequence(
+                    item.plan,
+                    *match->checkpoint,
+                    correlation_for(item));
                 if (restored) {
                     item.prefix_reused_tokens = match->tokens;
                     item.prompt_position = static_cast<std::size_t>(match->tokens);
