@@ -15,6 +15,10 @@ on:
       - "docs/adaptive-execution/**"
       - ".github/workflows/adaptive-execution-preflight.yml"
 
+concurrency:
+  group: adaptive-execution-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
