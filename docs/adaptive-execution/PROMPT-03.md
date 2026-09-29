@@ -1,0 +1,202 @@
+# AIR 0.11 Strategy - Prompt 3
+
+Status: IN PROGRESS
+Title: Typed execution observation and physical timeline
+
+## Prompt objective
+
+Make AIR able to answer:
+
+> What happened during this request, in what order, for how long, and at which
+> execution layer was each observation made?
+
+Prompt 3 does not optimize execution. It creates the evidence substrate required
+before Prompt 6 schedule optimization can be trusted.
+
+## Qualified baseline
+
+Prompt 2 is CLOSED / QUALIFIED.
+
+Qualified Prompt 2 source:
+`abc74fda8bc02c9dd4e023bba422f5632ee44c9c`
+
+The adaptive CPU preflight is also active and passing on the branch.
+
+## Existing evidence to evolve
+
+AIR already has:
+
+- `std::chrono::steady_clock` request timing;
+- queue, prefill, TTFT, decode, and total request metrics;
+- bounded `RuntimeEvent` history;
+- request/sequence IDs;
+- explicit CUDA copy/synchronization sites;
+- NVTX/profile ranges when enabled.
+
+Current limitations:
+
+- `RuntimeEvent::detail` is free-form text;
+- request timing collapses repeated physical calls into totals;
+- events use wall-clock milliseconds while request compute uses steady clock;
+- CUDA transfer/synchronization steps are not correlated into a typed request
+  timeline;
+- browser consumers cannot reconstruct causal execution without inference.
+
+## Internal slices
+
+Prompt 3 is intentionally divided into four bounded slices.
+
+### 3A - service-level typed timeline
+
+Add a typed bounded execution-span timeline for already-observable service
+phases.
+
+Initial span scope:
+
+- queue wait;
+- prefill backend call;
+- decode backend call;
+- request total.
+
+Batch calls may initially be represented as physical shared spans rather than
+inventing per-request device timing.
+
+Every span must identify its measurement scope honestly. Service-level spans are
+not called CUDA kernel/device spans.
+
+### 3B - backend observation bridge
+
+Define the smallest sink/context required for backend implementations to emit
+physical observations without giving the backend ownership of request history.
+
+Requirements:
+
+- optional/cheap when disabled;
+- bounded ownership remains in the service/evidence layer;
+- correlation ID propagation is explicit;
+- Reference and CUDA contracts remain complete;
+- disabled/stub parity is maintained.
+
+### 3C - CUDA physical observations
+
+Instrument only evidence-supported physical boundaries:
+
+- host-device/device-host transfer;
+- explicit synchronization;
+- selected device-compute regions where timing can be measured without forcing
+  additional synchronization.
+
+Do not infer GPU duration from host call duration.
+
+CUDA event timing may be introduced only with an observer-overhead study.
+
+### 3D - endpoint and qualification
+
+Expose typed timeline data through one canonical read-only endpoint.
+
+Qualify:
+
+- bounded history;
+- monotonic ordering;
+- request/sequence correlation;
+- CPU/reference timeline;
+- CUDA timeline;
+- transfer/synchronization classifications;
+- cancellation/failure spans;
+- observer overhead;
+- no inference/scheduler behavior change.
+
+## Clock model
+
+Prompt 3 must distinguish:
+
+- monotonic duration/order authority: `steady_clock`;
+- wall-clock presentation anchor: system Unix time.
+
+Do not subtract unrelated clock domains.
+
+A timeline snapshot should expose a wall-clock anchor plus monotonic offsets,
+not pretend the clocks are identical.
+
+## Candidate span contract
+
+The first slice may use a structure equivalent to:
+
+```text
+ExecutionSpan
+  schema_version
+  observation_sequence
+  request_id
+  sequence_id
+  scope
+  category
+  phase
+  backend
+  start_ns
+  end_ns
+  participant_count
+  work_units
+  success
+```
+
+Exact names may change during implementation.
+
+Important semantics:
+
+- `scope=service` means measured around an AIR service/backend call;
+- later `scope=backend`/device observations are distinct;
+- a host-call span around CUDA work is never relabeled as pure GPU compute;
+- raw spans remain measurements, not bottleneck conclusions.
+
+## Observation levels
+
+Candidate levels:
+
+- `off`: no typed span collection;
+- `normal`: bounded service-level spans;
+- `detailed`: backend/device observations when supported.
+
+Default for development may be `normal`, subject to overhead evidence.
+
+## Storage
+
+Use bounded in-memory history owned by the existing service/evidence authority.
+
+Do not add:
+
+- a second profiler daemon;
+- an unbounded trace store;
+- a browser-owned execution history;
+- an independent SQLite evidence authority.
+
+## 3A tests
+
+- a normal generation request emits queue, prefill/decode, and request spans;
+- span observation sequence is monotonic;
+- span time interval is non-negative;
+- request and sequence IDs correlate;
+- history is bounded;
+- `off` level produces no spans;
+- serialization is valid;
+- existing `RequestMetrics` behavior remains unchanged.
+
+## Pre-publish requirement
+
+Before any Prompt 3 code is handed to WolfCat:
+
+1. failure-retrospective checklist review;
+2. backend/stub/link audit;
+3. `scripts/preflight-adaptive.sh` PASS locally or in CI.
+
+## Prompt 3 exit gate
+
+Prompt 3 closes only when a real WolfCat request can be reconstructed as a
+typed timeline containing honest service and CUDA physical observations, and
+the overhead of observation is measured and acceptable.
+
+No schedule optimization is authorized by Prompt 3.
+
+## Next prompt
+
+Prompt 4 separates semantic operation identity from physical implementation
+identity using the evidence surfaces established here.
