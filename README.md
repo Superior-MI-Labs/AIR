@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.10.0">
-    <img src="https://img.shields.io/badge/release-v0.9.12-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.10.0">
+    <img src="https://img.shields.io/badge/release-v0.10.0-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.10.0">
   </a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-55d9ff?style=for-the-badge&labelColor=07131d" alt="C++20">
   <img src="https://img.shields.io/badge/CTest-12%2F12%20PASS-42c98b?style=for-the-badge&labelColor=07131d" alt="12 of 12 CTests passing">
