@@ -60,7 +60,19 @@ struct CudaExecutionStats {
 
 [[nodiscard]] bool cuda_compiled() noexcept;
 [[nodiscard]] Result<std::vector<DeviceInfo>> cuda_devices();
-[[nodiscard]] Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery);
+
+[[nodiscard]] Status augment_hardware_topology_with_cuda(
+    HardwareTopology& topology);
+[[nodiscard]] Status augment_hardware_environment_with_cuda(
+    const HardwareTopology& topology,
+    HardwareEnvironmentSnapshot& environment);
+
+// Compatibility composition for callers that already hold both views.
+[[nodiscard]] Status augment_hardware_discovery_with_cuda(
+    HardwareDiscovery& discovery);
+
+// Canonical standalone machine discovery used by CLI/server surfaces.
+[[nodiscard]] Result<HardwareDiscovery> discover_machine_hardware();
 
 class CudaKvCache final {
 public:
