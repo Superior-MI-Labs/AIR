@@ -1,10 +1,10 @@
 # AIR Public Contracts
 
-This document defines the first release-candidate compatibility boundary. It separates supported user-facing contracts from diagnostic/internal implementation surfaces.
+This document defines the AIR 0.10.0 compatibility boundary. It separates supported user-facing contracts from diagnostic/internal implementation surfaces.
 
-AIR is pre-1.0. Binary ABI stability is not promised. Within the 0.8 release-candidate line, source/API and wire-format changes should be additive unless a correctness or security defect requires otherwise.
+AIR is pre-1.0. Binary ABI stability is not promised. Within the 0.10 release line, source/API and wire-format changes should remain explicit and evidence-backed; correctness or security fixes may change erroneous behavior.
 
-## Stable release-candidate surfaces
+## Stable 0.10.0 surfaces
 
 ### Executables
 
@@ -48,6 +48,7 @@ through `find_package(AIR CONFIG REQUIRED)`.
 Endpoints:
 
 ```text
+GET  /
 GET  /health
 GET  /model
 GET  /runtime
@@ -57,6 +58,7 @@ GET  /v1/models
 POST /generate
 POST /v1/completions
 POST /v1/chat/completions
+POST /decide
 ```
 
 `/generate` accepts:
@@ -88,13 +90,16 @@ Unknown fields are rejected with an explicit unsupported error. Unsupported prot
 
 ### Execution manifest
 
-`schema_version = 4`
+`schema_version = 10`
 
-AIR reads and writes manifest schema v4 only. Schemas v1-v3 are rejected. Requalification is the migration mechanism because manifests represent measurement evidence, not durable user configuration.
+AIR reads and writes manifest schema v10 only. Older schema identities are
+rejected rather than silently reinterpreted. Requalification is the migration
+mechanism because manifests represent measurement evidence, not durable user
+configuration.
 
 ### Benchmark report
 
-`air.benchmark.v3`
+`air.benchmark.v11`
 
 Percentiles use shared linear interpolation semantics.
 
@@ -103,6 +108,19 @@ Percentiles use shared linear interpolation semantics.
 `air.verification.v1`
 
 Teacher-forced reference/CUDA comparison and optional stage evidence are diagnostic outputs, not performance results.
+
+## Internal model-architecture boundary
+
+AIR 0.10.0 introduces an internal architecture-adapter and prepared-semantic
+model boundary.
+
+This boundary is intentionally not a new stable public Neural Model IR.
+`ModelDefinition` remains canonical model truth. Architecture-specific
+preparation resolves qualified source tensors and semantic constraints into
+derived execution bindings. Low-level prepared semantic types and internal
+executor factories remain implementation details.
+
+Qwen2 remains the only qualified production model architecture in 0.10.0.
 
 ## Capability semantics
 
