@@ -2389,7 +2389,8 @@ struct CudaExecutor::Impl {
         return Status::ok();
     }
 
-    Result<std::vector<float>> read_logits_host() {
+    Result<std::vector<float>> read_logits_host(
+        ExecutionCorrelation correlation = {}) {
         ScopedProfileRange range("air.cuda.logit_readback");
         const auto vocab = prepared->geometry.vocabulary_size;
         std::vector<float> logits(static_cast<std::size_t>(vocab));
@@ -2409,7 +2410,8 @@ struct CudaExecutor::Impl {
         return logits;
     }
 
-    Result<TokenId> select_greedy_device_from(const float* logits) {
+    Result<TokenId> select_greedy_device_from(
+        const float* logits, ExecutionCorrelation correlation = {}) {
         ScopedProfileRange range("air.cuda.greedy_select");
         const auto vocab = prepared->geometry.vocabulary_size;
         if (vocab == 0U || vocab > static_cast<std::uint64_t>(std::numeric_limits<TokenId>::max())) {
@@ -2447,12 +2449,14 @@ struct CudaExecutor::Impl {
         return result[0];
     }
 
-    Result<TokenId> select_greedy_device() {
-        return select_greedy_device_from(workspace.logits);
+    Result<TokenId> select_greedy_device(
+        ExecutionCorrelation correlation = {}) {
+        return select_greedy_device_from(workspace.logits, correlation);
     }
 
     Result<std::vector<float>> read_target_logprobs_device(
-        std::span<const TokenId> target_tokens) {
+        std::span<const TokenId> target_tokens,
+        ExecutionCorrelation correlation = {}) {
         ScopedProfileRange range("air.cuda.target_logprobs");
         const auto vocab = prepared->geometry.vocabulary_size;
         if (target_tokens.empty()) {
@@ -2508,7 +2512,8 @@ struct CudaExecutor::Impl {
         return scores;
     }
 
-    Status synchronize_outputless_prefill() {
+    Status synchronize_outputless_prefill(
+        ExecutionCorrelation correlation = {}) {
         const auto status = cuda_status(cudaStreamSynchronize(stream),
                                         "cudaStreamSynchronize(outputless prefill)");
         if (status) outputless_prefill_chunks.fetch_add(1U, std::memory_order_relaxed);
