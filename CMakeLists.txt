@@ -41,6 +41,7 @@ add_library(air_core
     src/runtime/execution.cpp
     src/runtime/decision.cpp
     src/runtime/hardware.cpp
+    src/runtime/hardware_json.cpp
     src/runtime/backend.cpp
     src/runtime/scheduler.cpp
     src/runtime/sequence_state_store.cpp
