@@ -299,21 +299,21 @@ HardwareEnvironmentValidation validate_hardware_environment(
     return {true, "ok"};
 }
 
-Result<HardwareDiscovery> discover_host_hardware() {
+Result<HardwareTopology> discover_host_topology() {
 #if !defined(__linux__)
     return Status::unsupported(
-        "AIR host machine discovery is currently implemented only for Linux");
+        "AIR host topology discovery is currently implemented only for Linux");
 #else
-    HardwareDiscovery discovery;
+    HardwareTopology topology;
 
     const auto cpu = observe_cpu();
     const auto total_memory = meminfo_bytes("MemTotal");
-    const auto available_memory = meminfo_bytes("MemAvailable");
     if (total_memory == 0U) {
-        return Status::io_error("AIR could not read host memory capacity from /proc/meminfo");
+        return Status::io_error(
+            "AIR could not read host memory capacity from /proc/meminfo");
     }
 
-    discovery.topology.nodes.push_back(HardwareNode{
+    topology.nodes.push_back(HardwareNode{
         "cpu0",
         HardwareNodeKind::cpu,
         cpu.name,
@@ -326,7 +326,7 @@ Result<HardwareDiscovery> discover_host_hardware() {
         cpu.capabilities,
         cpu.logical_processors,
     });
-    discovery.topology.nodes.push_back(HardwareNode{
+    topology.nodes.push_back(HardwareNode{
         "ram0",
         HardwareNodeKind::host_memory,
         "host memory",
@@ -339,7 +339,7 @@ Result<HardwareDiscovery> discover_host_hardware() {
         {"pageable"},
         0U,
     });
-    discovery.topology.links.push_back(HardwareLink{
+    topology.links.push_back(HardwareLink{
         "cpu0",
         "ram0",
         HardwareLinkKind::memory_access,
@@ -348,31 +348,78 @@ Result<HardwareDiscovery> discover_host_hardware() {
         0.0,
     });
 
-    discovery.topology.fingerprint =
-        hardware_topology_fingerprint(discovery.topology);
+    topology.fingerprint = hardware_topology_fingerprint(topology);
 
-    discovery.environment.topology_fingerprint =
-        discovery.topology.fingerprint;
-    discovery.environment.observed_unix_ms =
+    const auto valid = validate_hardware_topology(topology);
+    if (!valid.valid) {
+        return Status::internal_error(
+            "AIR discovered invalid host topology: " + valid.message);
+    }
+    return topology;
+#endif
+}
+
+Result<HardwareEnvironmentSnapshot> observe_host_environment(
+    const HardwareTopology& topology) {
+#if !defined(__linux__)
+    (void)topology;
+    return Status::unsupported(
+        "AIR host environment observation is currently implemented only for Linux");
+#else
+    const auto topology_valid = validate_hardware_topology(topology);
+    if (!topology_valid.valid) {
+        return Status::invalid_argument(
+            "cannot observe environment for invalid topology: " +
+            topology_valid.message);
+    }
+    if (topology.fingerprint != hardware_topology_fingerprint(topology)) {
+        return Status::invalid_argument(
+            "cannot observe environment for stale topology fingerprint");
+    }
+
+    HardwareEnvironmentSnapshot environment;
+    environment.topology_fingerprint = topology.fingerprint;
+    environment.observed_unix_ms =
         static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count());
-    discovery.environment.resources.push_back(
-        HardwareResourceState{"ram0", available_memory});
 
-    const auto topology_valid = validate_hardware_topology(discovery.topology);
-    if (!topology_valid.valid) {
-        return Status::internal_error(
-            "AIR discovered invalid host topology: " + topology_valid.message);
+    const auto* host_memory = std::find_if(
+        topology.nodes.begin(), topology.nodes.end(),
+        [](const HardwareNode& node) {
+            return node.kind == HardwareNodeKind::host_memory;
+        });
+    if (host_memory == topology.nodes.end()) {
+        return Status::invalid_argument(
+            "host environment observation requires a host-memory node");
     }
+
+    const auto available_memory = meminfo_bytes("MemAvailable");
+    environment.resources.push_back(
+        HardwareResourceState{host_memory->id, available_memory});
+
     const auto environment_valid =
-        validate_hardware_environment(discovery.topology, discovery.environment);
+        validate_hardware_environment(topology, environment);
     if (!environment_valid.valid) {
         return Status::internal_error(
-            "AIR discovered invalid host environment: " + environment_valid.message);
+            "AIR observed invalid host environment: " +
+            environment_valid.message);
     }
-    return discovery;
+    return environment;
 #endif
+}
+
+Result<HardwareDiscovery> discover_host_hardware() {
+    auto topology = discover_host_topology();
+    if (!topology) return topology.status();
+
+    auto environment = observe_host_environment(topology.value());
+    if (!environment) return environment.status();
+
+    return HardwareDiscovery{
+        std::move(topology).value(),
+        std::move(environment).value(),
+    };
 }
 
 } // namespace air
