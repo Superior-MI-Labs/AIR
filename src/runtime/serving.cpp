@@ -1221,9 +1221,25 @@ struct InferenceService::Impl {
                 item->session.get(), tokens, output});
         }
 
+        std::uint64_t batch_work_units = 0U;
+        for (const auto count : token_counts) {
+            batch_work_units += count;
+        }
         const auto compute_start = Clock::now();
         auto executed = prepared->prefill_batch(batch);
-        const double elapsed = ms(Clock::now() - compute_start);
+        const auto compute_end = Clock::now();
+        const double elapsed = ms(compute_end - compute_start);
+        execution_span(
+            0,
+            0,
+            ExecutionSpanCategory::backend_call,
+            "prefill-batch",
+            std::string(to_string(first.plan.backend)),
+            compute_start,
+            compute_end,
+            static_cast<std::uint32_t>(items.size()),
+            batch_work_units,
+            static_cast<bool>(executed));
         if (!executed) {
             if (executed.status().code() == ErrorCode::unsupported) {
                 return false;
@@ -1390,7 +1406,19 @@ struct InferenceService::Impl {
 
         const auto compute_start = Clock::now();
         auto selected = prepared->decode_greedy_batch(batch);
-        const double elapsed = ms(Clock::now() - compute_start);
+        const auto compute_end = Clock::now();
+        const double elapsed = ms(compute_end - compute_start);
+        execution_span(
+            0,
+            0,
+            ExecutionSpanCategory::backend_call,
+            "decode-batch",
+            std::string(to_string(first.plan.backend)),
+            compute_start,
+            compute_end,
+            static_cast<std::uint32_t>(items.size()),
+            static_cast<std::uint64_t>(items.size()),
+            static_cast<bool>(selected));
         if (!selected) {
             for (auto* item : items) fail_item(*item, selected.status());
             return true;
@@ -1542,6 +1570,18 @@ struct InferenceService::Impl {
                 }
             }
         }
+
+        execution_span(
+            *item,
+            ExecutionSpanCategory::request,
+            item->is_decision() ? "decision-total" : "generation-total",
+            item->submitted_at,
+            finished,
+            metrics.prompt_tokens +
+                (item->is_decision()
+                     ? item->decision_candidate_tokens_scored
+                     : metrics.generated_tokens),
+            !item->failed);
 
         // All live/branch state is released before the caller observes
         // completion. Backend pools may retain free pages by policy, but the
@@ -2694,6 +2734,21 @@ std::vector<RuntimeEvent> InferenceService::recent_events(std::size_t limit) con
     std::lock_guard lock(impl_->mutex);
     const auto count = std::min(limit, impl_->events.size());
     return std::vector<RuntimeEvent>(impl_->events.end() - static_cast<std::ptrdiff_t>(count), impl_->events.end());
+}
+
+ExecutionTimelineSnapshot InferenceService::execution_timeline(
+    std::size_t limit) const {
+    std::lock_guard lock(impl_->mutex);
+    ExecutionTimelineSnapshot out;
+    out.level = impl_->config.execution_observation_level;
+    out.origin_unix_ms = impl_->observation_origin_unix_ms;
+    out.capacity = impl_->config.execution_span_capacity;
+    out.evicted_spans = impl_->evicted_execution_spans;
+    const auto count = std::min(limit, impl_->execution_spans.size());
+    out.spans = std::vector<ExecutionSpan>(
+        impl_->execution_spans.end() - static_cast<std::ptrdiff_t>(count),
+        impl_->execution_spans.end());
+    return out;
 }
 
 const ModelDefinition& InferenceService::model() const noexcept { return *impl_->model; }
