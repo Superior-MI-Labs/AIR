@@ -73,6 +73,64 @@ int main() {
     require(air::validate_hardware_topology(unmeasured).valid,
             "unmeasured capability edge rejected");
 
+    auto fingerprint_base = laptop_fixture();
+    fingerprint_base.fingerprint = air::hardware_topology_fingerprint(fingerprint_base);
+    auto dynamic_only = fingerprint_base;
+    dynamic_only.nodes[1].available_bytes = 1U;
+    dynamic_only.links[0].bandwidth_bytes_per_second = 999.0e9;
+    dynamic_only.links[0].latency_microseconds = 999.0;
+    require(air::hardware_topology_fingerprint(dynamic_only) ==
+                fingerprint_base.fingerprint,
+            "topology fingerprint changed with dynamic/measurement-only fields");
+
+    auto structural_change = fingerprint_base;
+    structural_change.nodes[0].architecture = "different-architecture";
+    require(air::hardware_topology_fingerprint(structural_change) !=
+                fingerprint_base.fingerprint,
+            "topology fingerprint ignored structural identity change");
+
+    air::HardwareEnvironmentSnapshot environment;
+    environment.topology_fingerprint = fingerprint_base.fingerprint;
+    environment.observed_unix_ms = 1U;
+    environment.resources = {
+        {"ram0", 12ULL * 1024ULL * 1024ULL * 1024ULL},
+        {"gpu0", 8ULL * 1024ULL * 1024ULL * 1024ULL},
+    };
+    require(air::validate_hardware_environment(fingerprint_base, environment).valid,
+            "valid hardware environment rejected");
+
+    auto duplicate_environment = environment;
+    duplicate_environment.resources.push_back(duplicate_environment.resources.front());
+    require(!air::validate_hardware_environment(
+                 fingerprint_base, duplicate_environment).valid,
+            "duplicate hardware environment resource accepted");
+
+    auto unknown_environment = environment;
+    unknown_environment.resources.push_back({"missing", 1U});
+    require(!air::validate_hardware_environment(
+                 fingerprint_base, unknown_environment).valid,
+            "unknown hardware environment resource accepted");
+
+    auto stale_environment = environment;
+    stale_environment.topology_fingerprint = "hardware-topology:v1:stale";
+    require(!air::validate_hardware_environment(
+                 fingerprint_base, stale_environment).valid,
+            "stale hardware environment topology identity accepted");
+
+#if defined(__linux__)
+    auto discovered = air::discover_host_hardware();
+    require(static_cast<bool>(discovered), "Linux host discovery failed");
+    require(air::validate_hardware_topology(discovered.value().topology).valid,
+            "Linux discovered topology failed validation");
+    require(air::validate_hardware_environment(
+                discovered.value().topology, discovered.value().environment).valid,
+            "Linux discovered environment failed validation");
+    require(air::find_hardware_node(discovered.value().topology, "cpu0") != nullptr,
+            "Linux discovery did not report CPU");
+    require(air::find_hardware_node(discovered.value().topology, "ram0") != nullptr,
+            "Linux discovery did not report host memory");
+#endif
+
     auto multigpu = laptop_fixture();
     multigpu.nodes.push_back(
         {"gpu1", air::HardwareNodeKind::accelerator, "second gpu", "cuda", "sm90",
