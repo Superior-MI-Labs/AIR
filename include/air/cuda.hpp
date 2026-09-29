@@ -71,9 +71,6 @@ struct CudaExecutionStats {
 [[nodiscard]] Status augment_hardware_discovery_with_cuda(
     HardwareDiscovery& discovery);
 
-// Canonical standalone machine discovery used by CLI/server surfaces.
-[[nodiscard]] Result<HardwareDiscovery> discover_machine_hardware();
-
 class CudaKvCache final {
 public:
     ~CudaKvCache();
