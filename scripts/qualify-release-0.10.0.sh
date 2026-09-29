@@ -38,10 +38,22 @@ for doc in     docs/RELEASE-0.10.0.md     docs/RELEASE-PROVENANCE.md     docs/SU
     [[ -f "$doc" ]] || { echo "ERROR: missing release document: $doc" >&2; exit 2; }
 done
 
-grep -Fq 'AIR 0.10.0' README.md
-grep -Fq 'schema_version = 10' docs/PUBLIC_CONTRACTS.md
-grep -Fq 'air.benchmark.v11' docs/PUBLIC_CONTRACTS.md
-grep -Fq 'Qwen2 remains the only qualified production model architecture' docs/RELEASE-0.10.0.md
+require_text() {
+    local needle="$1"
+    local file="$2"
+    if ! grep -Fq -- "$needle" "$file"; then
+        echo "ERROR: required release text missing from $file:" >&2
+        echo "  $needle" >&2
+        exit 2
+    fi
+}
+
+require_text 'AIR 0.10.0' README.md
+require_text 'schema_version = 10' docs/PUBLIC_CONTRACTS.md
+require_text 'air.benchmark.v11' docs/PUBLIC_CONTRACTS.md
+require_text 'Qwen2 remains the sole qualified production model architecture' docs/RELEASE-0.10.0.md
+
+echo "Release preflight: version/docs/source-boundary checks PASS"
 
 # Final source-level architecture boundary: executors must not recover canonical
 # Qwen2/GGUF tensor names after preparation.
