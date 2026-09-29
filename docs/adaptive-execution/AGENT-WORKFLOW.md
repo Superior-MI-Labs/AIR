@@ -128,6 +128,12 @@ agent must perform a dedicated pre-publish review.
 
 Audit:
 
+- before changing a pure virtual method, enumerate every derived override and
+  test double; prefer additive wrappers when the new concern does not belong in
+  every implementation;
+- before adding an internal dependency to a test, inspect the target's existing
+  CMake link boundary and choose the narrowest contract test that can prove the
+  behavior;
 - every changed public declaration and its definition owner;
 - real backend and disabled/stub parity;
 - each consumer target and its CMake link dependency;
