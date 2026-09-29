@@ -57,6 +57,7 @@ struct ExecutionTimelineSnapshot {
     std::uint64_t origin_unix_ms{0};
     std::uint32_t capacity{0};
     std::uint64_t evicted_spans{0};
+    std::uint64_t dropped_spans{0};
     std::vector<ExecutionSpan> spans;
 };
 
