@@ -8,8 +8,10 @@ AIR separates canonical model state, backend-derived execution state, resource a
 GGUF
   -> GgufFormat
   -> ModelDefinition
+  -> Architecture Adapter
+  -> PreparedModelSemantics
       -> ReferenceExecutor
-      -> PreparedModel
+      -> CUDA prepared execution
           -> SequenceState
           -> backend KV ownership
 
@@ -17,15 +19,33 @@ InferenceService
   -> Planner / ExecutionPlan
   -> CapacityScheduler
   -> MicrobatchScheduler
-  -> PreparedModel / SequenceState
+  -> prepared backend / SequenceState
   -> sampling / streaming / metrics
 ```
 
-`ModelDefinition` is the single source of truth for model metadata, tensor descriptors, tokenizer metadata, and mapped model storage. Prepared backends may own transformed execution state such as device residency, workspaces, page pools, and kernel-family classification, but they are derived from the canonical model and never become a second model definition.
+`ModelDefinition` is the single source of truth for model metadata, tensor descriptors, tokenizer metadata, and mapped model storage.
+
+`PreparedModelSemantics` is an immutable derived view. It binds semantic roles
+such as token embedding, Q/K/V projections, attention output, FFN weights,
+normalization, optional biases, tied output, and validated geometry to canonical
+tensor descriptors owned by the `ModelDefinition`.
+
+Prepared backends may additionally own transformed execution state such as
+device residency, workspaces, page pools, and kernel-family classification,
+but none of those become a second model definition.
 
 ## Architecture contract
 
-Qwen2 structural validation is shared in one internal contract. Both reference and CUDA execution consume the same validated model geometry and required tensor names. Executor-specific shape tables are intentionally avoided.
+Model-family interpretation is owned by the architecture adapter seam. Qwen2
+is the only qualified production adapter in AIR 0.10.0.
+
+The Qwen2 adapter validates the qualified semantic restrictions and resolves
+source tensor names once into prepared semantic bindings. Reference and CUDA
+execution then consume those bindings rather than reconstructing Qwen2/GGUF
+tensor names in their numerical paths.
+
+The prepared semantic boundary is internal. It is not a universal Neural Model
+IR and is not a claim that arbitrary GGUF architectures can execute.
 
 The current execution scope is documented in `SUPPORT_MATRIX.md`.
 
