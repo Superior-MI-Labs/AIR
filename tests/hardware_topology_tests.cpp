@@ -1,4 +1,8 @@
+#include "air/cuda.hpp"
 #include "air/hardware.hpp"
+#include "air/hardware_json.hpp"
+
+#include <boost/json.hpp>
 
 #include <cstdlib>
 #include <iostream>
@@ -118,17 +122,66 @@ int main() {
             "stale hardware environment topology identity accepted");
 
 #if defined(__linux__)
-    auto discovered = air::discover_host_hardware();
-    require(static_cast<bool>(discovered), "Linux host discovery failed");
+    auto host_topology = air::discover_host_topology();
+    require(static_cast<bool>(host_topology), "Linux host topology discovery failed");
+    require(air::validate_hardware_topology(host_topology.value()).valid,
+            "Linux discovered host topology failed validation");
+
+    auto host_environment = air::observe_host_environment(host_topology.value());
+    require(static_cast<bool>(host_environment),
+            "Linux host environment observation failed");
+    require(air::validate_hardware_environment(
+                host_topology.value(), host_environment.value()).valid,
+            "Linux discovered host environment failed validation");
+    require(air::find_hardware_node(host_topology.value(), "cpu0") != nullptr,
+            "Linux topology did not report CPU");
+    require(air::find_hardware_node(host_topology.value(), "ram0") != nullptr,
+            "Linux topology did not report host memory");
+
+    auto discovered = air::discover_machine_hardware();
+    require(static_cast<bool>(discovered), "canonical machine discovery failed");
     require(air::validate_hardware_topology(discovered.value().topology).valid,
-            "Linux discovered topology failed validation");
+            "canonical machine topology failed validation");
     require(air::validate_hardware_environment(
                 discovered.value().topology, discovered.value().environment).valid,
-            "Linux discovered environment failed validation");
-    require(air::find_hardware_node(discovered.value().topology, "cpu0") != nullptr,
-            "Linux discovery did not report CPU");
-    require(air::find_hardware_node(discovered.value().topology, "ram0") != nullptr,
-            "Linux discovery did not report host memory");
+            "canonical machine environment failed validation");
+
+    const auto topology_json =
+        air::hardware_topology_json(discovered.value().topology);
+    const auto environment_json =
+        air::hardware_environment_json(discovered.value().environment);
+    const auto discovery_json =
+        air::hardware_discovery_json(discovered.value(), "test", air::cuda_compiled());
+
+    boost::system::error_code json_error;
+    auto topology_value = boost::json::parse(topology_json, json_error);
+    require(!json_error && topology_value.is_object(),
+            "hardware topology JSON is invalid");
+    json_error.clear();
+    auto environment_value = boost::json::parse(environment_json, json_error);
+    require(!json_error && environment_value.is_object(),
+            "hardware environment JSON is invalid");
+    json_error.clear();
+    auto discovery_value = boost::json::parse(discovery_json, json_error);
+    require(!json_error && discovery_value.is_object(),
+            "hardware discovery JSON is invalid");
+
+    require(
+        topology_value.as_object().at("fingerprint").as_string() ==
+            discovered.value().topology.fingerprint,
+        "topology JSON fingerprint does not match authority");
+    require(
+        environment_value.as_object().at("topology_fingerprint").as_string() ==
+            discovered.value().topology.fingerprint,
+        "environment JSON is not bound to topology authority");
+
+    auto second_environment =
+        air::observe_host_environment(host_topology.value());
+    require(static_cast<bool>(second_environment),
+            "second host environment observation failed");
+    require(second_environment.value().topology_fingerprint ==
+                host_topology.value().fingerprint,
+            "repeated environment observation changed topology identity");
 #endif
 
     auto multigpu = laptop_fixture();
