@@ -42,16 +42,40 @@ Wave 0: freeze, assumption census, and observability contract.
 
 No broad refactor is authorized yet.
 
-## Immediate work
+## Work completed in Wave 0 initialization
 
-1. inspect current model/runtime/scheduler/hardware/metrics code;
-2. build an assumption census;
-3. define evidence categories;
-4. define minimal Hardware Topology Snapshot requirements;
-5. define minimal execution-observation timeline requirements;
-6. characterize current browser/metrics surfaces;
-7. identify refactor seams needed before any new generalized representation;
-8. write characterization tests before moving ownership.
+Created and grounded against AIR 0.10.0 source:
+
+- `BASELINE.md`;
+- `ASSUMPTION-CENSUS.md`;
+- `EVIDENCE-CENSUS.md`;
+- `GUI-CENSUS.md`;
+- `DATA-MODEL.md`;
+- `GUI.md`;
+- `QUESTION-BANK.md`;
+- `AGENT-WORKFLOW.md`;
+- `WAVE0.md`.
+
+Important initial finding:
+
+AIR already contains `HardwareTopology` v1. Do not create a parallel
+HardwareGraph. Current topology mixes relatively stable physical facts with
+dynamic available capacity and empirical link measurements, making
+fact/state/measurement separation a primary Wave 0 question.
+
+## Immediate next action
+
+Continue Wave 0 source characterization in this order:
+
+1. locate every producer/consumer of `HardwareTopology`;
+2. locate every producer/consumer of `RuntimeSnapshot`;
+3. trace CUDA stream, copy, synchronization, and timing behavior;
+4. trace model/prepared-artifact allocation and residency;
+5. trace runtime JSON/event serialization and browser refresh cadence;
+6. add characterization tests for any unprotected behavior that a later
+   refactor would move.
+
+Do not implement the generalized semantic program or execution graph yet.
 
 ## Current architectural hypothesis
 
