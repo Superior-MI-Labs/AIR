@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
 Updated: 2026-09-29
-Status: WAVE 0 CURRENT / PROMPT 2 CURRENT
+Status: WAVE 0 CURRENT / PROMPT 2 CLOSED
 
 ## Frozen baseline
 
@@ -92,61 +92,51 @@ correctly identified the i7-11800H, 31.08 GiB RAM, and RTX 3080 Laptop GPU
 (`sm86`) while keeping dynamic availability separate from structural
 fingerprinting.
 
-## Prompt 2 current
+## Prompt 2 qualified baseline
 
-Prompt 2 authority:
+Prompt 2 is CLOSED / QUALIFIED.
 
-`docs/adaptive-execution/PROMPT-02.md`
+Qualified source:
+`abc74fda8bc02c9dd4e023bba422f5632ee44c9c`
 
-Implemented in source for qualification:
+WolfCat evidence:
+`/home/emerson/Downloads/AIR-0.11-Prompt2-20260929-184345`
 
-- separate host topology discovery and environment observation;
-- separate CUDA topology augmentation and environment augmentation;
-- canonical `discover_machine_hardware()` composition;
-- one shared topology/environment/discovery JSON serializer;
-- CLI migrated to the canonical composed discovery and shared JSON schema;
-- read-only `GET /machine`;
-- read-only `GET /environment`;
-- Prompt 2 qualifier that re-runs Prompt 1 nonregression and then tests
-  CPU-only and CUDA server surfaces.
+Results:
 
-No planner/scheduler/inference policy change is intended.
+- Prompt 1 nonregression PASS;
+- CPU-only 12/12 CTests PASS;
+- CUDA 12/12 CTests PASS;
+- `GET /machine` PASS;
+- `GET /environment` PASS;
+- endpoint identity validation PASS;
+- model load reduced observed GPU availability by 1,010,237,440 bytes while
+  the structural topology fingerprint remained unchanged.
 
-## Latest Prompt 2 evidence
+This closes the topology/environment authority split.
 
-The first live Prompt 2 run failed in the nested Prompt 1 CPU-only build because
-`observe_host_environment()` incorrectly treated a `std::find_if` iterator
-as a pointer.
+## Development-process change
 
-That implementation defect is fixed.
+Several qualification failures in Prompts 1-2 exposed preventable compile,
+stub, harness, and build-graph mistakes.
 
-A follow-up review also moved canonical machine discovery into
-`air/machine.hpp` and made `/machine` structural-only while
-`/environment` performs live observation separately.
+These are now converted into repository-level prevention:
 
-## Second Prompt 2 qualification result
+- `docs/adaptive-execution/FAILURE-RETROSPECTIVE.md`;
+- mandatory interface/build-graph audit in `AGENT-WORKFLOW.md`;
+- Layer 0 pre-publish gate in `TESTING-STRATEGY.md`;
+- `scripts/preflight-adaptive.sh`;
+- GitHub Actions CPU-only adaptive preflight.
 
-The next live run passed compilation until link time for
-`air-hardware-topology-tests`.
-
-The test now exercises backend-neutral canonical machine discovery, but its
-CMake target linked only `AIR::core`. It now links `AIR::core AIR::cuda`,
-which means CPU-only builds resolve through the explicit CUDA stub and CUDA
-builds resolve through the real backend.
-
-No machine API was moved into core to work around the linker.
+Future prompt code must pass preflight before being handed off for live
+WolfCat qualification.
 
 ## Immediate next action
 
-Rerun:
+Do not begin Prompt 3 implementation until the new CPU preflight itself has
+passed on the branch.
 
-```text
-bash scripts/qualify-adaptive-prompt2.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
-
-Prompt 2 closes only after the full CPU-only + CUDA qualification and endpoint
-identity checks pass on WolfCat-Studio.
+After that, open Prompt 3: typed execution observation and physical timeline.
 
 ## Current architectural hypothesis
 
