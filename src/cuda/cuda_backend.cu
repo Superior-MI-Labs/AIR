@@ -3172,17 +3172,18 @@ Result<std::vector<float>> CudaExecutor::step_impl(
 
     std::vector<float> logits;
     if (output == FinalOutput::logits) {
-        auto copied = impl_->read_logits_host();
+        auto copied = impl_->read_logits_host(kv.execution_correlation);
         if (!copied) return fail(copied.status());
         logits = std::move(copied).value();
     } else if (output == FinalOutput::greedy) {
         if (!greedy_token) return fail(Status::invalid_argument("CUDA greedy step requires an output token"));
-        auto selected = impl_->select_greedy_device();
+        auto selected = impl_->select_greedy_device(kv.execution_correlation);
         if (!selected) return fail(selected.status());
         *greedy_token = selected.value();
     } else if (output == FinalOutput::target_logprobs) {
         if (!target_logprobs) return fail(Status::invalid_argument("CUDA target-logprob step requires an output vector"));
-        auto scores = impl_->read_target_logprobs_device(target_tokens);
+        auto scores = impl_->read_target_logprobs_device(
+            target_tokens, kv.execution_correlation);
         if (!scores) return fail(scores.status());
         *target_logprobs = std::move(scores).value();
     } else {
@@ -3404,7 +3405,8 @@ Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(
     selected.reserve(count);
     for (std::uint32_t item = 0; item < count; ++item) {
         const float* logits = impl_->workspace.logits + static_cast<std::uint64_t>(item) * config.vocabulary_size;
-        auto token = impl_->select_greedy_device_from(logits);
+        auto token = impl_->select_greedy_device_from(
+            logits, kvs[item]->execution_correlation);
         if (!token) return fail(token.status());
         selected.push_back(token.value());
     }
@@ -3539,24 +3541,26 @@ Result<std::vector<float>> CudaExecutor::prefill_impl(
             status = impl_->add_optional_tensor(impl_->workspace.logits, impl_->prepared->output_bias, config.vocabulary_size); if (!status) return fail(status);
 
             if (output == FinalOutput::logits) {
-                auto copied = impl_->read_logits_host();
+                auto copied = impl_->read_logits_host(kv.execution_correlation);
                 if (!copied) return fail(copied.status());
                 final_logits = std::move(copied).value();
             } else if (output == FinalOutput::greedy) {
                 if (!greedy_token) return fail(Status::invalid_argument("CUDA greedy prefill requires an output token"));
-                auto selected = impl_->select_greedy_device();
+                auto selected = impl_->select_greedy_device(kv.execution_correlation);
                 if (!selected) return fail(selected.status());
                 *greedy_token = selected.value();
             } else if (output == FinalOutput::target_logprobs) {
                 if (!target_logprobs) return fail(Status::invalid_argument("CUDA target-logprob prefill requires an output vector"));
-                auto scores = impl_->read_target_logprobs_device(target_tokens);
+                auto scores = impl_->read_target_logprobs_device(
+                    target_tokens, kv.execution_correlation);
                 if (!scores) return fail(scores.status());
                 *target_logprobs = std::move(scores).value();
             } else {
                 return fail(Status::invalid_argument("CUDA prefill final output mode is invalid"));
             }
         } else {
-            status = impl_->synchronize_outputless_prefill();
+            status = impl_->synchronize_outputless_prefill(
+                kv.execution_correlation);
             if (!status) return fail(status);
         }
         status = impl_->commit_kv(kv);
@@ -3909,12 +3913,14 @@ Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
             if (!status) return fail_round(status);
 
             if (items[index].output == CudaPrefillBatchOutput::greedy) {
-                auto selected = impl_->select_greedy_device();
+                auto selected = impl_->select_greedy_device(
+                    items[index].cache->execution_correlation());
                 if (!selected) return fail_round(selected.status());
                 result.items[index].greedy_token = selected.value();
                 synchronized = true;
             } else {
-                auto copied = impl_->read_logits_host();
+                auto copied = impl_->read_logits_host(
+                    items[index].cache->execution_correlation());
                 if (!copied) return fail_round(copied.status());
                 result.items[index].logits = std::move(copied).value();
                 synchronized = true;
