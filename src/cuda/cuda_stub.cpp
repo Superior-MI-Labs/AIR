@@ -65,6 +65,12 @@ Result<TokenId> CudaExecutor::step_greedy(TokenId, CudaKvCache&, QuantizedLinear
 Result<TokenId> CudaExecutor::step_greedy(TokenId, CudaKvCache&, QuantizedLinearExecutionKind, QuantizedLinearExecutionKind, AttentionExecutionKind) {
     return Status::unsupported("AIR was built without CUDA support");
 }
+Result<std::vector<float>> CudaExecutor::step_target_logprobs(
+    TokenId, std::span<const TokenId>, CudaKvCache&,
+    QuantizedLinearExecutionKind, QuantizedLinearExecutionKind,
+    AttentionExecutionKind) {
+    return Status::unsupported("AIR was built without CUDA support");
+}
 Result<std::vector<TokenId>> CudaExecutor::step_greedy_batch(std::span<const TokenId>, std::span<CudaKvCache*>, QuantizedLinearExecutionKind, QuantizedLinearExecutionKind, AttentionExecutionKind) {
     return Status::unsupported("AIR was built without CUDA support");
 }
@@ -75,6 +81,11 @@ Status CudaExecutor::prefill_discard(std::span<const TokenId>, CudaKvCache&, Qua
     return Status::unsupported("AIR was built without CUDA support");
 }
 Result<TokenId> CudaExecutor::prefill_greedy(std::span<const TokenId>, CudaKvCache&, QuantizedLinearExecutionKind, AttentionExecutionKind) {
+    return Status::unsupported("AIR was built without CUDA support");
+}
+Result<std::vector<float>> CudaExecutor::prefill_target_logprobs(
+    std::span<const TokenId>, std::span<const TokenId>, CudaKvCache&,
+    QuantizedLinearExecutionKind, AttentionExecutionKind) {
     return Status::unsupported("AIR was built without CUDA support");
 }
 Result<CudaPrefillBatchExecution> CudaExecutor::prefill_batch(
