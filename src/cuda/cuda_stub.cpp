@@ -8,6 +8,10 @@ Result<std::vector<DeviceInfo>> cuda_devices() {
     return Status::unsupported("AIR was built without CUDA support");
 }
 
+Status augment_hardware_discovery_with_cuda(HardwareDiscovery&) {
+    return Status::ok();
+}
+
 struct CudaKvCache::Impl {};
 CudaKvCache::CudaKvCache(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 CudaKvCache::~CudaKvCache() = default;
