@@ -1318,6 +1318,7 @@ struct CudaKvCache::Impl {
     std::vector<std::uint8_t> pending;
     std::uint32_t staged_tokens{0};
     cudaStream_t stream{nullptr};
+    ExecutionCorrelation execution_correlation{};
 
     ~Impl() { release_all(); }
 
@@ -2682,6 +2683,12 @@ std::uint64_t CudaKvCache::capacity() const noexcept { return impl_ ? impl_->con
 std::uint32_t CudaKvCache::page_tokens() const noexcept { return impl_ ? impl_->page_tokens : 0U; }
 std::uint64_t CudaKvCache::committed_bytes() const noexcept { return impl_ ? impl_->committed_bytes() : 0U; }
 std::uint64_t CudaKvCache::resident_bytes() const noexcept { return impl_ ? impl_->resident_bytes() : 0U; }
+void CudaKvCache::bind_execution_correlation(ExecutionCorrelation correlation) noexcept {
+    if (impl_) impl_->execution_correlation = correlation;
+}
+ExecutionCorrelation CudaKvCache::execution_correlation() const noexcept {
+    return impl_ ? impl_->execution_correlation : ExecutionCorrelation{};
+}
 
 Result<std::unique_ptr<CudaKvCache>> CudaKvCache::fork(std::uint64_t prefix_tokens) const {
     if (!impl_) return Status::invalid_state("CUDA KV cache is not initialized");
@@ -2700,6 +2707,10 @@ Result<std::unique_ptr<CudaKvCache>> CudaKvCache::fork(std::uint64_t prefix_toke
     clone->stream = impl_->stream;
     clone->max_pages = impl_->max_pages;
     clone->pending.assign(impl_->layer_count, 0U);
+    // Checkpoints/reusable forks are model state, not request evidence. A new
+    // request/sequence correlation is rebound only when the restored sequence
+    // becomes active.
+    clone->execution_correlation = {};
     const auto table_bytes = clone->max_pages * 2U * sizeof(float*);
     status = clone->page_table.allocate(table_bytes);
     if (!status) return status;
