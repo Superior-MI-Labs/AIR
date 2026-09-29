@@ -91,9 +91,22 @@ Implemented:
 
 No planner/scheduler adaptation is enabled by this work.
 
+## Latest Prompt 1 evidence
+
+The first live WolfCat qualification failed in the CPU-only build before
+CTest.
+
+Root causes were fixed:
+
+- explicit Boost.JSON string construction in `air-cli machine-info --json`;
+- missing CPU-only CUDA stub definitions for target-logprob executor methods.
+
+The failure also validated the value of keeping CPU-only builds as a permanent
+release gate: it exposed backend-contract drift that the CUDA path had hidden.
+
 ## Immediate next action
 
-Run the Prompt 1 qualifier on WolfCat-Studio:
+Rerun the Prompt 1 qualifier on WolfCat-Studio:
 
 ```text
 bash scripts/qualify-adaptive-prompt1.sh
