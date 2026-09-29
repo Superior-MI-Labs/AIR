@@ -270,6 +270,7 @@ struct InferenceService::Impl {
     std::deque<ExecutionSpan> execution_spans;
     std::uint64_t next_execution_span{1};
     std::uint64_t evicted_execution_spans{0};
+    std::atomic<std::uint64_t> dropped_execution_spans{0};
 
     std::filesystem::path event_log_path;
     std::ofstream event_log;
@@ -314,29 +315,33 @@ struct InferenceService::Impl {
         Clock::time_point end,
         std::uint32_t participant_count = 1U,
         std::uint64_t work_units = 0U,
-        bool success = true) {
+        bool success = true) noexcept {
         if (config.execution_observation_level == ExecutionObservationLevel::off) return;
         if (end < start) end = start;
 
-        ExecutionSpan record;
-        record.request_id = request_id;
-        record.sequence_id = sequence_id;
-        record.scope = ExecutionSpanScope::service;
-        record.category = category;
-        record.phase = std::move(phase);
-        record.backend = std::move(backend_name);
-        record.start_ns = observation_ns(start);
-        record.end_ns = observation_ns(end);
-        record.participant_count = std::max<std::uint32_t>(1U, participant_count);
-        record.work_units = work_units;
-        record.success = success;
+        try {
+            ExecutionSpan record;
+            record.request_id = request_id;
+            record.sequence_id = sequence_id;
+            record.scope = ExecutionSpanScope::service;
+            record.category = category;
+            record.phase = std::move(phase);
+            record.backend = std::move(backend_name);
+            record.start_ns = observation_ns(start);
+            record.end_ns = observation_ns(end);
+            record.participant_count = std::max<std::uint32_t>(1U, participant_count);
+            record.work_units = work_units;
+            record.success = success;
 
-        std::lock_guard lock(mutex);
-        record.observation_sequence = next_execution_span++;
-        execution_spans.push_back(std::move(record));
-        while (execution_spans.size() > config.execution_span_capacity) {
-            execution_spans.pop_front();
-            ++evicted_execution_spans;
+            std::lock_guard lock(mutex);
+            record.observation_sequence = next_execution_span++;
+            execution_spans.push_back(std::move(record));
+            while (execution_spans.size() > config.execution_span_capacity) {
+                execution_spans.pop_front();
+                ++evicted_execution_spans;
+            }
+        } catch (...) {
+            dropped_execution_spans.fetch_add(1U, std::memory_order_relaxed);
         }
     }
 
@@ -347,7 +352,7 @@ struct InferenceService::Impl {
         Clock::time_point start,
         Clock::time_point end,
         std::uint64_t work_units = 0U,
-        bool success = true) {
+        bool success = true) noexcept {
         execution_span(
             item.request_id,
             item.sequence_id,
@@ -2744,6 +2749,8 @@ ExecutionTimelineSnapshot InferenceService::execution_timeline(
     out.origin_unix_ms = impl_->observation_origin_unix_ms;
     out.capacity = impl_->config.execution_span_capacity;
     out.evicted_spans = impl_->evicted_execution_spans;
+    out.dropped_spans =
+        impl_->dropped_execution_spans.load(std::memory_order_relaxed);
     const auto count = std::min(limit, impl_->execution_spans.size());
     out.spans = std::vector<ExecutionSpan>(
         impl_->execution_spans.end() - static_cast<std::ptrdiff_t>(count),
