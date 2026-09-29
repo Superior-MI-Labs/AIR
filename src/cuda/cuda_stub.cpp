@@ -65,7 +65,9 @@ Result<HardwareDiscovery> discover_machine_hardware() {
     };
 }
 
-struct CudaKvCache::Impl {};
+struct CudaKvCache::Impl {
+    ExecutionCorrelation execution_correlation{};
+};
 CudaKvCache::CudaKvCache(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 CudaKvCache::~CudaKvCache() = default;
 CudaKvCache::CudaKvCache(CudaKvCache&&) noexcept = default;
@@ -75,6 +77,12 @@ std::uint64_t CudaKvCache::capacity() const noexcept { return 0U; }
 std::uint32_t CudaKvCache::page_tokens() const noexcept { return 0U; }
 std::uint64_t CudaKvCache::committed_bytes() const noexcept { return 0U; }
 std::uint64_t CudaKvCache::resident_bytes() const noexcept { return 0U; }
+void CudaKvCache::bind_execution_correlation(ExecutionCorrelation correlation) noexcept {
+    if (impl_) impl_->execution_correlation = correlation;
+}
+ExecutionCorrelation CudaKvCache::execution_correlation() const noexcept {
+    return impl_ ? impl_->execution_correlation : ExecutionCorrelation{};
+}
 Result<std::unique_ptr<CudaKvCache>> CudaKvCache::fork(std::uint64_t) const {
     return Status::unsupported("AIR was built without CUDA support");
 }
