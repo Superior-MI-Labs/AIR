@@ -146,6 +146,35 @@ The follow-up static review also tightened ownership:
 
 Prompt 2 remains open pending rerun.
 
+## Second live qualification result
+
+The second WolfCat-Studio Prompt 2 qualification progressed further and failed
+at link time for `air-hardware-topology-tests`.
+
+Failure:
+
+```text
+undefined reference to air::discover_machine_hardware()
+undefined reference to air::cuda_compiled()
+```
+
+Root cause:
+
+The hardware-topology test had begun exercising the canonical machine contract
+but its CMake target still linked only `AIR::core`. Canonical machine
+discovery intentionally crosses the selected backend implementation boundary,
+which is provided by `AIR::cuda` in both configurations:
+
+- CUDA-disabled builds link the explicit stub implementation;
+- CUDA-enabled builds link the real CUDA implementation.
+
+The test target now links `AIR::core AIR::cuda`.
+
+This preserves the ownership decision. Machine-discovery implementation symbols
+were not moved back into `air_core` merely to satisfy the test.
+
+Prompt 2 remains open pending a clean rerun.
+
 ## Tests
 
 ### Unit
