@@ -1,4 +1,5 @@
 #include "air/cuda.hpp"
+#include "air/machine.hpp"
 #include "cuda/cuda_executor_factory.hpp"
 #include "model/architecture_adapter.hpp"
 
@@ -2639,19 +2640,32 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
         discovery.topology, discovery.environment);
 }
 
-Result<HardwareDiscovery> discover_machine_hardware() {
+Result<HardwareTopology> discover_machine_topology() {
     auto topology = discover_host_topology();
     if (!topology) return topology.status();
 
-    auto topology_status = augment_hardware_topology_with_cuda(topology.value());
-    if (!topology_status) return topology_status;
+    auto status = augment_hardware_topology_with_cuda(topology.value());
+    if (!status) return status;
+    return std::move(topology).value();
+}
 
-    auto environment = observe_host_environment(topology.value());
+Result<HardwareEnvironmentSnapshot> observe_machine_environment(
+    const HardwareTopology& topology) {
+    auto environment = observe_host_environment(topology);
     if (!environment) return environment.status();
 
-    auto environment_status =
-        augment_hardware_environment_with_cuda(topology.value(), environment.value());
-    if (!environment_status) return environment_status;
+    auto status =
+        augment_hardware_environment_with_cuda(topology, environment.value());
+    if (!status) return status;
+    return std::move(environment).value();
+}
+
+Result<HardwareDiscovery> discover_machine_hardware() {
+    auto topology = discover_machine_topology();
+    if (!topology) return topology.status();
+
+    auto environment = observe_machine_environment(topology.value());
+    if (!environment) return environment.status();
 
     return HardwareDiscovery{
         std::move(topology).value(),
