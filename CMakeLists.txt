@@ -206,7 +206,7 @@ air_enable_warnings(air-protocol-tests)
     air_enable_warnings(air-verification-tests)
 
     add_executable(air-hardware-topology-tests tests/hardware_topology_tests.cpp)
-    target_link_libraries(air-hardware-topology-tests PRIVATE AIR::core)
+    target_link_libraries(air-hardware-topology-tests PRIVATE AIR::core AIR::cuda)
     air_enable_warnings(air-hardware-topology-tests)
 
     add_executable(air-strategy-lab-tests tests/strategy_lab_tests.cpp)
