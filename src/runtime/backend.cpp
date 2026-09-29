@@ -204,6 +204,11 @@ public:
 
     [[nodiscard]] BackendKind backend() const noexcept override { return BackendKind::cuda; }
 
+    void bind_execution_correlation(ExecutionCorrelation correlation) noexcept override {
+        SequenceState::bind_execution_correlation(correlation);
+        if (cache_) cache_->bind_execution_correlation(correlation);
+    }
+
     [[nodiscard]] Result<std::vector<float>> prefill(std::span<const TokenId> tokens) override {
         return executor_.prefill(tokens, *cache_, prefill_block_linear_, prefill_attention_);
     }
