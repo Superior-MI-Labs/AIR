@@ -41,11 +41,19 @@ done
 require_text() {
     local needle="$1"
     local file="$2"
-    if ! grep -Fq -- "$needle" "$file"; then
-        echo "ERROR: required release text missing from $file:" >&2
-        echo "  $needle" >&2
-        exit 2
-    fi
+    python3 - "$needle" "$file" <<'PY'
+import pathlib
+import re
+import sys
+
+needle = " ".join(sys.argv[1].split())
+text = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+normalized = re.sub(r"\\s+", " ", text)
+if needle not in normalized:
+    print(f"ERROR: required release text missing from {sys.argv[2]}:", file=sys.stderr)
+    print(f"  {sys.argv[1]}", file=sys.stderr)
+    raise SystemExit(2)
+PY
 }
 
 require_text 'AIR 0.10.0' README.md
