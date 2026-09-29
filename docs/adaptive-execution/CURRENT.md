@@ -112,9 +112,21 @@ Implemented in source for qualification:
 
 No planner/scheduler/inference policy change is intended.
 
+## Latest Prompt 2 evidence
+
+The first live Prompt 2 run failed in the nested Prompt 1 CPU-only build because
+`observe_host_environment()` incorrectly treated a `std::find_if` iterator
+as a pointer.
+
+That implementation defect is fixed.
+
+A follow-up review also moved canonical machine discovery into
+`air/machine.hpp` and made `/machine` structural-only while
+`/environment` performs live observation separately.
+
 ## Immediate next action
 
-Run:
+Rerun:
 
 ```text
 bash scripts/qualify-adaptive-prompt2.sh \
