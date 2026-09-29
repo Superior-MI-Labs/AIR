@@ -2,6 +2,7 @@
 #include "air/format.hpp"
 #include "air/hardware.hpp"
 #include "air/hardware_json.hpp"
+#include "air/machine.hpp"
 #include "air/manifest.hpp"
 #include "air/reference.hpp"
 #include "air/tokenizer.hpp"
