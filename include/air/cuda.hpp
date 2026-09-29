@@ -5,6 +5,7 @@
 #include "air/generation.hpp"
 #include "air/hardware.hpp"
 #include "air/model.hpp"
+#include "air/observation.hpp"
 #include "air/result.hpp"
 #include "air/verification.hpp"
 
@@ -84,6 +85,8 @@ public:
     [[nodiscard]] std::uint32_t page_tokens() const noexcept;
     [[nodiscard]] std::uint64_t committed_bytes() const noexcept;
     [[nodiscard]] std::uint64_t resident_bytes() const noexcept;
+    void bind_execution_correlation(ExecutionCorrelation correlation) noexcept;
+    [[nodiscard]] ExecutionCorrelation execution_correlation() const noexcept;
     [[nodiscard]] Result<std::unique_ptr<CudaKvCache>> fork(std::uint64_t prefix_tokens) const;
     void reset() noexcept;
 
