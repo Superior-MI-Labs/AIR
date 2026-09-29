@@ -1,4 +1,4 @@
-# AIR Release-Candidate Support Matrix
+# AIR 0.10.0 Support Matrix
 
 ## Model format
 
@@ -9,6 +9,28 @@
 | Tested family | Qwen2.5 GGUF |
 | Tokenizer | byte-level GPT-2 BPE / Qwen2 pre-tokenization |
 | Chat rendering | explicit Qwen2 ChatML |
+
+## Model architecture boundary
+
+AIR 0.10.0 separates model-family interpretation from backend execution.
+
+The qualified production path is:
+
+```text
+GGUF
+  -> ModelDefinition
+  -> Qwen2 Architecture Adapter
+  -> PreparedModelSemantics
+  -> Reference / CUDA
+```
+
+The adapter resolves canonical source tensor names and Qwen2 semantic rules into
+validated semantic roles. Reference and CUDA execution consume those semantic
+bindings.
+
+This does **not** mean arbitrary GGUF or arbitrary neural architectures are
+supported. Qwen2 remains the only qualified production architecture in this
+release.
 
 ## Execution tensor encodings
 
@@ -36,7 +58,7 @@ Supported:
 - full even head-dimension RoPE
 - tied output embeddings when `output.weight` is absent
 
-Not supported in the first release candidate:
+Not supported in AIR 0.10.0:
 
 - RoPE scaling types/factors other than the unscaled form
 - sliding-window attention
