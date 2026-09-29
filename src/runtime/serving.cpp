@@ -915,7 +915,16 @@ struct InferenceService::Impl {
         const auto compute_start = Clock::now();
         auto logprob =
             item.session->decode_target_logprobs(previous, targets);
-        item.decode_compute_ms += ms(Clock::now() - compute_start);
+        const auto compute_end = Clock::now();
+        item.decode_compute_ms += ms(compute_end - compute_start);
+        execution_span(
+            item,
+            ExecutionSpanCategory::backend_call,
+            "decision-decode",
+            compute_start,
+            compute_end,
+            1U,
+            static_cast<bool>(logprob));
         if (!logprob) {
             fail_item(item, logprob.status());
             return true;
@@ -953,6 +962,12 @@ struct InferenceService::Impl {
         if (!prepared) return Status::unsupported("planned backend is unavailable");
 
         item.admitted_at = Clock::now();
+        execution_span(
+            item,
+            ExecutionSpanCategory::queue,
+            "queue-wait",
+            item.submitted_at,
+            item.admitted_at);
         item.prefill_started_at = item.admitted_at;
         auto session_result = prepared->create_sequence(item.plan);
         if (!session_result) return session_result.status();
@@ -1105,7 +1120,16 @@ struct InferenceService::Impl {
             else logits = std::move(result).value();
         }
 
-        item.prefill_compute_ms += ms(Clock::now() - compute_start);
+        const auto compute_end = Clock::now();
+        item.prefill_compute_ms += ms(compute_end - compute_start);
+        execution_span(
+            item,
+            ExecutionSpanCategory::backend_call,
+            "prefill",
+            compute_start,
+            compute_end,
+            static_cast<std::uint64_t>(chunk),
+            static_cast<bool>(execution_status));
         if (!execution_status) {
             fail_item(item, execution_status);
             return true;
@@ -1294,7 +1318,16 @@ struct InferenceService::Impl {
         const auto compute_start = Clock::now();
         if (device_greedy) {
             auto token = item.session->decode_greedy(previous);
-            item.decode_compute_ms += ms(Clock::now() - compute_start);
+            const auto compute_end = Clock::now();
+            item.decode_compute_ms += ms(compute_end - compute_start);
+            execution_span(
+                item,
+                ExecutionSpanCategory::backend_call,
+                "decode",
+                compute_start,
+                compute_end,
+                1U,
+                static_cast<bool>(token));
             if (!token) {
                 fail_item(item, token.status());
                 return true;
@@ -1310,7 +1343,16 @@ struct InferenceService::Impl {
         }
 
         auto logits = item.session->decode(previous);
-        item.decode_compute_ms += ms(Clock::now() - compute_start);
+        const auto compute_end = Clock::now();
+        item.decode_compute_ms += ms(compute_end - compute_start);
+        execution_span(
+            item,
+            ExecutionSpanCategory::backend_call,
+            "decode",
+            compute_start,
+            compute_end,
+            1U,
+            static_cast<bool>(logits));
         if (!logits) {
             fail_item(item, logits.status());
             return true;
