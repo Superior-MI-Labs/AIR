@@ -2527,6 +2527,14 @@ Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery) {
     const std::string host_memory_id =
         host_memory == discovery.topology.nodes.end() ? std::string{} : host_memory->id;
 
+    if (!devices.value().empty() && host_memory != discovery.topology.nodes.end()) {
+        auto& host_capabilities = host_memory->capabilities;
+        if (std::find(host_capabilities.begin(), host_capabilities.end(),
+                      "pinned-capable") == host_capabilities.end()) {
+            host_capabilities.push_back("pinned-capable");
+        }
+    }
+
     for (const auto& device : devices.value()) {
         const std::string node_id = "gpu" + std::to_string(device.ordinal);
         if (find_hardware_node(discovery.topology, node_id)) {
