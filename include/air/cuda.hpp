@@ -3,6 +3,7 @@
 #include "air/device.hpp"
 #include "air/execution.hpp"
 #include "air/generation.hpp"
+#include "air/hardware.hpp"
 #include "air/model.hpp"
 #include "air/result.hpp"
 #include "air/verification.hpp"
@@ -59,6 +60,7 @@ struct CudaExecutionStats {
 
 [[nodiscard]] bool cuda_compiled() noexcept;
 [[nodiscard]] Result<std::vector<DeviceInfo>> cuda_devices();
+[[nodiscard]] Status augment_hardware_discovery_with_cuda(HardwareDiscovery& discovery);
 
 class CudaKvCache final {
 public:
