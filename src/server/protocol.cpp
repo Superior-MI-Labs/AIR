@@ -657,4 +657,37 @@ std::string events_json(const std::vector<RuntimeEvent>& events) {
     return json::serialize(array);
 }
 
+std::string execution_timeline_json(
+    const ExecutionTimelineSnapshot& timeline) {
+    json::object root;
+    root["schema_version"] = timeline.schema_version;
+    root["level"] = json::value(std::string(to_string(timeline.level)));
+    root["clock"] = "steady_clock";
+    root["time_unit"] = "nanoseconds_from_origin";
+    root["origin_unix_ms"] = timeline.origin_unix_ms;
+    root["capacity"] = timeline.capacity;
+    root["evicted_spans"] = timeline.evicted_spans;
+
+    json::array spans;
+    for (const auto& span : timeline.spans) {
+        json::object value;
+        value["schema_version"] = span.schema_version;
+        value["observation_sequence"] = span.observation_sequence;
+        value["request_id"] = span.request_id;
+        value["sequence_id"] = span.sequence_id;
+        value["scope"] = json::value(std::string(to_string(span.scope)));
+        value["category"] = json::value(std::string(to_string(span.category)));
+        value["phase"] = json::value(span.phase);
+        value["backend"] = json::value(span.backend);
+        value["start_ns"] = span.start_ns;
+        value["end_ns"] = span.end_ns;
+        value["participant_count"] = span.participant_count;
+        value["work_units"] = span.work_units;
+        value["success"] = span.success;
+        spans.push_back(std::move(value));
+    }
+    root["spans"] = std::move(spans);
+    return json::serialize(root);
+}
+
 } // namespace air::server
