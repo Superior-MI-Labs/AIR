@@ -96,6 +96,31 @@ changed.
 
 The remaining Prompt 1 authority is live qualification on WolfCat-Studio.
 
+## First live qualification result
+
+The first WolfCat-Studio run reached the CPU-only build and failed before
+tests.
+
+Two root causes were identified from retained build evidence:
+
+1. the new machine-info JSON path relied on implicit `std::string` to
+   Boost.JSON conversion that is not supported by the installed Boost.JSON
+   version;
+2. the pre-existing CPU-only CUDA stub had drifted behind the
+   `CudaExecutor` public contract and lacked
+   `step_target_logprobs` / `prefill_target_logprobs` definitions.
+
+The JSON path now constructs `boost::json::value` explicitly.
+
+The CUDA-disabled stub now implements the complete currently-linked executor
+contract and returns explicit `unsupported` results for those methods.
+
+This failure is retained as useful Prompt 1 evidence: requiring a real
+CPU-only build exposed contract drift that CUDA release qualification alone did
+not catch.
+
+Prompt 1 remains open pending a clean rerun.
+
 ## Prompt 1 tests
 
 Unit/characterization:
