@@ -10,6 +10,41 @@ Different evidence answers different questions.
 Do not treat unit tests, benchmarks, GUI checks, machine qualification, and user
 testing as interchangeable.
 
+## Layer 0 - Pre-publish compile/link gate
+
+Purpose:
+Catch basic source, interface, stub, dependency, and build-graph failures before
+a live qualification run is handed to a user.
+
+Authority:
+
+`scripts/preflight-adaptive.sh`
+
+Required checks:
+
+- shell syntax for repository qualification/preflight scripts;
+- fresh CPU-only configure;
+- full CPU-only build;
+- full CPU-only CTest.
+
+Why CPU-only is mandatory:
+
+The non-CUDA build exercises the explicit backend stub and catches interface
+drift that may be hidden by normal CUDA-focused development.
+
+For every public/backend interface change, review:
+
+```text
+declaration
+ -> implementation
+ -> disabled/stub implementation
+ -> consumer
+ -> CMake link edge
+```
+
+A prompt implementation is not ready for live WolfCat qualification until this
+gate passes locally or in CI.
+
 ## Layer 1 - Contract/unit tests
 
 Purpose:
