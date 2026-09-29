@@ -35,6 +35,13 @@ public:
 
 class FakeSequence final : public air::runtime_detail::SequenceState {
 public:
+    void bind_execution_correlation(air::ExecutionCorrelation correlation) noexcept override {
+        air::runtime_detail::SequenceState::bind_execution_correlation(correlation);
+        ++bind_count_;
+    }
+
+    [[nodiscard]] std::uint32_t bind_count() const noexcept { return bind_count_; }
+
     [[nodiscard]] air::BackendKind backend() const noexcept override {
         return air::BackendKind::reference;
     }
@@ -54,6 +61,9 @@ public:
         return std::unique_ptr<air::runtime_detail::SequenceCheckpoint>(
             std::make_unique<FakeCheckpoint>());
     }
+
+private:
+    std::uint32_t bind_count_{0};
 };
 
 class FakePreparedModel final : public air::runtime_detail::PreparedModel {
@@ -140,6 +150,11 @@ void test_additive_correlation_wrappers() {
           created_correlation.sink == nullptr,
           "create wrapper binds exact request/sequence correlation");
 
+    const auto* created_fake =
+        dynamic_cast<const FakeSequence*>(created.value().get());
+    check(created_fake != nullptr && created_fake->bind_count() == 1U,
+          "create wrapper dispatches through the derived correlation-binding hook");
+
     auto checkpoint = created.value()->checkpoint();
     check(checkpoint.is_ok(), "fake correlated sequence checkpoints");
     if (!checkpoint) return;
@@ -157,6 +172,11 @@ void test_additive_correlation_wrappers() {
           restored_correlation.sequence_id == 74U &&
           restored_correlation.sink == nullptr,
           "restore wrapper binds caller-provided correlation");
+
+    const auto* restored_fake =
+        dynamic_cast<const FakeSequence*>(sequence.value().get());
+    check(restored_fake != nullptr && restored_fake->bind_count() == 1U,
+          "restore wrapper dispatches through the derived correlation-binding hook");
 }
 
 } // namespace
