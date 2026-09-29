@@ -1,4 +1,4 @@
-# AIR Release-Candidate Boundary
+# AIR 0.10.0 Release Boundary
 
 The release-candidate architecture freeze begins after the reliability destruction phase.
 
@@ -7,7 +7,9 @@ The release-candidate architecture freeze begins after the reliability destructi
 ```text
 GGUF
   -> ModelDefinition                  canonical state
-  -> PreparedModel                    backend-derived state
+  -> Architecture Adapter             model-family interpretation
+  -> PreparedModelSemantics           derived semantic bindings
+  -> Prepared backend                 backend-derived execution state
        -> SequenceState
        -> physical KV ownership
 
@@ -26,14 +28,15 @@ Verification                          opt-in differential observer
 The following ownership rules are frozen:
 
 1. `ModelDefinition` is the only canonical model definition.
-2. Prepared backends may derive execution state but may not duplicate model truth.
-3. The scheduler owns request ordering, not transformer math.
-4. Backends own physical execution/KV geometry, not transport code.
-5. Capacity admission reserves future resource requirements before sequence allocation.
-6. Cancellation and shutdown release backend resources before completion becomes externally final.
-7. Verification observes the real executors; it is not a second transformer implementation.
-8. Benchmarks execute through the production `InferenceService` path.
-9. Qualification manifests are evidence and are valid only for matching model/hardware/runtime semantics.
+2. Architecture adapters may derive validated semantic bindings but may not duplicate model truth.
+3. Prepared backends may derive execution state but may not duplicate model truth.
+4. The scheduler owns request ordering, not transformer math.
+5. Backends own physical execution/KV geometry, not transport code.
+6. Capacity admission reserves future resource requirements before sequence allocation.
+7. Cancellation and shutdown release backend resources before completion becomes externally final.
+8. Verification observes the real executors; it is not a second transformer implementation.
+9. Benchmarks execute through the production `InferenceService` path.
+10. Qualification manifests are evidence and are valid only for matching model/hardware/runtime semantics.
 
 ## Release-candidate change rule
 
@@ -48,8 +51,8 @@ It may not introduce new execution architecture solely to improve a benchmark. A
 
 ## Frozen schema versions
 
-- execution manifest: v3
-- benchmark report: `air.benchmark.v2`
+- execution manifest: v10
+- benchmark report: `air.benchmark.v11`
 - verification report: `air.verification.v1`
 
 ## Exit into comparison phase
