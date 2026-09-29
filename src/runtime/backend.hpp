@@ -33,7 +33,7 @@ class SequenceState {
 public:
     virtual ~SequenceState() = default;
 
-    void bind_execution_correlation(ExecutionCorrelation correlation) noexcept {
+    virtual void bind_execution_correlation(ExecutionCorrelation correlation) noexcept {
         correlation_ = correlation;
     }
 
