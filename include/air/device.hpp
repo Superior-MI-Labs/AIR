@@ -18,6 +18,11 @@ struct DeviceInfo {
     int compute_minor{0};
     std::uint64_t total_memory_bytes{0};
     std::uint64_t free_memory_bytes{0};
+    int multiprocessor_count{0};
+    int async_engine_count{0};
+    bool concurrent_kernels{false};
+    bool unified_addressing{false};
+    bool managed_memory{false};
 };
 
 } // namespace air
