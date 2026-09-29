@@ -2,6 +2,7 @@
 
 #include "air/execution.hpp"
 #include "air/model.hpp"
+#include "air/observation.hpp"
 #include "air/result.hpp"
 #include "air/types.hpp"
 
@@ -30,7 +31,14 @@ public:
 
 class SequenceState {
 public:
+    explicit SequenceState(ExecutionCorrelation correlation = {}) noexcept
+        : correlation_(correlation) {}
     virtual ~SequenceState() = default;
+
+    [[nodiscard]] const ExecutionCorrelation& execution_correlation() const noexcept {
+        return correlation_;
+    }
+
     [[nodiscard]] virtual BackendKind backend() const noexcept = 0;
     [[nodiscard]] virtual Result<std::vector<float>> prefill(std::span<const TokenId> tokens) = 0;
     [[nodiscard]] virtual Status prefill_discard(std::span<const TokenId> tokens) {
@@ -56,6 +64,9 @@ public:
     }
     [[nodiscard]] virtual SequenceResources resources() const noexcept = 0;
     [[nodiscard]] virtual Result<std::unique_ptr<SequenceCheckpoint>> checkpoint() const = 0;
+
+protected:
+    ExecutionCorrelation correlation_{};
 };
 
 
@@ -101,9 +112,12 @@ public:
     [[nodiscard]] virtual const BackendCapabilities& capabilities() const noexcept = 0;
     [[nodiscard]] virtual const ModelDefinition& model() const noexcept = 0;
     [[nodiscard]] virtual Result<std::unique_ptr<SequenceState>> create_sequence(
-        const ExecutionPlan& plan) = 0;
+        const ExecutionPlan& plan,
+        ExecutionCorrelation correlation = {}) = 0;
     [[nodiscard]] virtual Result<std::unique_ptr<SequenceState>> restore_sequence(
-        const ExecutionPlan& plan, const SequenceCheckpoint& checkpoint) = 0;
+        const ExecutionPlan& plan,
+        const SequenceCheckpoint& checkpoint,
+        ExecutionCorrelation correlation = {}) = 0;
     // Optional backend-global prepared artifacts are resources, not model truth.
     // Admission may forecast their incremental device cost before materializing
     // them. The caller may trim artifacts only while no sequence is active.
