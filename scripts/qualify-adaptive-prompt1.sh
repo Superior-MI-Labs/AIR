@@ -8,6 +8,30 @@ OUT="${AIR_P1_OUT:-$HOME/Downloads/AIR-0.11-Prompt1-$STAMP}"
 mkdir -p "$OUT"
 cd "$ROOT"
 
+STAGE="initialization"
+
+on_error() {
+    local rc=$?
+    set +e
+    echo >&2
+    echo "PROMPT1_MACHINE_DISCOVERY=FAIL" >&2
+    echo "failed_stage=$STAGE" >&2
+    echo "exit_code=$rc" >&2
+    echo "Evidence directory: $OUT" >&2
+
+    local log
+    for log in         "$OUT/cmake-cpu.txt"         "$OUT/build-cpu.txt"         "$OUT/ctest-cpu.txt"         "$OUT/cmake-cuda.txt"         "$OUT/build-cuda.txt"         "$OUT/ctest-cuda.txt"; do
+        if [[ -s "$log" ]]; then
+            echo >&2
+            echo "=== tail: $(basename "$log") ===" >&2
+            tail -n 120 "$log" >&2
+        fi
+    done
+    exit "$rc"
+}
+trap on_error ERR
+
+STAGE="worktree-cleanliness"
 if [[ -n "$(git status --porcelain)" ]]; then
     echo "ERROR: Prompt 1 qualification requires a clean worktree." >&2
     git status --short >&2
@@ -26,16 +50,21 @@ BRANCH="$(git branch --show-current)"
 } > "$OUT/identity.txt"
 
 echo "=== CPU-ONLY BUILD ==="
+STAGE="cpu-cmake-configure"
 cmake -S "$ROOT" -B "$OUT/build-cpu"     -DCMAKE_BUILD_TYPE=Release     -DAIR_ENABLE_CUDA=OFF     > "$OUT/cmake-cpu.txt" 2>&1
 
+STAGE="cpu-build"
 cmake --build "$OUT/build-cpu" -j"$(nproc)"     > "$OUT/build-cpu.txt" 2>&1
 
+STAGE="cpu-ctest"
 ctest --test-dir "$OUT/build-cpu" --output-on-failure     | tee "$OUT/ctest-cpu.txt"
 
 "$OUT/build-cpu/air-cli" machine-info     | tee "$OUT/machine-info-cpu.txt"
 
+STAGE="cpu-machine-json"
 "$OUT/build-cpu/air-cli" machine-info --json     > "$OUT/machine-info-cpu.json"
 
+STAGE="cpu-json-validation"
 python3 - "$OUT/machine-info-cpu.json" <<'PY'
 import json, pathlib, sys
 
@@ -62,15 +91,19 @@ PY
 echo
 echo "=== CUDA BUILD ==="
 
+STAGE="cuda-preflight"
 command -v nvcc >/dev/null || {
     echo "ERROR: nvcc is required for Prompt 1 CUDA qualification." >&2
     exit 3
 }
 
+STAGE="cuda-cmake-configure"
 cmake -S "$ROOT" -B "$OUT/build-cuda"     -DCMAKE_BUILD_TYPE=Release     -DAIR_ENABLE_CUDA=ON     > "$OUT/cmake-cuda.txt" 2>&1
 
+STAGE="cuda-build"
 cmake --build "$OUT/build-cuda" -j"$(nproc)"     > "$OUT/build-cuda.txt" 2>&1
 
+STAGE="cuda-ctest"
 ctest --test-dir "$OUT/build-cuda" --output-on-failure     | tee "$OUT/ctest-cuda.txt"
 
 "$OUT/build-cuda/air-cli" machine-info     | tee "$OUT/machine-info-cuda.txt"
@@ -81,6 +114,7 @@ sleep 1
 
 "$OUT/build-cuda/air-cli" machine-info --json     > "$OUT/machine-info-cuda-2.json"
 
+STAGE="cuda-json-validation"
 python3 - "$OUT/machine-info-cuda-1.json" "$OUT/machine-info-cuda-2.json" <<'PY'
 import json, pathlib, sys
 
@@ -135,6 +169,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
     exit 4
 fi
 
+STAGE="evidence-checksums"
 python3 - "$OUT" <<'PY'
 import hashlib, pathlib, sys
 
@@ -153,6 +188,7 @@ with (root / "SHA256SUMS.txt").open("w") as out:
         out.write(f"{h}  {p.name}\n")
 PY
 
+trap - ERR
 echo
 echo "PROMPT1_MACHINE_DISCOVERY=PASS"
 echo "Evidence directory: $OUT"
