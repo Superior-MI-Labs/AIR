@@ -58,13 +58,8 @@ private:
 
 class ReferenceSequence final : public SequenceState {
 public:
-    ReferenceSequence(
-        const ReferenceExecutor& executor,
-        ReferenceKvCache cache,
-        ExecutionCorrelation correlation)
-        : SequenceState(correlation),
-          executor_(executor),
-          cache_(std::move(cache)) {}
+    ReferenceSequence(const ReferenceExecutor& executor, ReferenceKvCache cache)
+        : executor_(executor), cache_(std::move(cache)) {}
 
     [[nodiscard]] BackendKind backend() const noexcept override { return BackendKind::reference; }
 
@@ -126,8 +121,7 @@ public:
     [[nodiscard]] const ModelDefinition& model() const noexcept override { return *model_; }
 
     [[nodiscard]] Result<std::unique_ptr<SequenceState>> create_sequence(
-        const ExecutionPlan& plan,
-        ExecutionCorrelation correlation) override {
+        const ExecutionPlan& plan) override {
         const auto valid = validate_execution_plan(plan, capabilities_);
         if (!valid) return valid;
         const auto& config = model_->config();
@@ -138,14 +132,11 @@ public:
                                config.context_length,
                                *plan.kv.page_tokens);
         return std::unique_ptr<SequenceState>(
-            std::make_unique<ReferenceSequence>(
-                *executor_, std::move(cache), correlation));
+            std::make_unique<ReferenceSequence>(*executor_, std::move(cache)));
     }
 
     [[nodiscard]] Result<std::unique_ptr<SequenceState>> restore_sequence(
-        const ExecutionPlan& plan,
-        const SequenceCheckpoint& checkpoint,
-        ExecutionCorrelation correlation) override {
+        const ExecutionPlan& plan, const SequenceCheckpoint& checkpoint) override {
         const auto valid = validate_execution_plan(plan, capabilities_);
         if (!valid) return valid;
         if (checkpoint.backend() != BackendKind::reference) {
@@ -156,8 +147,7 @@ public:
         auto cloned = reference->cache().fork(reference->cache().size());
         if (!cloned) return cloned.status();
         return std::unique_ptr<SequenceState>(
-            std::make_unique<ReferenceSequence>(
-                *executor_, std::move(cloned).value(), correlation));
+            std::make_unique<ReferenceSequence>(*executor_, std::move(cloned).value()));
     }
 
     [[nodiscard]] std::uint64_t resident_device_bytes() const noexcept override { return 0U; }
@@ -205,10 +195,8 @@ public:
                  QuantizedLinearExecutionKind decode_block_linear,
                  QuantizedLinearExecutionKind decode_output_linear,
                  AttentionExecutionKind prefill_attention,
-                 AttentionExecutionKind decode_attention,
-                 ExecutionCorrelation correlation)
-        : SequenceState(correlation),
-          executor_(executor), cache_(std::move(cache)),
+                 AttentionExecutionKind decode_attention)
+        : executor_(executor), cache_(std::move(cache)),
           prefill_block_linear_(prefill_block_linear),
           decode_block_linear_(decode_block_linear),
           decode_output_linear_(decode_output_linear),
@@ -323,8 +311,7 @@ public:
     [[nodiscard]] const ModelDefinition& model() const noexcept override { return *model_; }
 
     [[nodiscard]] Result<std::unique_ptr<SequenceState>> create_sequence(
-        const ExecutionPlan& plan,
-        ExecutionCorrelation correlation) override {
+        const ExecutionPlan& plan) override {
         const auto valid = validate_execution_plan(plan, capabilities_);
         if (!valid) return valid;
         auto cache = executor_->create_kv_cache(*plan.kv.page_tokens);
@@ -333,14 +320,11 @@ public:
             std::make_unique<CudaSequence>(*executor_, std::move(cache).value(),
                                            plan.linear.prefill_block, plan.linear.decode_block,
                                            plan.linear.decode_output,
-                                           plan.attention.prefill, plan.attention.decode,
-                                           correlation));
+                                           plan.attention.prefill, plan.attention.decode));
     }
 
     [[nodiscard]] Result<std::unique_ptr<SequenceState>> restore_sequence(
-        const ExecutionPlan& plan,
-        const SequenceCheckpoint& checkpoint,
-        ExecutionCorrelation correlation) override {
+        const ExecutionPlan& plan, const SequenceCheckpoint& checkpoint) override {
         const auto valid = validate_execution_plan(plan, capabilities_);
         if (!valid) return valid;
         if (checkpoint.backend() != BackendKind::cuda) {
@@ -357,8 +341,7 @@ public:
             std::make_unique<CudaSequence>(*executor_, std::move(cloned).value(),
                                            plan.linear.prefill_block, plan.linear.decode_block,
                                            plan.linear.decode_output,
-                                           plan.attention.prefill, plan.attention.decode,
-                                           correlation));
+                                           plan.attention.prefill, plan.attention.decode));
     }
 
     [[nodiscard]] std::uint64_t estimate_plan_preparation_device_bytes(
