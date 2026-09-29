@@ -100,6 +100,8 @@ void usage() {
         << "  --cuda-kv-page-tokens N         CUDA KV page size\n"
         << "  --prefix-cache N               exact-prefix cache entries (capability-gated; reference today)\n"
         << "  --stream-queue N               per-request buffered stream events\n"
+        << "  --execution-observation MODE   off|normal|detailed, default normal\n"
+        << "  --execution-span-capacity N    bounded typed execution spans, default 2048\n"
         << "  --manifest PATH                execution manifest path\n"
         << "  --no-manifest                  disable adaptive manifest\n"
         << "  --require-manifest             fail unless manifest validates\n"
@@ -213,6 +215,25 @@ std::optional<Options> parse_options(int argc, char** argv) {
         } else if (arg == "--stream-queue") {
             auto value = next(); if (!value) return std::nullopt;
             auto parsed = parse_u32(*value); if (!parsed || *parsed == 0U) return std::nullopt; options.scheduler.stream_queue_capacity = *parsed;
+        } else if (arg == "--execution-observation") {
+            auto value = next(); if (!value) return std::nullopt;
+            if (*value == "off") {
+                options.scheduler.execution_observation_level =
+                    air::ExecutionObservationLevel::off;
+            } else if (*value == "normal") {
+                options.scheduler.execution_observation_level =
+                    air::ExecutionObservationLevel::normal;
+            } else if (*value == "detailed") {
+                options.scheduler.execution_observation_level =
+                    air::ExecutionObservationLevel::detailed;
+            } else {
+                return std::nullopt;
+            }
+        } else if (arg == "--execution-span-capacity") {
+            auto value = next(); if (!value) return std::nullopt;
+            auto parsed = parse_u32(*value);
+            if (!parsed || *parsed == 0U) return std::nullopt;
+            options.scheduler.execution_span_capacity = *parsed;
         } else if (arg == "--strategy-objective") {
             auto value = next(); if (!value) return std::nullopt;
             auto objective = air::strategy_objective_from_string(*value); if (!objective) return std::nullopt;
@@ -384,6 +405,13 @@ void handle_request(tcp::socket socket,
     }
     if (request.method() == http::verb::get && target == "/events") {
         write_text(socket, http::status::ok, air::server::events_json(service.recent_events()));
+        return;
+    }
+    if (request.method() == http::verb::get && target == "/timeline") {
+        write_text(
+            socket,
+            http::status::ok,
+            air::server::execution_timeline_json(service.execution_timeline()));
         return;
     }
     if (request.method() == http::verb::get && target == "/metrics") {
