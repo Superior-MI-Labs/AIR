@@ -384,7 +384,7 @@ Result<HardwareEnvironmentSnapshot> observe_host_environment(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count());
 
-    const auto* host_memory = std::find_if(
+    const auto host_memory = std::find_if(
         topology.nodes.begin(), topology.nodes.end(),
         [](const HardwareNode& node) {
             return node.kind == HardwareNodeKind::host_memory;
