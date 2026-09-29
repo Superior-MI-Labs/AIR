@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 1
 
-Status: IMPLEMENTED / LIVE MACHINE QUALIFICATION PENDING
+Status: CLOSED / QUALIFIED
 Title: Release contract and machine discovery foundation
 
 ## Prompt objective
@@ -120,6 +120,53 @@ CPU-only build exposed contract drift that CUDA release qualification alone did
 not catch.
 
 Prompt 1 remains open pending a clean rerun.
+
+## Final live qualification
+
+Prompt 1 qualified on WolfCat-Studio at source:
+
+`15cc24f3946707dbe2ee9843d9e8379c77b08e1e`
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt1-20260929-175415`
+
+CPU-only build:
+
+- 12/12 CTests passed;
+- Intel Core i7-11800H detected;
+- x86_64;
+- 16 logical processors;
+- 31.08 GiB host RAM;
+- no accelerator reported;
+- topology fingerprint:
+  `hardware-topology:v1:963f1082652c41fb`.
+
+CUDA build:
+
+- 12/12 CTests passed;
+- same CPU/RAM structure;
+- NVIDIA GeForce RTX 3080 Laptop GPU detected;
+- CUDA architecture `sm86`;
+- 15.61 GiB visible device memory;
+- capabilities included CUDA, concurrent kernels, async copy, unified
+  addressing, and managed memory;
+- topology fingerprint:
+  `hardware-topology:v1:f521e9bdd95ed645`.
+
+The CUDA build reported approximately 13.10 GiB available VRAM at observation
+time. Host RAM availability differed between CPU-only and CUDA observations
+without changing the intended structural identity rules.
+
+Final gate:
+
+```text
+PROMPT1_MACHINE_DISCOVERY=PASS
+qualifier_rc=0
+```
+
+Prompt 1 is closed. The qualified result establishes machine discovery as the
+baseline for Prompt 2.
 
 ## Prompt 1 tests
 
