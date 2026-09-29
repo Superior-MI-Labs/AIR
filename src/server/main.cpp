@@ -1,5 +1,6 @@
 #include "air/cuda.hpp"
 #include "air/hardware_json.hpp"
+#include "air/machine.hpp"
 #include "air/serving.hpp"
 #include "air/version.hpp"
 #include "protocol.hpp"
@@ -354,25 +355,31 @@ void handle_request(tcp::socket socket,
         return;
     }
     if (request.method() == http::verb::get && target == "/machine") {
-        auto discovered = air::discover_machine_hardware();
-        if (!discovered) {
+        auto topology = air::discover_machine_topology();
+        if (!topology) {
             write_error(socket, http::status::internal_server_error,
-                        discovered.status().message());
+                        topology.status().message());
             return;
         }
         write_text(socket, http::status::ok,
-                   air::hardware_topology_json(discovered.value().topology));
+                   air::hardware_topology_json(topology.value()));
         return;
     }
     if (request.method() == http::verb::get && target == "/environment") {
-        auto discovered = air::discover_machine_hardware();
-        if (!discovered) {
+        auto topology = air::discover_machine_topology();
+        if (!topology) {
             write_error(socket, http::status::internal_server_error,
-                        discovered.status().message());
+                        topology.status().message());
+            return;
+        }
+        auto environment = air::observe_machine_environment(topology.value());
+        if (!environment) {
+            write_error(socket, http::status::internal_server_error,
+                        environment.status().message());
             return;
         }
         write_text(socket, http::status::ok,
-                   air::hardware_environment_json(discovered.value().environment));
+                   air::hardware_environment_json(environment.value()));
         return;
     }
     if (request.method() == http::verb::get && target == "/events") {
