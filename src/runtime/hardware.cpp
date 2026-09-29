@@ -336,7 +336,7 @@ Result<HardwareDiscovery> discover_host_hardware() {
         0,
         total_memory,
         0U,
-        {"pageable", "pinned-capable"},
+        {"pageable"},
         0U,
     });
     discovery.topology.links.push_back(HardwareLink{
