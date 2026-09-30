@@ -244,3 +244,251 @@ Stop the first slice when:
 7. the next implementation slice has explicit characterization tests.
 
 Only then authorize the first ExecutionGraph type.
+
+
+## 5A census result - graph boundary
+
+The source census rejects a whole-request static graph derived only from
+`ExecutionPlan`.
+
+Reason:
+
+Current physical execution shape is not fully determined at plan-selection
+time. The existing production path makes additional legitimate runtime
+decisions:
+
+- `MicrobatchScheduler` selects worker-cycle slices from current active work;
+- `InferenceService` groups compatible prefill slices into a native batch only
+  when current participants permit it;
+- compatible greedy decode sequences may become a native decode batch;
+- exact-prefix restore depends on live reusable-state availability;
+- output path differs between discard, full logits, device-greedy selection,
+  and target-logprob scoring;
+- cancellation/failure can terminate or prevent later physical work;
+- plan preparation may be hot already or may materialize derived artifacts.
+
+Therefore a graph predicted for the entire request before those decisions would
+either encode speculation as fact or duplicate scheduler/runtime authority.
+
+### Smallest truthful seam
+
+The first canonical ExecutionGraph seam should be:
+
+```text
+Planner / ExecutionPlan
+        ->
+Capacity + Microbatch scheduling
+        ->
+existing compatibility grouping
+        ->
+PHYSICAL INVOCATION IS NOW CONCRETE
+        ->
+derive immutable ExecutionGraph
+        ->
+existing PreparedModel / SequenceState backend call
+```
+
+The graph is a pure description/projection of the physical invocation that is
+about to occur.
+
+It does not choose the batch, tactic, backend, output policy, or state hit.
+
+Those decisions remain with their current owners.
+
+## Schema alternatives
+
+### Schema option 1 - whole-request expanded DAG
+
+Materialize every expected physical step for an entire request at admission.
+
+Advantages:
+
+- visually simple notion of one request = one graph;
+- potentially convenient for future whole-request optimization.
+
+Rejected for R0.
+
+Current execution is affected by later queue/batch/state decisions, so this
+would require prediction, graph mutation, or scheduler duplication. It would
+also expand autoregressive decode according to request/token behavior that is
+not yet known.
+
+### Schema option 2 - physical-invocation DAG
+
+Create one immutable graph for one concrete physical invocation after current
+scheduling/grouping decisions and before execution.
+
+Examples:
+
+- one single-sequence prefill invocation;
+- one native multi-sequence prefill invocation;
+- one single-sequence decode invocation;
+- one native greedy decode batch;
+- later, a plan-preparation invocation as a distinct physical scope.
+
+Advantages:
+
+- inputs are concrete rather than predicted;
+- deterministic identity is practical;
+- scheduler authority stays unchanged;
+- graph can be directly compared with Prompt 3 observations;
+- it gives Prompt 6 a physical object to transform experimentally;
+- graphs can later be composed into larger schedules without making R0 lie.
+
+Decision:
+
+**Schema option 2 is the R0 direction.**
+
+## Source-grounded physical distinctions
+
+Current source supports these R0 distinctions without guessing:
+
+### Backend and placement
+
+`PreparedModel` owns backend execution. CUDA preparation is bound to a concrete
+device ordinal. Hardware topology remains the canonical structural machine
+description.
+
+The graph may reference existing hardware-resource identities. It must not own
+or rediscover topology.
+
+### Operation implementation
+
+Prompt 4 already owns legal operation-site implementation identity:
+
+- prefill transformer-block linear;
+- decode transformer-block linear;
+- decode output projection;
+- prefill attention;
+- decode attention.
+
+The graph references the already-selected legal implementation. It does not
+select tactics.
+
+### State representation
+
+`SequenceState` and the prepared backend own physical sequence state.
+
+CUDA currently uses paged KV state and checkpoint/fork semantics. The graph may
+reference the active physical state representation and page geometry where they
+affect execution compatibility, but it must not become the state owner.
+
+### Transfers and synchronization
+
+The CUDA backend currently exposes truthful host-observed physical boundaries
+for:
+
+- H2D prefill-token enqueue;
+- H2D target-token enqueue;
+- D2H logits enqueue;
+- D2H greedy-result enqueue;
+- D2H target-logprob/flag enqueue;
+- explicit CUDA stream waits for logits, greedy selection, target logprobs, and
+  outputless prefill.
+
+These are valid candidates for graph transfer/synchronization nodes when the
+selected output path requires them.
+
+The current evidence does not justify claiming exact GPU kernel-duration nodes
+from Prompt 3 observations.
+
+### Preparation/residency
+
+`PreparedModel::prepare_plan()`, tactic preparation-byte estimation, and
+prepared-artifact accounting already own derived backend-global preparation.
+
+Do not copy that metadata into a second graph registry.
+
+Plan preparation should be represented later as a physical graph/invocation
+derived from these authorities, not merged into per-sequence state.
+
+## R0 identity inputs
+
+For the first physical-invocation graph, candidate identity inputs are limited
+to information that can change intended physical work:
+
+- graph schema version;
+- backend identity;
+- selected `ExecutionPlan` physical fields relevant to the invocation;
+- invocation kind: prefill/decode and single/batch;
+- concrete participant/batch width;
+- concrete token/work width where it changes physical work;
+- output mode: discard/logits/greedy/target-logprobs;
+- selected Prompt 4 implementation identities;
+- physical state representation compatibility fields such as KV page geometry;
+- hardware resource identity required for placement.
+
+Explicitly excluded from structural graph identity unless later evidence proves
+otherwise:
+
+- request ID;
+- sequence ID;
+- wall-clock timestamps;
+- observation sequence;
+- planner reason strings;
+- evidence/strategy labels that lower to identical physical work;
+- process addresses.
+
+Dynamic environment values such as free VRAM are planner/admission evidence.
+They do not belong in graph identity merely because they were present when the
+graph was derived.
+
+## Smallest implementation seam
+
+The first code should be additive and pure.
+
+Recommended shape:
+
+```text
+existing concrete invocation data
+        +
+existing ExecutionPlan
+        +
+PreparedModel capabilities / backend identity
+        +
+existing hardware resource identity
+        ->
+derive_execution_graph(...)
+        ->
+immutable ExecutionGraph
+```
+
+The returned graph is inspected/tested/serialized only.
+
+The existing backend call executes exactly as before.
+
+No graph node dispatch exists in the first implementation slice.
+
+## 5B characterization tests required before graph-driven execution
+
+The first ExecutionGraph implementation should prove:
+
+1. identical physical invocation inputs produce identical graph identity;
+2. request/sequence IDs and observation timestamps do not change structural
+   graph identity;
+3. changing prefill implementation changes only the relevant prefill graph
+   identity/content;
+4. changing decode output implementation does not alter a prefill graph;
+5. single versus native-batch invocation is explicit;
+6. batch width/work width changes identity when physical work changes;
+7. greedy versus full-logit versus target-logprob output paths produce the
+   correct transfer/synchronization structure;
+8. Reference graphs do not invent CUDA transfer/synchronization nodes;
+9. invalid operation/tactic combinations are rejected through the existing
+   Prompt 4 legality authority;
+10. graph derivation does not execute a backend, allocate sequence state, mutate
+    scheduler state, or change inference output;
+11. Prompt 3 detailed observations can be compared to the graph without
+    treating missing kernel-duration evidence as a failure.
+
+## 5A status
+
+5A census/architecture is complete enough to authorize an additive R0 schema
+implementation.
+
+5B is next.
+
+5B must stop after an immutable graph type, pure derivation/projection, identity
+rules, serialization/inspection, and characterization tests are green.
+
+Do not make production execution graph-driven in 5B.
