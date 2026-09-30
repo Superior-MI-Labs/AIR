@@ -647,3 +647,85 @@ Expected marker:
 A PASS freezes the external image oracle. It still does not authorize AIR core
 image execution changes. Stages 7C-7H must derive the component/state/semantic
 gap map first.
+
+
+## Stage 7B final qualification
+
+Status: CLOSED / QUALIFIED.
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7B-FLUX2-Oracle-20260930-145158`
+
+AIR source:
+
+`636b4cf5a4d4759de8b1827dd3f3695f2371e66d`
+
+Final markers:
+
+- `PROMPT7B_EXTERNAL_ORACLE=PASS`;
+- `PROMPT7B_FLUX2_EXTERNAL_ORACLE=PASS`;
+- qualifier exit code 0.
+
+Oracle reproducibility:
+
+- run 1 elapsed: `10.091 s`;
+- run 2 elapsed: `9.525 s`;
+- output dimensions: `1024 x 1024`;
+- both runs produced RGB pixel SHA-256:
+  `c3a4278c608408df5019cf15162707e29263dee76e7a0114a6b1dcf2c29e1aa6`;
+- RGB pixel identity: PASS;
+- PNG file SHA-256 differed between runs:
+  - run 1:
+    `9efcc2837911a174d2ddf2568350257656584b578edcc4d68e981510829d37a7`;
+  - run 2:
+    `6271bad1aad04a002383043d72111893e61aef713aba1c6f700d8ff91a96834c`.
+
+Interpretation:
+
+The same-machine oracle comparison contract is therefore correctly defined at
+the decoded RGB pixel level rather than the PNG container byte level. The
+container carries non-semantic metadata that may differ even when the decoded
+image is identical.
+
+Resource evidence:
+
+- ComfyUI reported `NORMAL_VRAM`;
+- async weight offloading used 2 streams;
+- DynamicVRAM was enabled;
+- text encoder:
+  - load device CUDA;
+  - offload device CPU;
+  - current state initially CPU;
+  - staged size reported `3669 MB`;
+- Flux2 denoiser staged size reported `3882 MB`;
+- VAE:
+  - load device CUDA;
+  - offload device CPU;
+  - staged size reported `160 MB`;
+- peak observed GPU memory used: `10106 MiB`;
+- minimum observed GPU memory free: `5879 MiB`;
+- peak observed GPU utilization: `100%`;
+- peak observed GPU temperature: `89 C`;
+- peak observed GPU power: `108.15 W`;
+- peak ComfyUI process RSS: `2915.15625 MiB`;
+- minimum observed host available memory: `19.472991943359375 GiB`.
+
+Model authority:
+
+All three ComfyUI-visible component paths resolved to the same underlying
+canonical files under `~/Models/Media/Image/FLUX.2-Klein-4B`. No duplicate
+model authority was introduced.
+
+The selected local published Klein-support VAE successfully decoded the oracle
+output. The earlier stock-template-VAE difference is therefore not a blocking
+compatibility problem for the selected oracle and remains only a retained
+controlled variant.
+
+Prompt 7B is CLOSED / QUALIFIED.
+
+The external oracle is now frozen.
+
+Stages 7C-7H may derive component/state/semantic requirements from this oracle.
+AIR core image execution is still not authorized until that evidence-backed
+gap map is complete.
