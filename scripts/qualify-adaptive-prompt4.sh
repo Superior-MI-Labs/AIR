@@ -20,7 +20,6 @@ SERVER_PID=""
 STAGE="initialization"
 
 cleanup() {
-    set +e
     if [[ -n "$SERVER_PID" ]]; then
         kill -TERM "$SERVER_PID" 2>/dev/null || true
         wait "$SERVER_PID" 2>/dev/null || true
@@ -181,11 +180,23 @@ import pathlib
 import sys
 
 root = pathlib.Path(sys.argv[1])
-files = [p for p in root.rglob("*") if p.is_file() and p.name != "SHA256SUMS.txt"]
+names = [
+    "identity.txt",
+    "preflight-terminal.txt",
+    "cmake-cuda.txt",
+    "build-cuda.txt",
+    "ctest-cuda.txt",
+    "cuda-contract.txt",
+    "server.log",
+    "generation.json",
+    "runtime.json",
+    "nvidia-smi.txt",
+]
+files = [root / name for name in names if (root / name).is_file()]
 with (root / "SHA256SUMS.txt").open("w") as out:
-    for p in sorted(files):
+    for p in files:
         h = hashlib.sha256(p.read_bytes()).hexdigest()
-        out.write(f"{h}  {p.relative_to(root)}\n")
+        out.write(f"{h}  {p.name}\n")
 PY
 
 trap - ERR
