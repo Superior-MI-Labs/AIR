@@ -419,31 +419,35 @@ are authorized in Prompt 7.
 
 ## Immediate next action
 
-Run the read-only Prompt 7A image candidate census:
+Run the read-only FLUX.2 Klein 4B Stage 7A selection preflight:
 
 ```text
-bash scripts/census-adaptive-prompt7-image-candidates.sh \
-  ~/Models/Media/Image \
+bash scripts/qualify-adaptive-prompt7a-flux2-selection.sh \
+  ~/Models/Media/Image/FLUX.2-Klein-4B \
   ~/Projects/AI-Runtimes/ComfyUI
 ```
 
 Expected marker:
 
-`PROMPT7A_IMAGE_CANDIDATE_CENSUS=PASS`
+`PROMPT7A_FLUX2_SELECTION_PREFLIGHT=PASS`
 
-Then compare the actually installed candidates by:
+The preflight freezes exact local artifact identity, safetensors structure,
+pinned ComfyUI runtime/native Flux2 support, and current model visibility.
 
-- reproducibility;
-- component/resource inspectability;
-- fixed-seed oracle support;
-- resource fit on WolfCat;
-- residency/offload observability;
-- usefulness as a structural discriminator from Qwen2.
+FLUX.2 Klein 4B is the provisional first oracle candidate.
 
-Do not select by popularity or convenience.
+Qwen-Image-2.1 is retained for later higher-pressure residency/offload
+falsification rather than used as the first external oracle.
 
-After one candidate is selected, freeze exact workflow/runtime/config/artifact
-identity and run the external oracle before changing AIR core execution types.
+After a PASS:
+
+1. stage the selected FLUX components for ComfyUI only if visibility evidence
+   shows they are not already available;
+2. freeze a minimal text-to-image workflow;
+3. use a fixed seed/configuration;
+4. capture the first external oracle output, timing, VRAM/RAM, and component
+   residency evidence;
+5. do not modify AIR core execution types yet.
 
 ## Current architectural hypothesis
 
