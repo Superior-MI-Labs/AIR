@@ -323,7 +323,10 @@ def main():
     p6b = args.p6b
     root = args.out
     build = args.build
-    for name in ("strict", "small", "eviction", "product", "prompts", "telemetry"):
+    for name in (
+        "strict", "medium", "cold", "small", "eviction",
+        "product", "prompts", "telemetry",
+    ):
         (root / name).mkdir(parents=True, exist_ok=True)
     cli = build / "air-cli"
     verify = build / "air-verify"
@@ -373,51 +376,13 @@ def main():
         + "\n"
     )
 
-    print("[6C] strict 1.5B numerical qualification", flush=True)
+    print("[6C] strict 1.5B product-plan numerical qualification", flush=True)
     strict_dir = root / "strict"
-
-    # Establish the Reference oracle before attributing any failure to an
-    # alternate CUDA implementation. air-verify exit 9 is specifically a
-    # Reference prefill failure, so this baseline lane makes oracle capability
-    # an explicit prerequisite rather than a tactic-specific false signal.
-    print("[6C] verify reference oracle with baseline width=1", flush=True)
-    run(
-        [
-            str(verify),
-            "-m",
-            str(model),
-            "--tokens",
-            "1",
-            "--generate",
-            "2",
-            "--top-k",
-            "8",
-            "--device",
-            "0",
-            "--atol",
-            "0.001",
-            "--cuda-prefill-block-linear",
-            "baseline",
-            "--cuda-decode-block-linear",
-            "baseline",
-            "--cuda-decode-output-linear",
-            "baseline",
-            "--cuda-prefill-attention",
-            "baseline",
-            "--cuda-decode-attention",
-            "baseline",
-            "--output",
-            str(strict_dir / "baseline-oracle-p1.json"),
-        ],
-        log=strict_dir / "baseline-oracle-p1.txt",
-    )
     for width in (1, 8, 64):
         token_csv = ",".join(str(i) for i in range(1, width + 1))
-        for name, tactic in (
-            ("reuse8", "reuse8"),
-            ("dense", "dense-f32-cublas"),
-        ):
-            print(f"[6C] verify {name} width={width}", flush=True)
+        for name in ("reuse8", "dense"):
+            profile = PRODUCT_PROFILES[name]
+            print(f"[6C] verify product profile {name} width={width}", flush=True)
             run(
                 [
                     str(verify),
@@ -433,25 +398,108 @@ def main():
                     "0",
                     "--atol",
                     "0.001",
-                    "--cuda-prefill-block-linear",
-                    tactic,
-                    "--cuda-decode-block-linear",
-                    "baseline",
-                    "--cuda-decode-output-linear",
-                    "baseline",
-                    "--cuda-prefill-attention",
-                    "baseline",
-                    "--cuda-decode-attention",
-                    "baseline",
+                    *profile_cli_args(profile),
                     "--output",
                     str(strict_dir / f"{name}-p{width}.json"),
                 ],
                 log=strict_dir / f"{name}-p{width}.txt",
             )
 
-    print("[6C] measure small reuse8 destination lane", flush=True)
+    print("[6C] measure exact qualified medium product plans", flush=True)
+    medium_dir = root / "medium"
+    orders = [
+        ("reuse8", "dense"),
+        ("dense", "reuse8"),
+        ("reuse8", "dense"),
+        ("dense", "reuse8"),
+    ]
+    for round_index, order in enumerate(orders, start=1):
+        for position, name in enumerate(order, start=1):
+            profile = PRODUCT_PROFILES[name]
+            print(
+                f"[6C] medium round {round_index}/4 position {position}/2 "
+                f"profile={name}",
+                flush=True,
+            )
+            run(
+                [
+                    str(bench),
+                    "-m",
+                    str(model),
+                    "--backend",
+                    "cuda",
+                    "--device",
+                    "0",
+                    "--no-manifest",
+                    "--prompt-file",
+                    str(medium_path),
+                    "--tokens",
+                    "2",
+                    "--warmup",
+                    "1",
+                    "--runs",
+                    "4",
+                    "--concurrency",
+                    "1",
+                    "--prefix-cache",
+                    "0",
+                    "--token-budget",
+                    "256",
+                    "--prefill-quantum",
+                    "32",
+                    *profile_cli_args(profile),
+                    "--output",
+                    str(
+                        medium_dir
+                        / f"{name}-r{round_index}-p{position}.json"
+                    ),
+                ],
+                log=medium_dir / f"{name}-r{round_index}-p{position}.txt",
+            )
+
+    print("[6C] measure cold dense product-plan preparation", flush=True)
+    cold_dir = root / "cold"
+    dense_profile = PRODUCT_PROFILES["dense"]
+    for round_index in range(1, 6):
+        print(f"[6C] cold dense preparation {round_index}/5", flush=True)
+        run(
+            [
+                str(bench),
+                "-m",
+                str(model),
+                "--backend",
+                "cuda",
+                "--device",
+                "0",
+                "--no-manifest",
+                "--prompt-file",
+                str(medium_path),
+                "--tokens",
+                "2",
+                "--warmup",
+                "0",
+                "--runs",
+                "1",
+                "--concurrency",
+                "1",
+                "--prefix-cache",
+                "0",
+                "--token-budget",
+                "256",
+                "--prefill-quantum",
+                "32",
+                *profile_cli_args(dense_profile),
+                "--output",
+                str(cold_dir / f"dense-{round_index}.json"),
+            ],
+            log=cold_dir / f"dense-{round_index}.txt",
+        )
+
+    print("[6C] measure exact qualified small reuse8 destination lane", flush=True)
     small_dir = root / "small"
+    reuse_profile = PRODUCT_PROFILES["reuse8"]
     for round_index in range(1, 4):
+        print(f"[6C] small reuse8 round {round_index}/3", flush=True)
         run(
             [
                 str(bench),
@@ -478,27 +526,61 @@ def main():
                 "256",
                 "--prefill-quantum",
                 "32",
-                "--cuda-prefill-block-linear",
-                "reuse8",
-                "--cuda-decode-block-linear",
-                "baseline",
-                "--cuda-decode-output-linear",
-                "baseline",
-                "--cuda-prefill-attention",
-                "baseline",
+                *profile_cli_args(reuse_profile),
                 "--output",
                 str(small_dir / f"reuse8-round-{round_index}.json"),
             ],
             log=small_dir / f"reuse8-round-{round_index}.txt",
         )
 
-    print("[6C] build bootstrap schema-v10 manifest", flush=True)
-    reuse = medium_perf(p6b, p6b_summary, "reuse8")
-    dense = medium_perf(p6b, p6b_summary, "dense-f32-cublas")
+    print("[6C] build schema-v10 manifest from exact product-plan evidence", flush=True)
+    reuse_reports = [
+        load(x) for x in sorted(medium_dir.glob("reuse8-*.json"))
+    ]
+    dense_reports = [
+        load(x) for x in sorted(medium_dir.glob("dense-*.json"))
+    ]
+    cold_dense_reports = [
+        load(x) for x in sorted(cold_dir.glob("dense-*.json"))
+    ]
     small_reports = [
         load(x) for x in sorted(small_dir.glob("reuse8-round-*.json"))
     ]
-    small = small_perf(small_reports, reuse["kv_page_tokens"])
+
+    if len(reuse_reports) != 4 or len(dense_reports) != 4:
+        raise RuntimeError(
+            "expected four balanced medium reports for each product profile"
+        )
+    if len(cold_dense_reports) != 5:
+        raise RuntimeError("expected five cold dense preparation reports")
+
+    reuse = benchmark_perf(
+        reuse_reports,
+        PRODUCT_PROFILES["reuse8"],
+    )
+    dense = benchmark_perf(
+        dense_reports,
+        PRODUCT_PROFILES["dense"],
+        cold_reports=cold_dense_reports,
+    )
+    small = benchmark_perf(
+        small_reports,
+        PRODUCT_PROFILES["reuse8"],
+    )
+
+    if reuse["output_tokens"] != dense["output_tokens"]:
+        raise RuntimeError(
+            "qualified reuse8/dense product plans generated different outputs"
+        )
+    if reuse["prepared_bytes"] != 0:
+        raise RuntimeError("reuse8 unexpectedly retained optional prepared state")
+    if dense["prepared_bytes"] <= 0:
+        raise RuntimeError("dense product plan did not retain prepared state")
+    if dense["preparation_bytes"] != dense["prepared_bytes"]:
+        raise RuntimeError(
+            "dense cold preparation bytes do not match resident artifact bytes"
+        )
+
     manifest = {
         "schema_version": 10,
         "air_version": fingerprint["air_version"],
@@ -510,7 +592,7 @@ def main():
                 "reuse8-small",
                 "small",
                 small_tokens,
-                "batch-reuse8",
+                PRODUCT_PROFILES["reuse8"],
                 small,
                 dense=False,
             ),
@@ -518,7 +600,7 @@ def main():
                 "reuse8-medium",
                 "medium",
                 medium_tokens,
-                "batch-reuse8",
+                PRODUCT_PROFILES["reuse8"],
                 reuse,
                 dense=False,
             ),
@@ -526,7 +608,7 @@ def main():
                 "dense-medium",
                 "medium",
                 medium_tokens,
-                "dense-f32-cublas",
+                PRODUCT_PROFILES["dense"],
                 dense,
                 dense=True,
             ),
@@ -539,9 +621,11 @@ def main():
             {
                 "medium_tokens": medium_tokens,
                 "small_tokens": small_tokens,
+                "qualified_product_profiles": PRODUCT_PROFILES,
                 "medium_reuse": reuse,
                 "medium_dense": dense,
                 "small_reuse": small,
+                "p6b_isolation_evidence": str(p6b),
             },
             indent=2,
             sort_keys=True,
@@ -550,8 +634,13 @@ def main():
     )
     dense_bytes = int(dense["prepared_bytes"])
     print(
+        f"[6C] reuse8 product prefill={reuse['prefill']['mean']:.3f} tok/s "
+        f"dense product prefill={dense['prefill']['mean']:.3f} tok/s",
+        flush=True,
+    )
+    print(
         f"[6C] dense prepared={dense_bytes / 1024**3:.3f} GiB "
-        f"prep={dense['prep']['mean']:.3f} ms",
+        f"cold prep={dense['prep']['mean']:.3f} ms",
         flush=True,
     )
 
