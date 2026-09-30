@@ -18,6 +18,30 @@ T975 = {
 }
 
 
+PRODUCT_PROFILES = {
+    "reuse8": {
+        "cli_prefill_block": "reuse8",
+        "manifest_prefill_block": "batch-reuse8",
+        "cli_decode_block": "reuse8",
+        "manifest_decode_block": "batch-reuse8",
+        "cli_decode_output": "reuse8",
+        "manifest_decode_output": "batch-reuse8",
+        "prefill_attention": "online-softmax",
+        "decode_attention": "baseline",
+    },
+    "dense": {
+        "cli_prefill_block": "dense-f32-cublas",
+        "manifest_prefill_block": "dense-f32-cublas",
+        "cli_decode_block": "dense-f32-cublas",
+        "manifest_decode_block": "dense-f32-cublas",
+        "cli_decode_output": "reuse8",
+        "manifest_decode_output": "batch-reuse8",
+        "prefill_attention": "online-softmax",
+        "decode_attention": "baseline",
+    },
+}
+
+
 def load(path: pathlib.Path):
     return json.loads(path.read_text())
 
@@ -65,6 +89,89 @@ def token_count(cli: pathlib.Path, model: pathlib.Path, text: str) -> int:
     if not line.startswith("tokens("):
         raise RuntimeError("unexpected air-cli tokenize output")
     return int(line.split("(", 1)[1].split(")", 1)[0])
+
+
+def profile_cli_args(profile):
+    return [
+        "--cuda-prefill-block-linear", profile["cli_prefill_block"],
+        "--cuda-decode-block-linear", profile["cli_decode_block"],
+        "--cuda-decode-output-linear", profile["cli_decode_output"],
+        "--cuda-prefill-attention", profile["prefill_attention"],
+        "--cuda-decode-attention", profile["decode_attention"],
+    ]
+
+
+def validate_benchmark_profile(report, profile, label):
+    expected = {
+        "prefill_block_linear_tactic": profile["manifest_prefill_block"],
+        "decode_block_linear_tactic": profile["manifest_decode_block"],
+        "decode_output_linear_tactic": profile["manifest_decode_output"],
+        "prefill_attention_tactic": profile["prefill_attention"],
+        "decode_attention_tactic": profile["decode_attention"],
+    }
+    for key, value in expected.items():
+        actual = report.get(key)
+        if actual != value:
+            raise RuntimeError(
+                f"{label} profile mismatch for {key}: expected={value} actual={actual}"
+            )
+    if report.get("backend") != "cuda":
+        raise RuntimeError(f"{label} did not execute on CUDA")
+    if int(report.get("planned_prefill_quantum_tokens", 0)) != 32:
+        raise RuntimeError(f"{label} did not retain q32 prefill quantum")
+
+
+def benchmark_perf(reports, profile, *, cold_reports=None):
+    if not reports:
+        raise RuntimeError("benchmark performance requires reports")
+    for index, report in enumerate(reports):
+        validate_benchmark_profile(report, profile, f"steady report {index}")
+
+    outputs = []
+    for report in reports:
+        outputs.extend(tuple(x) for x in report.get("output_tokens", []))
+    if not outputs or len(set(outputs)) != 1:
+        raise RuntimeError("deterministic product-plan output changed across steady reports")
+
+    kv_pages = {int(x["planned_kv_page_tokens"]) for x in reports}
+    if len(kv_pages) != 1:
+        raise RuntimeError(f"product-plan KV page geometry changed: {kv_pages}")
+
+    prepared = {int(x["summary"]["prepared_artifact_bytes"]) for x in reports}
+    if len(prepared) != 1:
+        raise RuntimeError(f"prepared artifact residency changed across steady reports: {prepared}")
+
+    prep_values = [0.0]
+    prep_bytes = [0]
+    if cold_reports:
+        prep_values = []
+        prep_bytes = []
+        for index, report in enumerate(cold_reports):
+            validate_benchmark_profile(report, profile, f"cold report {index}")
+            if len(report.get("runs", [])) != 1:
+                raise RuntimeError("cold preparation report must contain exactly one run")
+            run0 = report["runs"][0]
+            prep_values.append(float(run0["plan_preparation_ms"]))
+            prep_bytes.append(int(run0["plan_preparation_bytes"]))
+        if min(prep_values) <= 0.0:
+            raise RuntimeError("dense cold preparation was not measured")
+        if len(set(prep_bytes)) != 1:
+            raise RuntimeError(f"dense cold preparation bytes changed: {prep_bytes}")
+
+    return {
+        "samples": sum(len(x.get("runs", [])) for x in reports),
+        "ttft": stats(x["summary"]["p50_ttft_ms"] for x in reports),
+        "total": stats(x["summary"]["p50_total_ms"] for x in reports),
+        "prefill": stats(x["summary"]["mean_prefill_tokens_per_second"] for x in reports),
+        "decode": stats(x["summary"]["mean_decode_tokens_per_second"] for x in reports),
+        "prep": stats(prep_values),
+        "preparation_bytes": int(statistics.median(prep_bytes)),
+        "prepared_bytes": next(iter(prepared)),
+        "peak_device_bytes": max(int(x["summary"]["peak_device_bytes"]) for x in reports),
+        "peak_kv_bytes": max(int(x["summary"]["peak_kv_bytes"]) for x in reports),
+        "kv_page_tokens": next(iter(kv_pages)),
+        "output_tokens": list(outputs[0]),
+    }
 
 
 def sample_gpu():
@@ -138,7 +245,7 @@ def strategy(
     sid,
     workload,
     prompt_tokens,
-    tactic,
+    profile,
     perf,
     *,
     dense=False,
@@ -153,11 +260,11 @@ def strategy(
         "region_max_active_sequences": 1,
         "backend": "cuda",
         "prefill_quantum_tokens": 32,
-        "prefill_block_quantized_linear": tactic,
-        "decode_block_quantized_linear": "baseline",
-        "decode_output_quantized_linear": "baseline",
-        "prefill_attention": "baseline",
-        "decode_attention": "baseline",
+        "prefill_block_quantized_linear": profile["manifest_prefill_block"],
+        "decode_block_quantized_linear": profile["manifest_decode_block"],
+        "decode_output_quantized_linear": profile["manifest_decode_output"],
+        "prefill_attention": profile["prefill_attention"],
+        "decode_attention": profile["decode_attention"],
         "kv_page_tokens": perf["kv_page_tokens"],
         "samples": perf["samples"],
         "p50_ttft_ms": perf["ttft"]["mean"],
@@ -183,77 +290,6 @@ def strategy(
         "eviction_ms_confidence_half_width": 0.0,
         "evidence_seed": 606,
         "evidence_id": "p6c:" + sid,
-    }
-
-
-def medium_perf(p6b: pathlib.Path, summary, name: str):
-    item = summary["tactics"][name]
-    sessions = item["session_rows"]
-    ttft = stats(x["median_ttft_ms"] for x in sessions)
-    total = stats(x["median_total_ms"] for x in sessions)
-    prefill = stats(x["median_prefill_tokens_per_second"] for x in sessions)
-    prep = stats(x["warmup_plan_preparation_ms"] for x in sessions)
-
-    safe = name.replace("-", "_")
-    decode_session = []
-    for path in sorted(p6b.glob(f"session-*-{safe}-responses.json")):
-        responses = load(path)
-        vals = [
-            float(r["metrics"]["decode_tokens_per_second"])
-            for r in responses
-            if float(r["metrics"]["decode_tokens_per_second"]) > 0.0
-        ]
-        if vals:
-            decode_session.append(statistics.median(vals))
-    if len(decode_session) != 3:
-        raise RuntimeError(
-            f"expected three decode sessions for {name}, got {len(decode_session)}"
-        )
-    decode = stats(decode_session)
-
-    runtimes = [
-        load(x) for x in sorted(p6b.glob(f"session-*-{safe}-runtime.json"))
-    ]
-    if len(runtimes) != 3:
-        raise RuntimeError(f"expected three runtime snapshots for {name}")
-    kv = {int(x["scheduler"]["cuda_kv_page_tokens"]) for x in runtimes}
-    quantum = {int(x["scheduler"]["prefill_quantum_tokens"]) for x in runtimes}
-    if len(kv) != 1 or quantum != {32}:
-        raise RuntimeError(f"plan geometry changed for {name}: kv={kv} q={quantum}")
-
-    return {
-        "samples": 12,
-        "ttft": ttft,
-        "total": total,
-        "prefill": prefill,
-        "decode": decode,
-        "prep": prep,
-        "prepared_bytes": int(item["median_current_prepared_artifact_bytes"]),
-        "peak_device_bytes": max(int(x["peak_device_bytes"]) for x in runtimes),
-        "peak_kv_bytes": max(int(x["peak_kv_bytes"]) for x in runtimes),
-        "kv_page_tokens": next(iter(kv)),
-    }
-
-
-def small_perf(reports, kv_page_tokens):
-    if len(reports) != 3:
-        raise RuntimeError("expected three small reuse8 reports")
-    for d in reports:
-        if d["schema"] != "air.benchmark.v11" or d["backend"] != "cuda":
-            raise RuntimeError("invalid small reuse8 report")
-        if d["prefill_block_linear_tactic"] != "batch-reuse8":
-            raise RuntimeError("small reuse8 report selected wrong tactic")
-    return {
-        "samples": 12,
-        "ttft": stats(x["summary"]["p50_ttft_ms"] for x in reports),
-        "total": stats(x["summary"]["p50_total_ms"] for x in reports),
-        "prefill": stats(x["summary"]["mean_prefill_tokens_per_second"] for x in reports),
-        "decode": stats(x["summary"]["mean_decode_tokens_per_second"] for x in reports),
-        "prep": stats([0.0]),
-        "prepared_bytes": 0,
-        "peak_device_bytes": max(int(x["summary"]["peak_device_bytes"]) for x in reports),
-        "peak_kv_bytes": max(int(x["summary"]["peak_kv_bytes"]) for x in reports),
-        "kv_page_tokens": kv_page_tokens,
     }
 
 
