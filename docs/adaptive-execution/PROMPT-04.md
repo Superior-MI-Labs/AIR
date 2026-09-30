@@ -155,6 +155,23 @@ small metadata for:
 
 Do not add fields that are not used by current Qwen execution.
 
+## 4C decision - defer standalone endpoint
+
+A standalone `GET /operations` endpoint is intentionally deferred.
+
+Reason:
+
+Prompt 5 introduces the canonical physical `ExecutionGraph`. Creating an
+operation-only transport surface immediately before that graph would likely
+become duplicate/transitional GUI authority.
+
+The future Control Room should consume operation legality as part of the
+canonical execution representation rather than reconstructing or merging two
+parallel views.
+
+The core operation-site legality API remains available to Prompt 5 lowering and
+validation.
+
 ## 4C - read-only operation capability surface
 
 If 4A/4B establish a stable contract, expose a canonical read-only surface for
