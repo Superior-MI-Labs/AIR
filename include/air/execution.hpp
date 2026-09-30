@@ -274,18 +274,10 @@ struct ExecutionGraphNode {
 
 class ExecutionGraph final {
 public:
-    ExecutionGraph(std::string identity,
-                   BackendKind backend,
-                   PhysicalInvocation invocation,
-                   KvStorageKind state_storage,
-                   std::optional<std::uint32_t> state_page_tokens,
-                   std::vector<ExecutionGraphNode> nodes)
-        : identity_(std::move(identity)),
-          backend_(backend),
-          invocation_(std::move(invocation)),
-          state_storage_(state_storage),
-          state_page_tokens_(state_page_tokens),
-          nodes_(std::move(nodes)) {}
+    ExecutionGraph(const ExecutionGraph&) = default;
+    ExecutionGraph(ExecutionGraph&&) noexcept = default;
+    ExecutionGraph& operator=(const ExecutionGraph&) = default;
+    ExecutionGraph& operator=(ExecutionGraph&&) noexcept = default;
 
     [[nodiscard]] std::uint32_t schema_version() const noexcept {
         return execution_graph_schema_version;
@@ -306,6 +298,24 @@ public:
     }
 
 private:
+    friend Result<ExecutionGraph> derive_execution_graph(
+        const ExecutionPlan& plan,
+        const BackendCapabilities& capabilities,
+        PhysicalInvocation invocation);
+
+    ExecutionGraph(std::string identity,
+                   BackendKind backend,
+                   PhysicalInvocation invocation,
+                   KvStorageKind state_storage,
+                   std::optional<std::uint32_t> state_page_tokens,
+                   std::vector<ExecutionGraphNode> nodes)
+        : identity_(std::move(identity)),
+          backend_(backend),
+          invocation_(std::move(invocation)),
+          state_storage_(state_storage),
+          state_page_tokens_(state_page_tokens),
+          nodes_(std::move(nodes)) {}
+
     std::string identity_;
     BackendKind backend_{BackendKind::reference};
     PhysicalInvocation invocation_{};
