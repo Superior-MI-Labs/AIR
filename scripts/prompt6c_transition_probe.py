@@ -91,12 +91,18 @@ def token_count(cli: pathlib.Path, model: pathlib.Path, text: str) -> int:
     return int(line.split("(", 1)[1].split(")", 1)[0])
 
 
-def profile_cli_args(profile):
+def profile_bench_args(profile):
     return [
         "--cuda-prefill-block-linear", profile["cli_prefill_block"],
         "--cuda-decode-block-linear", profile["cli_decode_block"],
         "--cuda-decode-output-linear", profile["cli_decode_output"],
         "--cuda-prefill-attention", profile["prefill_attention"],
+    ]
+
+
+def profile_verify_args(profile):
+    return [
+        *profile_bench_args(profile),
         "--cuda-decode-attention", profile["decode_attention"],
     ]
 
@@ -398,7 +404,7 @@ def main():
                     "0",
                     "--atol",
                     "0.001",
-                    *profile_cli_args(profile),
+                    *profile_verify_args(profile),
                     "--output",
                     str(strict_dir / f"{name}-p{width}.json"),
                 ],
@@ -447,7 +453,7 @@ def main():
                     "256",
                     "--prefill-quantum",
                     "32",
-                    *profile_cli_args(profile),
+                    *profile_bench_args(profile),
                     "--output",
                     str(
                         medium_dir
