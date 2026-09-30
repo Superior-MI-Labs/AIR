@@ -578,6 +578,244 @@ void test_execution_plan_capability_validation() {
 }
 
 
+void test_execution_graph_projection() {
+    using InvocationKind = air::PhysicalInvocationKind;
+    using OutputMode = air::PhysicalOutputMode;
+    using NodeKind = air::ExecutionGraphNodeKind;
+    using ComputeKind = air::ExecutionComputeRegionKind;
+    using PayloadKind = air::ExecutionPayloadKind;
+
+    const auto has_node = [](
+        const air::ExecutionGraph& graph,
+        NodeKind kind,
+        std::optional<ComputeKind> compute,
+        std::optional<PayloadKind> payload) {
+        for (const auto& node : graph.nodes()) {
+            if (node.kind != kind) continue;
+            if (compute && node.compute != compute) continue;
+            if (payload && node.payload != payload) continue;
+            return true;
+        }
+        return false;
+    };
+
+    air::BackendCapabilities reference;
+    reference.backend = air::BackendKind::reference;
+    reference.kv_storage = air::KvStorageKind::contiguous;
+
+    air::ExecutionPlan reference_plan;
+    reference_plan.backend = air::BackendKind::reference;
+    reference_plan.strategy_id = "reference-graph-a";
+
+    air::PhysicalInvocation reference_prefill;
+    reference_prefill.kind = InvocationKind::prefill_single;
+    reference_prefill.participants = {
+        air::PhysicalInvocationParticipant{8U, OutputMode::logits, 0U},
+    };
+    reference_prefill.hardware_resource_id = "cpu:0";
+
+    auto reference_graph =
+        air::derive_execution_graph(reference_plan, reference, reference_prefill);
+    check(reference_graph.is_ok(), "Reference prefill graph derives from concrete invocation");
+    if (reference_graph) {
+        check(reference_graph.value().nodes().size() == 1U &&
+              reference_graph.value().nodes().front().kind == NodeKind::compute_region &&
+              reference_graph.value().nodes().front().compute == ComputeKind::model,
+              "Reference graph stays at truthful backend compute-region granularity");
+        check(!has_node(
+                  reference_graph.value(), NodeKind::transfer_region,
+                  std::nullopt, std::nullopt) &&
+              !has_node(
+                  reference_graph.value(), NodeKind::synchronization_region,
+                  std::nullopt, std::nullopt),
+              "Reference graph does not invent CUDA transfer or synchronization regions");
+    }
+
+    air::BackendCapabilities cuda;
+    cuda.backend = air::BackendKind::cuda;
+    cuda.prefill_execution = air::PrefillExecutionKind::native_batch;
+    cuda.kv_storage = air::KvStorageKind::paged;
+    cuda.max_prefill_batch_width = 128U;
+    cuda.max_decode_batch_width = 8U;
+    cuda.sequence_checkpointing = true;
+    cuda.device_greedy_selection = true;
+    cuda.prefill_block_quantized_linear = {
+        air::QuantizedLinearExecutionKind::baseline,
+        air::QuantizedLinearExecutionKind::batch_reuse4,
+    };
+    cuda.decode_block_quantized_linear = {
+        air::QuantizedLinearExecutionKind::baseline,
+        air::QuantizedLinearExecutionKind::batch_reuse8,
+        air::QuantizedLinearExecutionKind::dense_f32_cublas,
+    };
+    cuda.decode_output_quantized_linear = {
+        air::QuantizedLinearExecutionKind::baseline,
+        air::QuantizedLinearExecutionKind::batch_reuse8,
+    };
+    cuda.prefill_attention = {
+        air::AttentionExecutionKind::baseline,
+        air::AttentionExecutionKind::online_softmax,
+    };
+    cuda.decode_attention = {
+        air::AttentionExecutionKind::baseline,
+    };
+
+    air::ExecutionPlan cuda_plan;
+    cuda_plan.backend = air::BackendKind::cuda;
+    cuda_plan.strategy_id = "graph-strategy-a";
+    cuda_plan.scheduling.prefill_quantum_tokens = 32U;
+    cuda_plan.kv.page_tokens = 16U;
+
+    air::PhysicalInvocation cuda_prefill;
+    cuda_prefill.kind = InvocationKind::prefill_single;
+    cuda_prefill.participants = {
+        air::PhysicalInvocationParticipant{16U, OutputMode::logits, 0U},
+    };
+    cuda_prefill.hardware_resource_id = "accelerator:0";
+
+    auto graph_a = air::derive_execution_graph(cuda_plan, cuda, cuda_prefill);
+    auto graph_b = air::derive_execution_graph(cuda_plan, cuda, cuda_prefill);
+    check(graph_a && graph_b &&
+          graph_a.value().identity() == graph_b.value().identity() &&
+          air::serialize_execution_graph(graph_a.value()) ==
+              air::serialize_execution_graph(graph_b.value()),
+          "identical concrete physical invocations have deterministic graph identity");
+
+    if (graph_a) {
+        check(has_node(
+                  graph_a.value(), NodeKind::transfer_region,
+                  std::nullopt, PayloadKind::input_tokens) &&
+              has_node(
+                  graph_a.value(), NodeKind::transfer_region,
+                  std::nullopt, PayloadKind::full_logits) &&
+              has_node(
+                  graph_a.value(), NodeKind::synchronization_region,
+                  std::nullopt, std::nullopt),
+              "CUDA logits prefill exposes input transfer, output transfer, and stream wait");
+        const auto serialized = air::serialize_execution_graph(graph_a.value());
+        check(serialized.find("identity=execution-graph:r0:") != std::string::npos &&
+              serialized.find("resource=13:accelerator:0") != std::string::npos,
+              "ExecutionGraph inspection serialization includes stable identity and placement");
+    }
+
+    auto policy_only = cuda_plan;
+    policy_only.strategy_id = "different-evidence-label";
+    policy_only.scheduling.prefill_quantum_tokens = 7U;
+    auto policy_graph =
+        air::derive_execution_graph(policy_only, cuda, cuda_prefill);
+    check(graph_a && policy_graph &&
+          graph_a.value().identity() == policy_graph.value().identity(),
+          "planner strategy labels and already-consumed scheduler quantum do not fragment physical graph identity");
+
+    auto unrelated_decode_change = cuda_plan;
+    unrelated_decode_change.linear.decode_output =
+        air::QuantizedLinearExecutionKind::batch_reuse8;
+    auto unaffected_prefill =
+        air::derive_execution_graph(unrelated_decode_change, cuda, cuda_prefill);
+    check(graph_a && unaffected_prefill &&
+          graph_a.value().identity() == unaffected_prefill.value().identity(),
+          "decode output implementation does not contaminate prefill graph identity");
+
+    auto changed_prefill = cuda_plan;
+    changed_prefill.linear.prefill_block =
+        air::QuantizedLinearExecutionKind::batch_reuse4;
+    auto changed_prefill_graph =
+        air::derive_execution_graph(changed_prefill, cuda, cuda_prefill);
+    check(graph_a && changed_prefill_graph &&
+          graph_a.value().identity() != changed_prefill_graph.value().identity(),
+          "selected prefill implementation changes the physical prefill graph");
+
+    auto greedy_prefill = cuda_prefill;
+    greedy_prefill.participants.front().output = OutputMode::greedy;
+    auto greedy_graph =
+        air::derive_execution_graph(cuda_plan, cuda, greedy_prefill);
+    check(greedy_graph &&
+          has_node(
+              greedy_graph.value(), NodeKind::compute_region,
+              ComputeKind::device_greedy_selection, std::nullopt) &&
+          has_node(
+              greedy_graph.value(), NodeKind::transfer_region,
+              std::nullopt, PayloadKind::greedy_result),
+          "device-greedy output has explicit selection and result-transfer regions");
+
+    auto target_prefill = cuda_prefill;
+    target_prefill.participants.front().output = OutputMode::target_logprobs;
+    target_prefill.participants.front().target_count = 3U;
+    auto target_graph =
+        air::derive_execution_graph(cuda_plan, cuda, target_prefill);
+    check(target_graph &&
+          has_node(
+              target_graph.value(), NodeKind::transfer_region,
+              std::nullopt, PayloadKind::target_tokens) &&
+          has_node(
+              target_graph.value(), NodeKind::compute_region,
+              ComputeKind::target_logprob_reduction, std::nullopt) &&
+          has_node(
+              target_graph.value(), NodeKind::transfer_region,
+              std::nullopt, PayloadKind::target_logprob_results),
+          "target-logprob output exposes target upload, reduction, and result readback");
+
+    auto target_width = target_prefill;
+    target_width.participants.front().target_count = 4U;
+    auto target_width_graph =
+        air::derive_execution_graph(cuda_plan, cuda, target_width);
+    check(target_graph && target_width_graph &&
+          target_graph.value().identity() != target_width_graph.value().identity(),
+          "target count participates in physical graph identity");
+
+    air::PhysicalInvocation native_prefill;
+    native_prefill.kind = InvocationKind::prefill_native_batch;
+    native_prefill.participants = {
+        air::PhysicalInvocationParticipant{8U, OutputMode::discard, 0U},
+        air::PhysicalInvocationParticipant{8U, OutputMode::greedy, 0U},
+    };
+    native_prefill.hardware_resource_id = "accelerator:0";
+    auto native_prefill_graph =
+        air::derive_execution_graph(cuda_plan, cuda, native_prefill);
+    check(native_prefill_graph &&
+          native_prefill_graph.value().identity() !=
+              (graph_a ? graph_a.value().identity() : std::string{}),
+          "native prefill batch is structurally distinct from single-sequence prefill");
+
+    air::PhysicalInvocation decode_batch;
+    decode_batch.kind = InvocationKind::decode_native_greedy_batch;
+    decode_batch.participants = {
+        air::PhysicalInvocationParticipant{1U, OutputMode::greedy, 0U},
+        air::PhysicalInvocationParticipant{1U, OutputMode::greedy, 0U},
+    };
+    decode_batch.hardware_resource_id = "accelerator:0";
+    auto decode_batch_graph =
+        air::derive_execution_graph(cuda_plan, cuda, decode_batch);
+    check(decode_batch_graph &&
+          has_node(
+              decode_batch_graph.value(), NodeKind::transfer_region,
+              std::nullopt, PayloadKind::input_tokens),
+          "native decode batch records its token-array H2D transfer region");
+
+    auto bad_plan = cuda_plan;
+    bad_plan.linear.prefill_block =
+        air::QuantizedLinearExecutionKind::dense_f32_cublas;
+    check(!air::derive_execution_graph(bad_plan, cuda, cuda_prefill),
+          "ExecutionGraph derivation rejects invalid tactic combinations through Prompt 4 authority");
+
+    auto bad_reference_greedy = reference_prefill;
+    bad_reference_greedy.participants.front().output = OutputMode::greedy;
+    check(!air::derive_execution_graph(
+               reference_plan, reference, bad_reference_greedy),
+          "graph derivation does not pretend host Reference execution used device-greedy output");
+
+    auto bad_targets = cuda_prefill;
+    bad_targets.participants.front().target_count = 1U;
+    check(!air::derive_execution_graph(cuda_plan, cuda, bad_targets),
+          "target counts cannot leak into non-target-logprob output");
+
+    auto no_resource = cuda_prefill;
+    no_resource.hardware_resource_id.clear();
+    check(!air::derive_execution_graph(cuda_plan, cuda, no_resource),
+          "ExecutionGraph cannot invent missing hardware placement identity");
+}
+
+
 
 void test_manifest_semantic_corruption_is_rejected() {
     const auto dir = std::filesystem::temp_directory_path();
@@ -678,6 +916,7 @@ int main() {
     test_attention_tactic_parsing();
     test_qualified_operation_site_capabilities();
     test_execution_plan_capability_validation();
+    test_execution_graph_projection();
     test_shared_percentile_semantics();
     test_manifest_roundtrip_and_planner();
     test_manifest_semantic_corruption_is_rejected();
