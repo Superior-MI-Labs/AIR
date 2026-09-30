@@ -13,6 +13,11 @@ on_error() {
     echo "failed_stage=$STAGE" >&2
     echo "exit_code=$rc" >&2
     echo "build_dir=$OUT" >&2
+    if [[ -f "$OUT/research-compat-configure.log" ]]; then
+        echo >&2
+        echo "=== tail: research-compat-configure.log ===" >&2
+        tail -n 120 "$OUT/research-compat-configure.log" >&2
+    fi
     if [[ -f "$OUT/configure.log" ]]; then
         echo >&2
         echo "=== tail: configure.log ===" >&2
@@ -53,6 +58,14 @@ done < <(find scripts -maxdepth 1 -type f -name '*.py' -print | sort)
 STAGE="clean-build-dir"
 rm -rf "$OUT"
 mkdir -p "$OUT"
+
+STAGE="research-compat-configure"
+cmake -S "$ROOT" -B "$OUT/research-compat" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DAIR_ENABLE_CUDA=OFF \
+    -DAIR_BUILD_RESEARCH=ON \
+    > "$OUT/research-compat-configure.log" 2>&1
+rm -rf "$OUT/research-compat"
 
 STAGE="cpu-configure"
 cmake -S "$ROOT" -B "$OUT"     -DCMAKE_BUILD_TYPE=Release     -DAIR_ENABLE_CUDA=OFF     > "$OUT/configure.log" 2>&1
