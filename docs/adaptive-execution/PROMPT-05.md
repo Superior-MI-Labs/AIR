@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 5
 
-Status: 5B CLOSED / QUALIFIED; 5C IMPLEMENTED / LIVE QUALIFICATION PENDING
+Status: CLOSED / QUALIFIED
 Title: ExecutionGraph R0 - derived physical execution representation
 
 ## Qualified baseline
@@ -995,3 +995,100 @@ the evidence green. If live evidence reproduces it, preserve it as the input to
 the next architecture decision.
 
 Do not begin graph-driven execution in the next slice.
+
+
+## 5C final live qualification
+
+5C is CLOSED / QUALIFIED.
+
+Qualified repaired handoff source:
+
+`9363e85a2cfaea28fe79f592b6544d85e6b2b137`
+
+Correctness/evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt5C-20260930-010310`
+
+Results:
+
+- CPU/CUDA 13/13 CTests PASS;
+- ExecutionGraph R0 nonregression PASS;
+- prepared CUDA operation-site legality PASS;
+- Reference/CUDA semantic-binding parity PASS;
+- real native CUDA cohort exercised the graph/evidence contract;
+- `CUDA ExecutionGraph planned/observed concordance characterization passed`;
+- real Qwen2.5 detailed-mode graph evidence PASS;
+- four real-model graph observations retained;
+- nine backend spans retained;
+- topology fingerprint:
+  `hardware-topology:v1:f521e9bdd95ed645`;
+- CUDA placement resolved to canonical resource `gpu0`;
+- normal-mode graph nonintrusion PASS;
+- `PROMPT5C_GRAPH_EVIDENCE=PASS`;
+- qualifier exit code 0.
+
+Balanced timing evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt5C-Overhead-20260930-010442`
+
+Using the same Prompt 3 3x3 balanced Latin-order method:
+
+- off median of session medians:
+  `1414.460855 ms`;
+- normal:
+  `1390.620811 ms`;
+- detailed:
+  `1410.377428 ms`;
+- normal vs off:
+  `-1.685%`;
+- detailed vs off:
+  `-0.289%`;
+- detailed vs normal:
+  `+1.421%`;
+- `PROMPT5C_OVERHEAD_REMEASURE=PASS`;
+- overhead qualifier exit code 0.
+
+Interpretation:
+
+The detailed-vs-normal differential is larger than Prompt 3's qualified
+`+0.310%`, so 5C must not claim graph observation is free.
+
+However this experiment also measured normal materially faster than off and
+detailed slightly faster than off. The balanced result therefore does not
+support assigning the full `+1.421%` detailed-vs-normal differential to
+ExecutionGraph derivation alone.
+
+The qualified statement is narrower:
+
+- detailed 5C observation has a small measured differential relative to normal
+  in this experiment;
+- normal remains graph-free;
+- detailed remains an explicit research/diagnostic mode;
+- no optimization is justified solely from this one overhead result;
+- future repeated measurements may estimate the graph-observation component
+  more tightly if it becomes operationally important.
+
+## Prompt 5 final decision
+
+Prompt 5 is CLOSED / QUALIFIED.
+
+Its release-strategy exit condition is satisfied:
+
+- current real Qwen physical invocations have an explicit ExecutionGraph R0;
+- graph identity is deterministic for the characterized inputs;
+- placement references canonical hardware topology;
+- Prompt 4 implementation identities remain the legality authority;
+- planned graph structure remains separate from observed execution evidence;
+- real single CUDA invocations have concordant graph/evidence characterization;
+- known shared native-batch correlation gaps remain explicit as incomplete
+  evidence;
+- normal/off execution remain graph-free;
+- the existing InferenceService / scheduler / PreparedModel / SequenceState
+  path remains the only production execution path.
+
+Prompt 5 intentionally does not make ExecutionGraph executable.
+
+That ownership movement is not required by the Prompt 5 exit condition and
+would create unnecessary migration risk before the physical optimization
+experiments in Prompt 6 establish what representation/control is actually
+needed.
