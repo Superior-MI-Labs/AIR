@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
 Updated: 2026-09-29
-Status: WAVE 0 CURRENT / PROMPT 2 CLOSED
+Status: WAVE 0 CURRENT / PROMPT 3 LIVE QUALIFICATION PENDING
 
 ## Frozen baseline
 
@@ -137,6 +137,52 @@ Do not begin Prompt 3 implementation until the new CPU preflight itself has
 passed on the branch.
 
 After that, open Prompt 3: typed execution observation and physical timeline.
+
+## Prompt 3 current
+
+Prompt 3 authority:
+
+`docs/adaptive-execution/PROMPT-03.md`
+
+Implementation is complete through the live qualification harness.
+
+Current implementation includes:
+
+- typed bounded service execution spans;
+- `off|normal|detailed` observation levels;
+- explicit request/sequence correlation through backend sequence ownership;
+- request correlation rebinding across prefix restore, Decision branches, and
+  adaptive same-backend restore;
+- CUDA detailed host observations for H2D/D2H enqueue operations and explicit
+  stream waits;
+- non-intrusive dropped-span accounting;
+- read-only `GET /timeline`;
+- configurable observation level/capacity;
+- Prompt 3 live qualification with observer-overhead measurement.
+
+Scope guardrail:
+
+CUDA transfer observations currently describe host-side asynchronous enqueue
+duration. Synchronization observations describe host wait duration. Neither is
+called pure GPU kernel duration.
+
+Pre-publish gate:
+
+Adaptive CPU preflight PASS at
+`8a103810da93a074606c85738d6633b9b655e6d3`.
+
+## Immediate next action
+
+Run on WolfCat-Studio:
+
+```text
+bash scripts/qualify-adaptive-prompt3.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
+
+Do not close Prompt 3 merely because the structural timeline checks pass.
+Review `observer-overhead.json` and determine whether normal/detailed
+observation overhead is acceptable before advancing to Prompt 4.
 
 ## Current architectural hypothesis
 
