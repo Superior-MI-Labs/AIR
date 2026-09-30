@@ -364,32 +364,25 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-Do not relax the frozen `atol=0.001` strict correctness gate.
+The 1.5B strict product-profile sweep is qualified:
 
-The retained 6C log and a manual all-baseline rerun produced the exact same
-errors:
+- reuse8 widths 1/8/64: PASS;
+- dense widths 1/8/64: PASS;
+- top-1 parity and finite outputs: PASS;
+- frozen `atol=0.001`: PASS;
+- worst observed max_abs: `5.57899475e-05`.
 
-- decision 0 max_abs `0.00301743`;
-- decision 1 max_abs `0.00104904`;
-- exact greedy top-1 parity on both;
-- finite outputs.
+6C has been revised so Strategy Lab no longer consumes the 6B isolation
+timings as product-plan evidence.
 
-Thus reuse8 did not cause the failure. The isolated 6B execution profile itself
-is above the strict absolute-error bound on this 1.5B case.
+After the final branch head passes adaptive preflight, rerun the full 6C gate.
+It will freshly measure the exact strict-qualified reuse8/dense product plans,
+cold dense preparation, small reuse8 destination lane, eviction,
+re-preparation/oscillation, budget rejection, minimum-VRAM behavior, and live
+GPU residency.
 
-Run a narrow no-rebuild verifier sweep on the existing 6C CUDA binaries using
-the previously qualified product profile:
-
-- reuse8: reuse8 prefill/decode block + reuse8 decode output +
-  online-softmax prefill attention;
-- dense: dense prefill/decode block + reuse8 decode output +
-  online-softmax prefill attention;
-- widths 1, 8, 64;
-- unchanged `atol=0.001`.
-
-If this passes, revise 6C so Strategy Lab evidence is measured for those exact
-strict-qualified plans. Keep 6B as isolated bottleneck evidence; do not reuse
-its baseline-attention performance numbers as product-plan evidence.
+6B remains the bottleneck-isolation experiment. 6C is now the exact-plan
+product economics experiment.
 
 ## Current architectural hypothesis
 
