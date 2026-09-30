@@ -248,40 +248,43 @@ planner, state owner, semantic graph, or hardware authority.
 Schema comparison and characterization requirements are recorded in:
 `docs/adaptive-execution/PROMPT-05.md`
 
-Slice 5B implementation is COMPLETE / LIVE WOLFCAT QUALIFICATION PENDING.
+Slice 5B is CLOSED / QUALIFIED.
 
-Implementation source:
+Qualified AIR handoff source:
 
-`257673c4e4206698fe0c6f1c979694b5761a7474`
+`d154bf02225ba4b424c5b3734bfcb3d4845b6092`
 
-5B now provides an immutable, topology-scoped physical invocation graph with:
+WolfCat evidence:
 
-- pure derivation from already-concrete invocation data;
-- deterministic structural identity;
-- Prompt 4 implementation bindings;
-- coarse compute/transfer/synchronization regions;
-- stable inspection serialization;
-- characterization tests;
-- no production graph dispatch or execution-path ownership changes.
+`/home/emerson/Downloads/AIR-0.11-Prompt5B-20260929-225827`
 
-GitHub Actions adaptive CPU preflight passed at the implementation/qualifier
-head with 13/13 CTests and `ADAPTIVE_PREFLIGHT=PASS`.
+Qualified results:
 
-Live qualification authority:
+- adaptive CPU preflight PASS;
+- CPU 13/13 CTests PASS;
+- CUDA 13/13 CTests PASS;
+- ExecutionGraph R0 characterization PASS;
+- existing CUDA operation-site legality PASS;
+- Reference/CUDA semantic-binding parity PASS;
+- renamed-source CUDA execution/tactic independence PASS;
+- real Qwen2.5 CUDA generation PASS;
+- `PROMPT5B_EXECUTION_GRAPH=PASS`;
+- qualifier exit code 0.
 
-`scripts/qualify-adaptive-prompt5b.sh`
+5B establishes a qualified immutable physical-invocation graph without moving
+execution authority.
+
+Slice 5C is CURRENT.
+
+5C is read-only integration of ExecutionGraph at the already-concrete
+invocation seam plus planned-vs-observed concordance against Prompt 3 evidence.
+It must not dispatch graph nodes or change production execution behavior.
 
 ## Immediate next action
 
-Run on WolfCat-Studio:
-
-```text
-bash scripts/qualify-adaptive-prompt5b.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
-
-Do not begin the next Prompt 5 slice or make execution graph-driven until this
-live CUDA/nonregression gate passes.
+Re-census the exact current production invocation seams and observation
+correlation path, then integrate graph derivation read-only at the smallest
+existing owner.
 
 ## Current architectural hypothesis
 
