@@ -364,25 +364,30 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-The 1.5B strict product-profile sweep is qualified:
+The exact-plan 6C measurement run completed all experiment/probe stages and
+failed only in final validation because the harness incorrectly required
+hot-state trim/prepare wall-clock durations to equal exactly zero.
 
-- reuse8 widths 1/8/64: PASS;
-- dense widths 1/8/64: PASS;
-- top-1 parity and finite outputs: PASS;
-- frozen `atol=0.001`: PASS;
-- worst observed max_abs: `5.57899475e-05`.
+Measured product-plan evidence already retained:
 
-6C has been revised so Strategy Lab no longer consumes the 6B isolation
-timings as product-plan evidence.
+- reuse8 prefill: 82.055 tok/s;
+- dense prefill: 349.599 tok/s;
+- dense cold preparation: 44.319 ms;
+- dense prepared artifact: 4.881 GiB;
+- dense eviction: 2.718 ms mean, 0.486 ms 95% half-width.
 
-After the final branch head passes adaptive preflight, rerun the full 6C gate.
-It will freshly measure the exact strict-qualified reuse8/dense product plans,
-cold dense preparation, small reuse8 destination lane, eviction,
-re-preparation/oscillation, budget rejection, minimum-VRAM behavior, and live
-GPU residency.
+The validator is corrected to prove hot residency by state/resource
+invariants instead:
 
-6B remains the bottleneck-isolation experiment. 6C is now the exact-plan
-product economics experiment.
+- prepared-state-hot planner classification;
+- zero new preparation bytes;
+- same dense artifact resident before/after;
+- idempotent transition-check time below cold preparation cost.
+
+After exact-head preflight passes, inspect the retained hot-dense JSON from the
+existing evidence directory first. If those invariants hold, the existing
+measurement run can be retained and only the final validator needs
+requalification; do not automatically rerun all balanced benchmarks.
 
 ## Current architectural hypothesis
 
