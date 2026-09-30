@@ -148,7 +148,17 @@ def main() -> None:
         all(r.get("pixel_sha256") == EXPECTED_PIXEL_SHA256 for r in summary["runs"]),
         "oracle pixel identity changed",
     )
-    require(prompt == prompt2, "forced oracle API graphs differ between run1 and run2")
+    def normalized_graph(graph):
+        normalized = json.loads(json.dumps(graph))
+        save = normalized.get("13", {})
+        if save.get("class_type") == "SaveImage":
+            save.get("inputs", {})["filename_prefix"] = "<oracle-output>"
+        return normalized
+
+    require(
+        normalized_graph(prompt) == normalized_graph(prompt2),
+        "forced oracle semantic API graphs differ between run1 and run2",
+    )
     require(identity.get("comfy_head") == EXPECTED_COMFY_HEAD, "oracle pinned ComfyUI head changed")
     require(git_head(comfy) == EXPECTED_COMFY_HEAD, "local ComfyUI checkout no longer matches oracle head")
 
