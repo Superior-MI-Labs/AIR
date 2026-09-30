@@ -133,6 +133,56 @@ struct RuntimeEvent {
     std::string detail;
 };
 
+inline constexpr std::uint32_t execution_graph_observation_schema_version = 1U;
+
+enum class ExecutionGraphEvidenceStatus {
+    not_evaluated = 0,
+    concordant,
+    incomplete,
+    contradictory,
+};
+
+[[nodiscard]] const char* to_string(ExecutionGraphEvidenceStatus status) noexcept;
+
+struct ExecutionGraphParticipantCorrelation {
+    RequestId request_id{0};
+    SequenceId sequence_id{0};
+};
+
+struct ExecutionGraphObservation {
+    std::uint32_t schema_version{execution_graph_observation_schema_version};
+    std::uint64_t observation_sequence{0};
+    std::shared_ptr<const ExecutionGraph> graph;
+    std::vector<ExecutionGraphParticipantCorrelation> participants;
+    std::uint64_t start_ns{0};
+    std::uint64_t end_ns{0};
+    bool backend_success{false};
+    ExecutionGraphEvidenceStatus evidence_status{
+        ExecutionGraphEvidenceStatus::not_evaluated};
+    bool evidence_truncated{false};
+    std::uint32_t planned_transfer_regions{0};
+    std::uint32_t matched_transfer_regions{0};
+    std::uint32_t observed_transfer_spans{0};
+    std::uint32_t unexpected_transfer_spans{0};
+    std::uint32_t planned_synchronization_regions{0};
+    std::uint32_t matched_synchronization_regions{0};
+    std::uint32_t observed_synchronization_spans{0};
+    std::uint32_t unexpected_synchronization_spans{0};
+};
+
+struct ExecutionGraphTimelineSnapshot {
+    std::uint32_t schema_version{execution_graph_observation_schema_version};
+    ExecutionObservationLevel level{ExecutionObservationLevel::normal};
+    std::uint32_t capacity{0};
+    std::uint64_t evicted_graphs{0};
+    std::uint64_t dropped_graphs{0};
+    std::uint64_t derivation_failures{0};
+    std::string topology_status{"disabled"};
+    std::string topology_fingerprint;
+    std::string last_derivation_error;
+    std::vector<ExecutionGraphObservation> observations;
+};
+
 struct ServiceSnapshot {
     std::string backend;
     std::string planner_mode{"static"};
@@ -282,6 +332,8 @@ public:
     [[nodiscard]] std::vector<RuntimeEvent> recent_events(std::size_t limit = 64) const;
     [[nodiscard]] ExecutionTimelineSnapshot execution_timeline(
         std::size_t limit = 256) const;
+    [[nodiscard]] ExecutionGraphTimelineSnapshot execution_graph_timeline(
+        std::size_t limit = 128) const;
     [[nodiscard]] const ModelDefinition& model() const noexcept;
     [[nodiscard]] std::string backend_name() const;
     void shutdown() noexcept;
