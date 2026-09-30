@@ -320,24 +320,49 @@ def serve_mode(argv: list[str]) -> int:
 
     writer = EventWriter(args.event_log.resolve())
 
-    # ComfyUI main.py enables argument parsing before importing cli_args.
-    # Mirror that exact initialization order here so importing model_management
-    # for observation cannot cache default/empty CLI arguments.
-    import comfy.options
-    comfy.options.enable_args_parsing()
+    # Preserve ComfyUI's native initialization order. The observer does not
+    # import model-management early. Instead it watches normal imports and
+    # attaches only after both existing modules are fully available.
+    import builtins
 
-    import comfy.model_management as mm
-    import comfy.model_patcher as model_patcher_module
+    original_import = builtins.__import__
+    probe_installed = False
 
-    install_probe(mm, model_patcher_module, writer)
+    def maybe_install_probe() -> None:
+        nonlocal probe_installed
+        if probe_installed:
+            return
+        mm = sys.modules.get("comfy.model_management")
+        mp = sys.modules.get("comfy.model_patcher")
+        if mm is None or mp is None:
+            return
+        if not hasattr(mm, "LoadedModel") or not hasattr(mp, "ModelPatcher"):
+            return
+        install_probe(mm, mp, writer)
+        probe_installed = True
+
+    def observing_import(name, globals=None, locals=None, fromlist=(), level=0):
+        module = original_import(name, globals, locals, fromlist, level)
+        maybe_install_probe()
+        return module
+
+    builtins.__import__ = observing_import
     writer.write(
         {
             "event": "comfy-launch",
             "comfy_root": str(comfy_root),
             "argv": sys.argv,
+            "startup_order": "native-main.py-order",
         }
     )
-    runpy.run_path(str(main_py), run_name="__main__")
+    try:
+        runpy.run_path(str(main_py), run_name="__main__")
+    finally:
+        builtins.__import__ = original_import
+        maybe_install_probe()
+
+    if not probe_installed:
+        raise RuntimeError("Prompt 7G observer never saw ComfyUI model-management modules")
     return 0
 
 
