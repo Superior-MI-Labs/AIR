@@ -161,6 +161,7 @@ wait_health "$CUDA_DETAILED_PORT" "$OUT/cuda-detailed.log"
 STAGE="cuda-detailed-request"
 request_json "$CUDA_DETAILED_PORT" 24 > "$OUT/cuda-detailed-response.json"
 curl -fsS "http://127.0.0.1:$CUDA_DETAILED_PORT/timeline"     > "$OUT/cuda-detailed-timeline.json"
+stop_server
 
 echo
 echo "=== OBSERVER OVERHEAD SAMPLES ==="
@@ -174,9 +175,15 @@ import sys
 import time
 import urllib.request
 
-server, model, out_dir, base_port = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3]), int(sys.argv[4])
-modes = ["off", "normal", "detailed"]
-samples = {}
+server = sys.argv[1]
+model = sys.argv[2]
+out_dir = pathlib.Path(sys.argv[3])
+base_port = int(sys.argv[4])
+
+# Mirrored order reduces first-order thermal/time drift bias without pretending
+# the host is a laboratory-controlled environment.
+session_order = ["off", "normal", "detailed", "detailed", "normal", "off"]
+samples = {"off": [], "normal": [], "detailed": []}
 request_body = json.dumps({
     "prompt": "AIR observes execution evidence.",
     "max_tokens": 24,
@@ -189,8 +196,8 @@ def wait_health(port, proc):
         if proc.poll() is not None:
             raise RuntimeError(f"server exited early rc={proc.returncode}")
         try:
-            with urllib.request.urlopen(url, timeout=0.5) as r:
-                if r.status == 200:
+            with urllib.request.urlopen(url, timeout=0.5) as response:
+                if response.status == 200:
                     return
         except Exception:
             pass
@@ -198,19 +205,19 @@ def wait_health(port, proc):
     raise RuntimeError(f"server not healthy on port {port}")
 
 def generate(port):
-    req = urllib.request.Request(
+    request = urllib.request.Request(
         f"http://127.0.0.1:{port}/generate",
         data=request_body,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        result = json.loads(r.read().decode())
+    with urllib.request.urlopen(request, timeout=120) as response:
+        result = json.loads(response.read().decode())
     return float(result["metrics"]["total_ms"])
 
-for index, mode in enumerate(modes):
-    port = base_port + index
-    log_path = out_dir / f"overhead-{mode}.log"
+for session_index, mode in enumerate(session_order):
+    port = base_port + session_index
+    log_path = out_dir / f"overhead-{session_index:02d}-{mode}.log"
     with log_path.open("wb") as log:
         proc = subprocess.Popen([
             server,
@@ -225,17 +232,16 @@ for index, mode in enumerate(modes):
         ], stdout=log, stderr=subprocess.STDOUT)
         try:
             wait_health(port, proc)
-            # Warm up model/runtime path without retaining these samples.
-            for _ in range(3):
+            for _ in range(2):
                 generate(port)
-            values = [generate(port) for _ in range(12)]
-            samples[mode] = values
+            session_samples = [generate(port) for _ in range(6)]
+            samples[mode].extend(session_samples)
 
             with urllib.request.urlopen(
                 f"http://127.0.0.1:{port}/timeline", timeout=5
-            ) as r:
-                timeline = json.loads(r.read().decode())
-            (out_dir / f"overhead-{mode}-timeline.json").write_text(
+            ) as response:
+                timeline = json.loads(response.read().decode())
+            (out_dir / f"overhead-{session_index:02d}-{mode}-timeline.json").write_text(
                 json.dumps(timeline, indent=2) + "\n"
             )
         finally:
@@ -264,12 +270,19 @@ for mode in ["normal", "detailed"]:
         (delta / base) * 100.0 if base > 0 else None
     )
 
+summary["method"] = {
+    "session_order": session_order,
+    "warmups_per_session": 2,
+    "samples_per_session": 6,
+    "note": "mirrored order reduces first-order thermal/time drift; this is measured evidence, not a laboratory causal estimate",
+}
+
 (out_dir / "observer-overhead.json").write_text(
     json.dumps(summary, indent=2) + "\n"
 )
 
 print("observer_overhead_measurement=PASS")
-for mode in modes:
+for mode in ["off", "normal", "detailed"]:
     row = summary[mode]
     print(f"{mode}_median_total_ms={row['median_total_ms']:.6f}")
     if mode != "off":
@@ -278,9 +291,6 @@ for mode in modes:
             f"{row['median_delta_percent_vs_off']:.3f}"
         )
 PY
-
-stop_server
-
 STAGE="timeline-validation"
 python3 - "$OUT" <<'PY'
 import json
