@@ -554,6 +554,10 @@ def analyze_mode(argv: list[str]) -> int:
     if not residency_timeline:
         raise SystemExit("Prompt 7G did not retain model-management residency snapshots")
 
+    gpu_telemetry = parse_gpu_telemetry(args.gpu_telemetry)
+    if int(gpu_telemetry.get("samples", 0)) <= 0:
+        raise SystemExit("Prompt 7G retained no valid external GPU telemetry samples")
+
     output = {
         "schema": "air.prompt7g.residency-transition-summary.v1",
         "baseline_oracle_pixel_sha256": EXPECTED_PIXEL_SHA256,
@@ -561,7 +565,7 @@ def analyze_mode(argv: list[str]) -> int:
         "probe_semantic_nonintrusion": True,
         "component_transition_observations": component_summary,
         "residency_timeline": residency_timeline,
-        "gpu_telemetry": parse_gpu_telemetry(args.gpu_telemetry),
+        "gpu_telemetry": gpu_telemetry,
         "prompt7c_h_architectural_conclusion": census.get("architectural_conclusion"),
         "conditioning_runtime_shape_decision": {
             "status": "deferred-not-required-for-prompt8-boundary",
@@ -599,6 +603,7 @@ def analyze_mode(argv: list[str]) -> int:
     print(f"observed_components={','.join(REQUIRED_COMPONENTS)}")
     print(f"transition_events={len(end_calls)}")
     print(f"residency_timeline_points={len(residency_timeline)}")
+    print(f"gpu_telemetry_samples={gpu_telemetry['samples']}")
     print("conditioning_runtime_shape=DEFERRED_NOT_REQUIRED")
     print("async_gpu_transfer_completion=DIRECT_MEASUREMENT_NOT_CLAIMED")
     print("per_layer_dynamic_vram_residency=EXTERNALLY_OPAQUE")
