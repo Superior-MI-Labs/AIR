@@ -889,14 +889,8 @@ def main():
     max_used = max(float(x["used_mib"]) for x in telemetry)
     max_temp = max(float(x["temp_c"]) for x in telemetry)
 
-    reuse_rate = float(
-        p6b_summary["tactics"]["reuse8"]["median_prefill_tokens_per_second"]
-    )
-    dense_rate = float(
-        p6b_summary["tactics"]["dense-f32-cublas"][
-            "median_prefill_tokens_per_second"
-        ]
-    )
+    reuse_rate = float(reuse["prefill"]["mean"])
+    dense_rate = float(dense["prefill"]["mean"])
     prep_ms = float(dense["prep"]["mean"])
     saved_ms = 1000.0 / reuse_rate - 1000.0 / dense_rate
     prep_break_even = prep_ms / saved_ms
