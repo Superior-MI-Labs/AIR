@@ -274,17 +274,52 @@ Qualified results:
 5B establishes a qualified immutable physical-invocation graph without moving
 execution authority.
 
-Slice 5C is CURRENT.
+Slice 5C implementation is COMPLETE / LIVE EVIDENCE PENDING.
 
-5C is read-only integration of ExecutionGraph at the already-concrete
-invocation seam plus planned-vs-observed concordance against Prompt 3 evidence.
-It must not dispatch graph nodes or change production execution behavior.
+Implementation/qualification source:
+
+`37feee09d6585245587a1ae055e1e47bdf618377`
+
+5C now derives ExecutionGraph only in detailed observation mode at the exact
+already-concrete production invocation seams:
+
+- single prefill;
+- native prefill batch;
+- single generation decode;
+- native greedy decode batch;
+- decision target-logprob decode.
+
+The existing backend call remains the only execution path.
+
+`GET /execution-graphs` exposes planned graph structure plus correlation and a
+derived evidence status while `GET /timeline` remains the separate Prompt 3
+observed-evidence authority.
+
+Normal/off modes remain graph-free.
+
+Known negative evidence is preserved: current shared native-batch input
+movement is not fully correlated by the Prompt 3 sink, so CUDA batch
+characterization expects `incomplete` evidence while single CUDA invocations
+must be `concordant`.
+
+GitHub Actions adaptive preflight passed at
+`37feee09d6585245587a1ae055e1e47bdf618377` with 13/13 CTests and
+`ADAPTIVE_PREFLIGHT=PASS`.
 
 ## Immediate next action
 
-Re-census the exact current production invocation seams and observation
-correlation path, then integrate graph derivation read-only at the smallest
-existing owner.
+Run both WolfCat evidence gates:
+
+```text
+bash scripts/qualify-adaptive-prompt5c.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+
+bash scripts/requalify-adaptive-prompt5c-overhead.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
+
+Do not close 5C, repair the known native-batch evidence gap, or begin the next
+Prompt 5 slice until both results are reviewed.
 
 ## Current architectural hypothesis
 
