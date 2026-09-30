@@ -99,8 +99,8 @@ const char* to_string(OperationImplementationFamily family) noexcept {
     return "unknown";
 }
 
-OperationImplementationFamily implementation_family(
-    QualifiedOperationSite site) noexcept {
+Result<OperationImplementationFamily> implementation_family(
+    QualifiedOperationSite site) {
     switch (site) {
     case QualifiedOperationSite::prefill_transformer_block_linear:
     case QualifiedOperationSite::decode_transformer_block_linear:
@@ -110,7 +110,7 @@ OperationImplementationFamily implementation_family(
     case QualifiedOperationSite::decode_attention:
         return OperationImplementationFamily::attention;
     }
-    return OperationImplementationFamily::linear;
+    return Status::invalid_argument("unknown qualified operation site");
 }
 
 Result<std::span<const QuantizedLinearExecutionKind>> linear_implementations(
