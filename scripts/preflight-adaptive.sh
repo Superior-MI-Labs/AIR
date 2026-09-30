@@ -41,7 +41,13 @@ done < <(find scripts -maxdepth 1 -type f -name '*.sh' -print | sort)
 
 STAGE="python-syntax"
 while IFS= read -r script; do
-    python3 -m py_compile "$script"
+    python3 - "$script" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+compile(path.read_text(), str(path), "exec")
+PY
 done < <(find scripts -maxdepth 1 -type f -name '*.py' -print | sort)
 
 STAGE="clean-build-dir"
