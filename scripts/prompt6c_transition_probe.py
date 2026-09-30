@@ -36,11 +36,24 @@ def stats(values):
 
 def run(cmd, *, log: pathlib.Path | None = None):
     print("[6C] " + " ".join(str(x) for x in cmd), flush=True)
-    if log:
-        with log.open("w") as fh:
-            subprocess.run(cmd, check=True, stdout=fh, stderr=subprocess.STDOUT)
-    else:
-        subprocess.run(cmd, check=True)
+    try:
+        if log:
+            with log.open("w") as fh:
+                subprocess.run(
+                    cmd,
+                    check=True,
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                )
+        else:
+            subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError:
+        if log and log.exists():
+            print(f"[6C] child command failed; tail of {log}:", flush=True)
+            lines = log.read_text(errors="replace").splitlines()
+            for line in lines[-120:]:
+                print(line, flush=True)
+        raise
 
 
 def capture(cmd):
@@ -326,6 +339,42 @@ def main():
 
     print("[6C] strict 1.5B numerical qualification", flush=True)
     strict_dir = root / "strict"
+
+    # Establish the Reference oracle before attributing any failure to an
+    # alternate CUDA implementation. air-verify exit 9 is specifically a
+    # Reference prefill failure, so this baseline lane makes oracle capability
+    # an explicit prerequisite rather than a tactic-specific false signal.
+    print("[6C] verify reference oracle with baseline width=1", flush=True)
+    run(
+        [
+            str(verify),
+            "-m",
+            str(model),
+            "--tokens",
+            "1",
+            "--generate",
+            "2",
+            "--top-k",
+            "8",
+            "--device",
+            "0",
+            "--atol",
+            "0.001",
+            "--cuda-prefill-block-linear",
+            "baseline",
+            "--cuda-decode-block-linear",
+            "baseline",
+            "--cuda-decode-output-linear",
+            "baseline",
+            "--cuda-prefill-attention",
+            "baseline",
+            "--cuda-decode-attention",
+            "baseline",
+            "--output",
+            str(strict_dir / "baseline-oracle-p1.json"),
+        ],
+        log=strict_dir / "baseline-oracle-p1.txt",
+    )
     for width in (1, 8, 64):
         token_csv = ",".join(str(i) for i in range(1, width + 1))
         for name, tactic in (
