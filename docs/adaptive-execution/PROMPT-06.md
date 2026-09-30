@@ -1045,3 +1045,81 @@ A retained-evidence PASS is sufficient to requalify the already completed
 measurement run because the runtime/measurement artifacts are unchanged; only
 the incorrect exact-zero wall-time assertion was replaced by resource/state
 invariants.
+
+
+## Prompt 6 final closure
+
+Status: CLOSED / QUALIFIED.
+
+Retained exact-plan evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245`
+
+Retained validation summary:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245/prompt6c-transition-summary-retained.json`
+
+Final retained-evidence marker:
+
+`PROMPT6C_RETAINED_EVIDENCE_VALIDATION=PASS`
+
+Qualified exact-product-plan facts:
+
+- reuse8 prefill: `82.0553334475 tok/s`;
+- dense prefill: `349.5992724 tok/s`;
+- dense/reuse8 throughput ratio: `4.26053076274046x`;
+- dense prepared artifact: `5,240,782,848 bytes` / `4.880859375 GiB`;
+- dense cold preparation: `44.3189706 ms`;
+- dense eviction mean: `2.718012 ms`;
+- hot second dense request:
+  - prepared-state-hot = true;
+  - incremental preparation bytes = 0;
+  - preparation check = `0.000926 ms`;
+  - trim/eviction check = `0.000464 ms`;
+- dense oscillation re-preparation: `52.716044 ms`, `54.203769 ms`;
+- minimum observed free VRAM during retained transition evidence:
+  `8999 MiB`;
+- maximum observed used VRAM: `6986 MiB`;
+- maximum observed GPU temperature: `89 C`;
+- preparation-only break-even: `4.751950219986411` prefill tokens;
+- preparation + eviction round-trip break-even:
+  `5.043379771405769` prefill tokens;
+- explicit prepared-memory budget selected `reuse8-medium`;
+- minimum-VRAM objective selected `reuse8-medium`;
+- hidden dense residency after eviction: false.
+
+Prompt 6 exit criteria are satisfied:
+
+1. at least one real WolfCat bottleneck was reduced;
+2. strict correctness/nonregression passed;
+3. negative experiments were retained.
+
+The retained optimization is not a universal product default.
+
+Policy remains evidence- and constraint-driven:
+
+- dense is the high-throughput candidate when its ~4.88 GiB optional residency
+  is feasible and expected work amortizes transition cost;
+- reuse8 is the lower-residency candidate and is correctly selected by
+  minimum-VRAM / insufficient prepared-memory policy;
+- Strategy Lab remains the only plan-selection/transition-economics authority;
+- PreparedModel remains the only prepared-artifact owner;
+- CapacityScheduler remains admission/resource authority;
+- InferenceService remains the only serving path.
+
+No Prompt 6D concurrency/fairness experiment is required for closure.
+
+Reason:
+
+- Prompt 6's release-strategy exit does not require a new concurrency policy;
+- scheduler contract tests already cover decode priority, round-robin fairness
+  under tiny budgets, capacity/admission, exact concurrency-region behavior,
+  cancellation cleanup, and transition-capacity accounting;
+- adding a new live fairness benchmark here would broaden Prompt 6 after its
+  stated falsification target and exit criteria are already satisfied.
+
+Concurrency and fairness remain release/nonregression concerns and may be
+pressure-tested again in Prompt 11 destructive/user hardening if new image
+workflow scheduling semantics materially change shared admission behavior.
+
+Prompt 7 is now the active wave.
