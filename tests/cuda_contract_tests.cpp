@@ -1,5 +1,6 @@
 #include "air/cuda.hpp"
 #include "air/reference.hpp"
+#include "air/serving.hpp"
 #include "air/storage.hpp"
 #include "cuda/cuda_executor_factory.hpp"
 #include "model/prepared_model.hpp"
@@ -574,6 +575,141 @@ int verify_cuda_reference_parity() {
     return 0;
 }
 
+int verify_cuda_execution_graph_observation() {
+    auto model =
+        std::const_pointer_cast<air::ModelDefinition>(tiny_qwen2());
+
+    air::SchedulerConfig scheduler;
+    scheduler.max_active_requests = 2U;
+    scheduler.max_queued_requests = 8U;
+    scheduler.token_budget_per_cycle = 8U;
+    scheduler.prefill_quantum_tokens = 2U;
+    scheduler.cuda_kv_page_tokens = 2U;
+    scheduler.prefix_cache_entries = 0U;
+    scheduler.execution_observation_level =
+        air::ExecutionObservationLevel::detailed;
+    scheduler.execution_span_capacity = 512U;
+
+    auto service = air::InferenceService::create(
+        model, air::BackendPreference::cuda, 0, scheduler);
+    if (!service) {
+        std::cerr << "detailed CUDA graph service failed: "
+                  << service.status().message() << '\n';
+        return 1;
+    }
+
+    air::InferenceRequest request;
+    request.prompt = "aa";
+    request.generation.max_new_tokens = 3U;
+    request.generation.sampling.temperature = 0.0;
+
+    const std::vector<air::InferenceRequest> cohort_requests(
+        2U, request);
+    auto cohort =
+        service.value()->generate_cohort(cohort_requests);
+    if (!cohort || cohort.value().size() != 2U) {
+        std::cerr << "CUDA graph cohort execution failed";
+        if (!cohort) {
+            std::cerr << ": " << cohort.status().message();
+        }
+        std::cerr << '\n';
+        return 1;
+    }
+
+    const auto after_cohort = service.value()->snapshot();
+    if (after_cohort.physical_prefill_batches == 0U ||
+        after_cohort.native_decode_batches == 0U) {
+        std::cerr << "CUDA graph cohort did not exercise native prefill/decode batching\n";
+        return 1;
+    }
+
+    auto single = service.value()->generate(request);
+    if (!single) {
+        std::cerr << "CUDA graph single request failed: "
+                  << single.status().message() << '\n';
+        return 1;
+    }
+
+    const auto graphs =
+        service.value()->execution_graph_timeline(512U);
+    if (graphs.level != air::ExecutionObservationLevel::detailed ||
+        graphs.topology_status != "ready" ||
+        graphs.topology_fingerprint.empty() ||
+        graphs.derivation_failures != 0U) {
+        std::cerr << "CUDA graph observation topology/derivation state is invalid\n";
+        return 1;
+    }
+
+    bool saw_single_prefill_concordant = false;
+    bool saw_single_decode_concordant = false;
+    bool saw_batch_prefill_incomplete = false;
+    bool saw_batch_decode_incomplete = false;
+
+    for (const auto& observation : graphs.observations) {
+        if (!observation.graph ||
+            observation.graph->backend() != air::BackendKind::cuda) {
+            continue;
+        }
+
+        switch (observation.graph->invocation().kind) {
+        case air::PhysicalInvocationKind::prefill_single:
+            if (observation.evidence_status ==
+                    air::ExecutionGraphEvidenceStatus::concordant &&
+                observation.planned_transfer_regions ==
+                    observation.matched_transfer_regions &&
+                observation.planned_synchronization_regions ==
+                    observation.matched_synchronization_regions) {
+                saw_single_prefill_concordant = true;
+            }
+            break;
+        case air::PhysicalInvocationKind::decode_single:
+            if (observation.evidence_status ==
+                    air::ExecutionGraphEvidenceStatus::concordant &&
+                observation.planned_transfer_regions ==
+                    observation.matched_transfer_regions &&
+                observation.planned_synchronization_regions ==
+                    observation.matched_synchronization_regions) {
+                saw_single_decode_concordant = true;
+            }
+            break;
+        case air::PhysicalInvocationKind::prefill_native_batch:
+            if (observation.evidence_status ==
+                    air::ExecutionGraphEvidenceStatus::incomplete &&
+                observation.planned_transfer_regions >
+                    observation.matched_transfer_regions &&
+                observation.unexpected_transfer_spans == 0U &&
+                observation.unexpected_synchronization_spans == 0U) {
+                saw_batch_prefill_incomplete = true;
+            }
+            break;
+        case air::PhysicalInvocationKind::decode_native_greedy_batch:
+            if (observation.evidence_status ==
+                    air::ExecutionGraphEvidenceStatus::incomplete &&
+                observation.planned_transfer_regions >
+                    observation.matched_transfer_regions &&
+                observation.unexpected_transfer_spans == 0U &&
+                observation.unexpected_synchronization_spans == 0U) {
+                saw_batch_decode_incomplete = true;
+            }
+            break;
+        }
+    }
+
+    if (!saw_single_prefill_concordant ||
+        !saw_single_decode_concordant) {
+        std::cerr << "single CUDA graph evidence was not concordant\n";
+        return 1;
+    }
+    if (!saw_batch_prefill_incomplete ||
+        !saw_batch_decode_incomplete) {
+        std::cerr << "native CUDA batch graph did not preserve known shared-correlation evidence gaps\n";
+        return 1;
+    }
+
+    std::cout << "CUDA ExecutionGraph planned/observed concordance characterization passed\n";
+    return 0;
+}
+
 } // namespace
 
 int main() {
@@ -604,6 +740,11 @@ int main() {
 
     const int parity = verify_cuda_reference_parity();
     if (parity != 0) return parity;
+
+    const int graph_observation =
+        verify_cuda_execution_graph_observation();
+    if (graph_observation != 0) return graph_observation;
+
     return verify_cuda_alias_semantics();
 #else
     if (air::cuda_compiled()) {
