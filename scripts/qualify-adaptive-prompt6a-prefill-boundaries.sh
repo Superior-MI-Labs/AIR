@@ -261,26 +261,96 @@ for round_index, order in enumerate(rounds, start=1):
 
                 gpu_telemetry(round_index, position, quantum, "warmed")
 
-                results = [generate(port) for _ in range(6)]
-                timeline = get_json(port, "/timeline")
-                graphs = get_json(port, "/execution-graphs")
+                results = []
+                rows = []
+                per_request_timelines = []
+                per_request_graphs = []
 
-                if int(timeline["dropped_spans"]) != 0:
-                    raise RuntimeError("detailed timeline dropped spans")
-                if int(graphs["dropped_graphs"]) != 0:
-                    raise RuntimeError("execution graph observation dropped graphs")
-                if int(graphs["derivation_failures"]) != 0:
-                    raise RuntimeError("execution graph derivation failed")
+                for sample_index in range(6):
+                    result = generate(port)
+                    timeline = get_json(port, "/timeline")
+                    graphs = get_json(port, "/execution-graphs")
 
-                rows = [summarize_request(result, timeline) for result in results]
-                for row in rows:
+                    if int(timeline["dropped_spans"]) != 0:
+                        raise RuntimeError("detailed timeline dropped spans")
+                    if int(graphs["dropped_graphs"]) != 0:
+                        raise RuntimeError("execution graph observation dropped graphs")
+                    if int(graphs["derivation_failures"]) != 0:
+                        raise RuntimeError("execution graph derivation failed")
+
+                    row = summarize_request(result, timeline)
                     row.update({
                         "session_index": session_index,
                         "round": round_index,
                         "position": position,
                         "quantum": quantum,
+                        "sample_index": sample_index,
                     })
+
+                    # /timeline intentionally returns only the most recent 256
+                    # spans. Capture it immediately per measured request so
+                    # endpoint-view truncation cannot masquerade as missing
+                    # backend evidence.
+                    if row["prefill_backend_call_count"] == 0:
+                        raise RuntimeError(
+                            "current request has no retained prefill backend-call evidence"
+                        )
+                    if row["outputless_sync_count"] == 0:
+                        raise RuntimeError(
+                            "current long request did not exercise outputless prefill synchronization"
+                        )
+
+                    rid = row["request_id"]
+                    request_prefill_spans = [
+                        s for s in timeline["spans"]
+                        if int(s["request_id"]) == rid and
+                           s["category"] == "backend-call" and
+                           s["phase"] == "prefill"
+                    ]
+                    if not request_prefill_spans:
+                        raise RuntimeError(
+                            "current request lacks correlated prefill spans"
+                        )
+                    max_prefill_work_units = max(
+                        int(s["work_units"]) for s in request_prefill_spans
+                    )
+                    if max_prefill_work_units > quantum:
+                        raise RuntimeError(
+                            "observed prefill chunk exceeded configured quantum: "
+                            f"quantum={quantum} observed={max_prefill_work_units}"
+                        )
+                    row["max_prefill_work_units"] = max_prefill_work_units
+
+                    correlated_graphs = []
+                    for observation in graphs["observations"]:
+                        pairs = {
+                            (
+                                int(p["request_id"]),
+                                int(p["sequence_id"]),
+                            )
+                            for p in observation.get("participants", [])
+                        }
+                        if (rid, row["sequence_id"]) in pairs:
+                            correlated_graphs.append(observation)
+                    if not correlated_graphs:
+                        raise RuntimeError(
+                            "current request has no correlated ExecutionGraph observations"
+                        )
+                    row["correlated_graph_observations"] = len(correlated_graphs)
+
+                    results.append(result)
+                    rows.append(row)
                     request_rows.append(row)
+                    per_request_timelines.append({
+                        "sample_index": sample_index,
+                        "request_id": rid,
+                        "timeline": timeline,
+                    })
+                    per_request_graphs.append({
+                        "sample_index": sample_index,
+                        "request_id": rid,
+                        "graphs": graphs,
+                    })
 
                 prompt_tokens = {row["prompt_tokens"] for row in rows}
                 if len(prompt_tokens) != 1:
@@ -293,10 +363,6 @@ for round_index, order in enumerate(rounds, start=1):
                 expected_max_chunks = (
                     next(iter(prompt_tokens)) + quantum - 1
                 ) // quantum
-                if any(row["outputless_sync_count"] == 0 for row in rows):
-                    raise RuntimeError(
-                        "long prompt did not exercise outputless prefill synchronization"
-                    )
 
                 session_rows.append({
                     "session_index": session_index,
@@ -342,15 +408,23 @@ for round_index, order in enumerate(rounds, start=1):
                     "median_prefill_backend_call_host_ms": statistics.median(
                         row["prefill_backend_call_host_ms"] for row in rows
                     ),
-                    "timeline_spans": len(timeline["spans"]),
-                    "graph_observations": len(graphs["observations"]),
+                    "median_timeline_view_spans": statistics.median(
+                        len(item["timeline"]["spans"])
+                        for item in per_request_timelines
+                    ),
+                    "median_correlated_graph_observations": statistics.median(
+                        row["correlated_graph_observations"] for row in rows
+                    ),
+                    "median_max_prefill_work_units": statistics.median(
+                        row["max_prefill_work_units"] for row in rows
+                    ),
                 })
 
-                (out_dir / f"session-{session_index:02d}-q{quantum}-timeline.json").write_text(
-                    json.dumps(timeline, indent=2) + "\n"
+                (out_dir / f"session-{session_index:02d}-q{quantum}-timelines.json").write_text(
+                    json.dumps(per_request_timelines, indent=2) + "\n"
                 )
                 (out_dir / f"session-{session_index:02d}-q{quantum}-graphs.json").write_text(
-                    json.dumps(graphs, indent=2) + "\n"
+                    json.dumps(per_request_graphs, indent=2) + "\n"
                 )
                 (out_dir / f"session-{session_index:02d}-q{quantum}-responses.json").write_text(
                     json.dumps(results, indent=2) + "\n"
