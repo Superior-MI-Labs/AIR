@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 6
 
-Status: 6A CLOSED / FALSIFIED; 6B CURRENT
+Status: 6A CLOSED / FALSIFIED; 6B CLOSED / QUALIFIED; 6C CURRENT
 Title: Schedule compiler and bottleneck optimization
 
 ## Qualified baseline
@@ -440,3 +440,144 @@ preserved.
 ## 6B live evidence authority
 
 `scripts/qualify-adaptive-prompt6b-prefill-tactics.sh`
+
+
+## 6B final WolfCat result
+
+6B is CLOSED / QUALIFIED.
+
+Qualified source:
+
+`395a2f73ffe58e1b491e384a6f3483d7fdd69f8f`
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6B-Prefill-Tactics-20260930-050028`
+
+Final gates:
+
+- adaptive CPU preflight PASS;
+- CPU 13/13 CTests PASS;
+- balanced prefill-tactic census PASS;
+- deterministic generated-output equality PASS;
+- qualifier exit code 0.
+
+Measured median-of-session-median steady-state results:
+
+| Tactic | TTFT ms | Prefill ms | Prefill tok/s | Warm prep ms | Prep bytes | Prepared artifact bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 53390.062650 | 53389.560769 | 18.000 | 0.000493 | 0 | 0 |
+| batch-reuse8 | 12466.399965 | 12465.888955 | 77.099 | 0.000516 | 0 | 0 |
+| dense-f32-cublas | 3201.887941 | 3201.388061 | 300.394 | 34.480496 | 5,240,782,848 | 5,240,782,848 |
+
+Relative to baseline:
+
+- `batch-reuse8` TTFT: `-76.650%`;
+- `batch-reuse8` prefill: `-76.651%`;
+- `batch-reuse8` prefill throughput: `+328.330%`;
+- `dense-f32-cublas` TTFT: `-94.003%`;
+- `dense-f32-cublas` prefill: `-94.004%`;
+- `dense-f32-cublas` prefill throughput: `+1568.875%`.
+
+### 6B interpretation
+
+The baseline transformer-block linear implementation is not competitive for the
+measured Qwen2.5-1.5B long-prefill workload.
+
+`batch-reuse8` provides a large speedup with no optional prepared artifact in
+this measurement.
+
+`dense-f32-cublas` provides a much larger speedup but requires
+5,240,782,848 prepared bytes, approximately 4.88 GiB.
+
+The 34.48 ms dense preparation latency is small relative to its measured
+steady-state advantage.
+
+Using the measured rates only and ignoring eviction/resource pressure, dense
+saves approximately 9.64 ms per prefill token relative to reuse8. Its measured
+cold preparation latency therefore amortizes after roughly four prefill tokens.
+
+That does not justify making dense universal/default.
+
+The dominant unresolved cost is resource residency and transition economics:
+
+- 4.88 GiB optional prepared state competes with KV, other models, future image
+  workflows, and other GPU-resident resources;
+- dense may be infeasible under explicit prepared-memory budgets or high KV
+  pressure;
+- dense-to-reuse eviction cost on the 1.5B artifact has not yet been measured;
+- product policy must prevent hidden dense residency from violating a
+  minimum-VRAM objective;
+- multi-model and multi-capability AIR eventually makes residency value more
+  important, not less.
+
+The older Strategy Lab transition model is therefore still the correct
+architectural owner. 6B updates its empirical inputs; it does not create a
+second optimizer.
+
+## 6C current - 1.5B residency and transition economics
+
+6C is CURRENT.
+
+Objective:
+
+Characterize when the Qwen2.5-1.5B dense prepared representation is physically
+feasible and economically justified relative to reuse8.
+
+The first rule is reuse before remeasurement.
+
+The 6B evidence already retained, per tactic:
+
+- current prepared artifact bytes;
+- current total device bytes;
+- warmup preparation time/bytes;
+- hot preparation time;
+- GPU telemetry;
+- competing compute-process inventory.
+
+Extract those values before running another benchmark.
+
+### 6C questions
+
+1. What is the actual total device residency for baseline, reuse8, and dense?
+2. How much free/usable VRAM remains with dense hot on WolfCat?
+3. Does dense preparation materially reduce admissible KV/request capacity?
+4. What is the measured dense-to-reuse eviction latency for the 1.5B artifact?
+5. Does reuse-to-dense re-preparation reproduce the ~34.5 ms transition cost?
+6. Does prepared state actually disappear when a low-memory plan is selected?
+7. At which explicit prepared-memory budgets must dense be rejected?
+8. Can the existing Strategy Lab transition/hysteresis model represent the
+   measured 1.5B frontier without new planner authority?
+
+### 6C architectural constraint
+
+Use existing authorities:
+
+- PreparedModel owns prepared artifacts;
+- CapacityScheduler remains resource/admission authority;
+- Strategy Lab remains plan-selection/transition-economics authority;
+- InferenceService remains the only serving path.
+
+Do not add:
+
+- another residency manager;
+- another model cache;
+- another strategy planner;
+- a dense-specific scheduler;
+- hidden persistent dense state outside PreparedModel.
+
+### 6C first evidence step
+
+Before building a new transition harness, extract the already-retained 6B
+summary fields for:
+
+- `median_current_device_bytes`;
+- `median_current_prepared_artifact_bytes`;
+- `median_warmup_plan_preparation_ms`;
+- `median_warmup_plan_preparation_bytes`;
+- `median_hot_plan_preparation_ms`.
+
+That determines whether the next live test should focus first on capacity
+pressure or transition/eviction.
+
+No product-default tactic change is authorized yet.
