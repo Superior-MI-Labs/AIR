@@ -326,19 +326,6 @@ namespace {
     return false;
 }
 
-[[nodiscard]] std::uint64_t total_work_units(
-    const PhysicalInvocation& invocation) noexcept {
-    std::uint64_t total = 0U;
-    for (const auto& participant : invocation.participants) {
-        if (participant.work_units >
-            std::numeric_limits<std::uint64_t>::max() - total) {
-            return std::numeric_limits<std::uint64_t>::max();
-        }
-        total += participant.work_units;
-    }
-    return total;
-}
-
 [[nodiscard]] ExecutionImplementationBinding linear_binding(
     QualifiedOperationSite site,
     QuantizedLinearExecutionKind implementation) {
@@ -531,10 +518,6 @@ Result<ExecutionGraph> derive_execution_graph(
     const bool is_prefill =
         invocation.kind == PhysicalInvocationKind::prefill_single ||
         invocation.kind == PhysicalInvocationKind::prefill_native_batch;
-    const bool is_batch =
-        invocation.kind == PhysicalInvocationKind::prefill_native_batch ||
-        invocation.kind == PhysicalInvocationKind::decode_native_greedy_batch;
-
     switch (invocation.kind) {
     case PhysicalInvocationKind::prefill_single:
         if (participant_count != 1U) {
@@ -601,7 +584,7 @@ Result<ExecutionGraph> derive_execution_graph(
     nodes.reserve(8U);
     std::optional<std::uint32_t> tail;
 
-    const auto append_node = [&](ExecutionGraphNode node) mutable {
+    const auto append_node = [&](ExecutionGraphNode node) {
         node.id = static_cast<std::uint32_t>(nodes.size());
         if (tail) node.dependencies.push_back(*tail);
         nodes.push_back(std::move(node));
