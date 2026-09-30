@@ -274,6 +274,8 @@ def main():
     p6b = args.p6b
     root = args.out
     build = args.build
+    for name in ("strict", "small", "eviction", "product", "prompts", "telemetry"):
+        (root / name).mkdir(parents=True, exist_ok=True)
     cli = build / "air-cli"
     verify = build / "air-verify"
     bench = build / "air-bench"
