@@ -417,32 +417,32 @@ are authorized in Prompt 7.
 
 ## Immediate next action
 
-Prompt 7A is CLOSED / QUALIFIED.
+Prompt 7B is CLOSED / QUALIFIED.
 
-Selection evidence:
+Qualified external-oracle evidence:
 
-`~/Downloads/AIR-0.11-Prompt7A-FLUX2-Selection-20260930-143502`
+`~/Downloads/AIR-0.11-Prompt7B-FLUX2-Oracle-20260930-145158`
 
-Run the dedicated Prompt 7B external oracle gate after exact-head preflight.
+Key result:
 
-The gate uses:
-
-- pinned ComfyUI source/runtime;
-- the exact Stage 7A model artifacts;
-- native nodes only;
-- the native distilled FLUX.2 Klein structure;
-- 1024 x 1024;
+- two forced 1024 x 1024 executions;
 - four Flux2 scheduler steps;
-- Euler;
-- CFG 1;
-- fixed seed `432262096973490`;
-- two forced executions with cache disabled;
-- same-machine pixel-hash reproducibility;
-- continuous GPU/RAM telemetry;
-- retained output/history/server/resource evidence.
+- Euler / CFG 1 / fixed seed;
+- identical RGB pixel SHA-256 across runs;
+- distinct PNG container hashes;
+- peak observed GPU memory `10106 MiB`;
+- DynamicVRAM / async offload evidence retained.
 
-Do not modify AIR core image types or add an image runtime before the external
-oracle passes and Stages 7C-7H derive the evidence-backed gap map.
+Run the read-only Prompt 7C-H retained-oracle analysis.
+
+It will derive the component census, iteration/state census, semantic-value
+census, operation boundary, resource/residency census, current-AIR gap map, and
+explicit unresolved evidence without loading the image models again.
+
+If the result confirms that precise component transition/residency timing is
+the only material missing evidence, perform one focused Prompt 7G probe next.
+
+Do not modify AIR core image execution types before the gap map is qualified.
 
 ## Current architectural hypothesis
 
