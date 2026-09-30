@@ -364,8 +364,18 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-Extract the retained 6B residency/preparation fields from the WolfCat evidence
-before designing the 6C transition harness.
+Run the implemented 6C WolfCat transition gate after final branch preflight:
+
+```text
+bash scripts/qualify-adaptive-prompt6c-transitions.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf \
+  ~/Downloads/AIR-0.11-Prompt6B-Prefill-Tactics-20260930-050028
+```
+
+6C first performs fresh strict numerical qualification, then measures the
+missing dense eviction/re-preparation/residency economics through existing
+Strategy Lab and PreparedModel ownership. No production policy is changed by
+the gate.
 
 ## Current architectural hypothesis
 
