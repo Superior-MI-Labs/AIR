@@ -13,7 +13,7 @@ VAE="$MODEL_ROOT/split_files/vae/flux2-vae.safetensors"
 
 EXPECTED_DIFFUSION_SHA256="97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6"
 EXPECTED_ENCODER_SHA256="3eab03a77adb0ee5304a4e677d5c10ac22f9049c1d7c894adca4f8bb39206ca8"
-EXPECTED_VAE_SHA256="d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5"
+EXPECTED_VAE_SHA256="868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
 
 mkdir -p "$OUT"
 cd "$ROOT"
@@ -44,7 +44,10 @@ done
     echo "comfy_root=$COMFY_ROOT"
     echo "diffusion_source=https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8"
     echo "encoder_source=https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b"
-    echo "vae_source=https://huggingface.co/Comfy-Org/flux2-dev"
+    echo "vae_source=https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b"
+    echo "stock_template_vae_source=https://huggingface.co/Comfy-Org/flux2-dev"
+    echo "stock_template_vae_sha256=d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5"
+    echo "oracle_vae_variant=published-klein-support-vae"
     echo "comfy_workflow_source=https://github.com/Comfy-Org/workflow_templates"
     echo "bfl_reference_source=https://github.com/black-forest-labs/flux2"
 } > "$OUT/identity.txt"
@@ -299,6 +302,10 @@ selected_candidate=FLUX.2-Klein-4B
 selected_variant=distilled-fp8
 text_encoder=qwen_3_4b_fp4_flux2.safetensors
 vae=flux2-vae.safetensors
+vae_sha256=$ACTUAL_VAE_SHA256
+vae_source=Comfy-Org/vae-text-encorder-for-flux-klein-4b
+stock_template_vae_sha256=d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5
+workflow_difference=local published Klein-support VAE differs from current stock ComfyUI template VAE and must be validated by Stage 7B oracle execution
 selection_status=PROVISIONAL_QUALIFIED
 selection_reason=lower-risk reproducible external oracle with native ComfyUI Flux2 support, explicit multi-component resources, iterative latent/scheduler semantics, and sufficient structural distance from Qwen2
 deferred_candidate=Qwen-Image-2.1
