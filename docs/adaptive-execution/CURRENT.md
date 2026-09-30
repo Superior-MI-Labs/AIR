@@ -364,24 +364,27 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-The first 6C WolfCat attempt did not reach the experiment. CPU preflight passed
-13/13, but CUDA configure exposed a pre-existing stale
-`AIR_BUILD_RESEARCH` CMake block referencing six source files that do not exist
-in the current tree, frozen v0.10.0, or Git history.
+Do not rerun the full 6C transition gate yet.
 
-The build-system defect has been corrected. After the corrected branch head
-passes adaptive preflight, pull it and rerun:
+The bounded-build retry reached strict numerical qualification successfully, but
+`air-verify` returned exit code 9 on the first width-1 case. AIR's verifier
+maps exit 9 specifically to Reference prefill failure, before the alternate CUDA
+tactic can be judged.
 
-```text
-bash scripts/qualify-adaptive-prompt6c-transitions.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf \
-  ~/Downloads/AIR-0.11-Prompt6B-Prefill-Tactics-20260930-050028
-```
+First inspect the retained child verifier log from:
 
-The failed directory
-`~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-083041` is retained as
-negative harness/build-system evidence. It is not transition-economics evidence
-because no CUDA execution or 6C measurement began.
+`~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-090736/strict/reuse8-p1.txt`
+
+The probe has been updated to run an explicit baseline Reference-oracle sanity
+case first and to print child log tails directly on failure.
+
+Diagnostic source:
+
+`28ef1cfb5371329a503e2534cafd64c40f87e9e0`
+
+After the exact Reference status is understood, repair the oracle/case or narrow
+the strict qualification contract without silently promoting 6B deterministic
+output equality to `strict_qualified`.
 
 ## Current architectural hypothesis
 
