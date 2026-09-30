@@ -312,59 +312,60 @@ Decision:
 The first 6A harness failure is retained separately as an endpoint-view
 truncation measurement defect. It did not change AIR runtime behavior.
 
-### Prompt 6B current
+### Prompt 6B closed / qualified
 
-Prompt 6B is CURRENT / LIVE WOLFCAT CENSUS PENDING.
+Qualified source:
 
-6B moves one layer down from scheduling boundaries to already-qualified physical
-prefill implementation choice on the actual Qwen2.5-1.5B model.
+`395a2f73ffe58e1b491e384a6f3483d7fdd69f8f`
 
-Candidates:
+Evidence:
 
-- `baseline`;
-- `batch-reuse8`;
-- `dense-f32-cublas`.
+`/home/emerson/Downloads/AIR-0.11-Prompt6B-Prefill-Tactics-20260930-050028`
 
-Held constant:
+Results:
 
-- q32 prefill quantum;
-- CUDA device 0;
-- one active request;
-- token budget 256;
-- prefix cache disabled;
-- baseline prefill attention;
-- baseline decode block/output;
-- deterministic temperature-zero generation;
-- no adaptive manifest.
+- baseline: `18.000 tok/s`, `53389.560769 ms` prefill;
+- reuse8: `77.099 tok/s`, `12465.888955 ms` prefill;
+- dense-f32-cublas: `300.394 tok/s`, `3201.388061 ms` prefill;
+- reuse8 throughput: `+328.330%` vs baseline;
+- dense throughput: `+1568.875%` vs baseline;
+- dense preparation: `34.480496 ms`;
+- dense prepared artifact: `5,240,782,848 bytes` (~4.88 GiB);
+- deterministic output equality PASS;
+- `PROMPT6B_PREFILL_TACTIC_CENSUS=PASS`;
+- qualifier exit code 0.
 
-6B uses one warmup/preparation request plus four hot measured requests per
-session and a 3x3 balanced tactic order.
+Decision:
 
-Required evidence includes:
+- baseline is not competitive for this measured 1.5B long-prefill workload;
+- reuse8 is a strong low-residency candidate;
+- dense is a much stronger throughput candidate;
+- dense preparation latency is small enough that residency/resource pressure,
+  not cold preparation latency, is now the dominant unresolved tradeoff;
+- no universal/default tactic is promoted yet.
 
-- deterministic generated-text equality across tactics;
-- exact selected tactic;
-- steady-state TTFT/prefill/throughput;
-- warmup plan-preparation time/bytes;
-- hot preparation time;
-- prepared-artifact residency;
-- total device residency;
-- GPU telemetry and competing-compute-process inventory.
+### Prompt 6C current
 
-Authority:
+Prompt 6C is CURRENT / RESIDENCY + TRANSITION ECONOMICS.
 
-`scripts/qualify-adaptive-prompt6b-prefill-tactics.sh`
+6C reuses the existing Strategy Lab transition model rather than creating a new
+optimizer.
 
-Initial 6B harness source:
+First step: extract total device residency and hot-preparation evidence already
+captured by 6B.
 
-`dd8d4ff10caac7433954915274ddc4326d355e5e`
+Then choose the smallest next live test needed to measure:
 
-No tactic is promoted merely for being fastest. Preparation/residency economics
-remain part of the decision.
+- remaining VRAM/capacity with dense resident;
+- dense-to-reuse eviction;
+- reuse-to-dense re-preparation;
+- low-memory budget rejection;
+- absence of hidden dense residency after transition.
 
 ## Immediate next action
 
-Run the 6B WolfCat census after the final branch preflight is green.
+Extract the retained 6B residency/preparation fields from the WolfCat evidence
+before designing the 6C transition harness.
 
 ## Current architectural hypothesis
 
