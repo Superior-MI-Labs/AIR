@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 5
 
-Status: 5B IMPLEMENTED / LIVE QUALIFICATION PENDING
+Status: 5B CLOSED / QUALIFIED; 5C CURRENT
 Title: ExecutionGraph R0 - derived physical execution representation
 
 ## Qualified baseline
@@ -660,15 +660,66 @@ Expected final gate:
 
 `PROMPT5B_EXECUTION_GRAPH=PASS`
 
-## 5B stop condition
+## 5B live qualification result
 
-5B implementation is complete but is not CLOSED / QUALIFIED until the live
-WolfCat CUDA gate passes.
+5B is CLOSED / QUALIFIED.
 
-Do not make execution graph-driven and do not begin the next Prompt 5 slice
-before that result.
+Qualified AIR handoff source:
 
-After qualification, the next safe pressure test is read-only integration at
-the already-concrete invocation seam so planned ExecutionGraph structure can be
-compared with Prompt 3 observed execution evidence. That future slice must
-still not dispatch graph nodes.
+`d154bf02225ba4b424c5b3734bfcb3d4845b6092`
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt5B-20260929-225827`
+
+Terminal capture:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt5B-terminal.txt`
+
+Qualification results:
+
+- clean worktree before qualification;
+- adaptive CPU preflight PASS;
+- CPU 13/13 CTests PASS;
+- fresh CUDA Release build PASS;
+- CUDA 13/13 CTests PASS;
+- `ExecutionGraph R0 characterization passed`;
+- real prepared-CUDA operation-site legality PASS;
+- Reference/CUDA semantic-binding parity PASS;
+- renamed-source CUDA execution/tactic independence PASS;
+- real Qwen2.5 CUDA generation PASS;
+- selected backend remained CUDA;
+- qualifier final gate `PROMPT5B_EXECUTION_GRAPH=PASS`;
+- qualifier exit code 0;
+- checksummed evidence retained by the qualifier.
+
+5B therefore establishes a qualified immutable physical-invocation description
+without moving execution authority.
+
+## 5C current - read-only invocation integration and graph/evidence concordance
+
+The next slice is deliberately narrower than graph-driven execution.
+
+Objective:
+
+1. derive the already-qualified ExecutionGraph at the exact point where an
+   existing physical invocation is concrete;
+2. expose/read that derived graph through one observational path;
+3. correlate it with the existing Prompt 3 execution observations;
+4. compare planned coarse regions against observed host-side transfer/sync
+   evidence;
+5. preserve the existing backend call as the only execution path.
+
+5C must not:
+
+- dispatch graph nodes;
+- let the graph select batching, backend, tactics, or state;
+- create a second scheduler or executor;
+- mutate graph structure from observations;
+- claim GPU kernel duration from host spans;
+- create a parallel hardware/topology authority.
+
+The first implementation step is source census of the exact single-prefill,
+native-prefill-batch, single-decode, and native-decode-batch call seams plus
+the existing observation correlation surface. No code movement is authorized
+until those owners are re-verified against current source.
