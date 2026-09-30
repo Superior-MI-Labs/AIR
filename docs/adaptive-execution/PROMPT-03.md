@@ -249,6 +249,114 @@ The Prompt 3 qualifier:
 
 The overhead result must be reviewed before Prompt 3 closes.
 
+## First live WolfCat qualification
+
+The first full Prompt 3 live qualification passed all structural/correctness
+gates.
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt3-20260929-202022`
+
+Results:
+
+- adaptive CPU preflight PASS;
+- Prompt 2 nonregression PASS;
+- current CTest matrix: 13/13 PASS;
+- Reference normal timeline PASS;
+- CUDA off timeline PASS;
+- CUDA normal timeline PASS;
+- CUDA detailed timeline PASS;
+- request/sequence correlation PASS;
+- dropped observations: zero in qualification;
+- detailed CUDA backend spans: 49;
+- detailed CUDA transfer spans: 25;
+- detailed CUDA synchronization spans: 24.
+
+Observed first-pass overhead:
+
+```text
+off median total:      1277.180235 ms
+normal median total:   1399.643699 ms
+normal vs off:         +9.5886%
+
+detailed median total: 1416.761068 ms
+detailed vs off:       +10.9288%
+detailed vs normal:    approximately +1.2230%
+```
+
+Prompt 3 is **not closed** from this result.
+
+Reason:
+
+The apparent normal-mode cost is too large to accept as a default tracing cost,
+but the evidence does not yet prove that the recorder itself causes the full
+delta. The first measurement used mirrored order:
+
+```text
+off -> normal -> detailed -> detailed -> normal -> off
+```
+
+This reduces first-order time drift but still places both normal sessions in the
+middle and does not make every mode occupy every ordinal position.
+
+There is also an important falsification clue:
+
+- normal recorded 26 spans and appeared about 9.59% slower than off;
+- detailed added another 49 backend spans but was only about 1.22% slower than
+  normal.
+
+That pattern is inconsistent with a simple per-span cost explanation and
+justifies a better controlled remeasurement before optimizing runtime code.
+
+## Slice 3E - observer overhead falsification
+
+Prompt 3 now includes a dedicated requalification step:
+
+`scripts/requalify-adaptive-prompt3-overhead.sh`
+
+The experiment uses a 3x3 balanced Latin order:
+
+```text
+round 1: off      normal   detailed
+round 2: normal   detailed off
+round 3: detailed off      normal
+```
+
+Therefore every mode occupies first, second, and third position exactly once.
+
+Method:
+
+- fresh qualified CUDA build from the exact branch head;
+- 3 sessions per mode;
+- 2 warmups per session;
+- 6 measured requests per session;
+- 18 measured requests per mode;
+- primary comparison is median of per-session medians;
+- NVIDIA temperature, P-state, SM/memory clocks, power, utilization, and memory
+  are sampled around each live session when `nvidia-smi` is available;
+- zero dropped spans remains required;
+- off must emit zero spans;
+- normal/detailed must emit typed spans.
+
+The first draft of this harness was caught during pre-handoff review with a
+heredoc/pipeline redirection defect. It was fixed before user handoff.
+
+Exact script/preflight head:
+
+`561bf34c1c3f66b85d2b4548684dfa5ca80e05b1`
+
+Adaptive CPU preflight: PASS.
+
+Decision rule after 3E:
+
+- if the balanced result collapses the apparent ~10% delta, classify the first
+  overhead result as materially confounded and retain the balanced evidence;
+- if normal mode still shows a material repeatable cost, profile/optimize the
+  recorder before making normal the default;
+- detailed may remain research-only even if its overhead is higher, but its
+  cost must be documented.
+
 ## Prompt 3 exit gate
 
 Prompt 3 closes only when a real WolfCat request can be reconstructed as a
