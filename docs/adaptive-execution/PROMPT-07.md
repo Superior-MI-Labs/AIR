@@ -349,3 +349,48 @@ Perform Stage 7A candidate selection and external-oracle preflight.
 
 Do not modify AIR core execution types before the selected workflow and oracle
 are frozen.
+
+
+## Stage 7A census implementation
+
+Authority:
+
+`scripts/census-adaptive-prompt7-image-candidates.sh`
+
+Default inputs:
+
+- image package root: `~/Models/Media/Image`;
+- external oracle runtime root:
+  `~/Projects/AI-Runtimes/ComfyUI`.
+
+The census is read-only.
+
+It records:
+
+- AIR source identity;
+- machine/RAM/storage/GPU snapshot;
+- image candidate directory names and sizes;
+- bounded package/config/component metadata;
+- large artifact inventory without hashing every model weight yet;
+- safe config excerpts;
+- ComfyUI Git/runtime/Python/Torch/CUDA identity;
+- available relevant Python packages;
+- custom node names;
+- ComfyUI model-search-path configuration;
+- candidate-selection checklist;
+- evidence checksums.
+
+It intentionally does not:
+
+- select a candidate by directory name;
+- download/modify models;
+- modify ComfyUI;
+- start an image generation;
+- compute full checksums for every multi-gigabyte candidate artifact;
+- modify AIR core types.
+
+Full artifact checksums are deferred until Stage 7A narrows to one candidate.
+
+Expected marker:
+
+`PROMPT7A_IMAGE_CANDIDATE_CENSUS=PASS`
