@@ -303,6 +303,12 @@ void test_execution_observation_modes_and_bounds() {
         check(timeline.level == air::ExecutionObservationLevel::off &&
               timeline.spans.empty() && timeline.evicted_spans == 0U,
               "observation-off mode emits no typed spans");
+        const auto graphs =
+            off_service.value()->execution_graph_timeline(64);
+        check(graphs.level == air::ExecutionObservationLevel::off &&
+              graphs.observations.empty() &&
+              graphs.topology_status == "disabled",
+              "observation-off mode does not derive physical graphs");
     }
 
     air::SchedulerConfig bounded_scheduler;
@@ -325,6 +331,66 @@ void test_execution_observation_modes_and_bounds() {
             previous = span.observation_sequence;
         }
         check(monotonic, "retained bounded spans preserve monotonic observation order");
+        const auto graphs =
+            bounded_service.value()->execution_graph_timeline(64);
+        check(graphs.level == air::ExecutionObservationLevel::normal &&
+              graphs.observations.empty() &&
+              graphs.topology_status == "disabled",
+              "normal observation keeps ExecutionGraph derivation off the default path");
+    }
+
+    air::SchedulerConfig detailed_scheduler;
+    detailed_scheduler.execution_observation_level =
+        air::ExecutionObservationLevel::detailed;
+    detailed_scheduler.execution_span_capacity = 64U;
+    detailed_scheduler.reference_kv_page_tokens = 2U;
+    detailed_scheduler.prefix_cache_entries = 0U;
+    auto detailed_service = air::InferenceService::create(
+        tiny_model(), air::BackendPreference::reference, 0,
+        detailed_scheduler);
+    check(detailed_service.is_ok(), "detailed reference graph service starts");
+    if (detailed_service) {
+        auto response = detailed_service.value()->generate(request);
+        check(response.is_ok(), "detailed reference graph request completes");
+        const auto graphs =
+            detailed_service.value()->execution_graph_timeline(64);
+        check(graphs.level == air::ExecutionObservationLevel::detailed &&
+              graphs.topology_status == "ready" &&
+              !graphs.topology_fingerprint.empty() &&
+              graphs.derivation_failures == 0U &&
+              !graphs.observations.empty(),
+              "detailed mode derives graphs against canonical machine topology");
+
+        bool all_reference = true;
+        bool all_correlated = true;
+        bool all_concordant = true;
+        bool no_cuda_regions = true;
+        for (const auto& observation : graphs.observations) {
+            if (!observation.graph ||
+                observation.graph->backend() != air::BackendKind::reference) {
+                all_reference = false;
+                continue;
+            }
+            all_concordant = all_concordant &&
+                observation.evidence_status ==
+                    air::ExecutionGraphEvidenceStatus::concordant;
+            no_cuda_regions = no_cuda_regions &&
+                observation.planned_transfer_regions == 0U &&
+                observation.planned_synchronization_regions == 0U &&
+                observation.observed_transfer_spans == 0U &&
+                observation.observed_synchronization_spans == 0U;
+            if (observation.participants.empty()) all_correlated = false;
+            for (const auto& participant : observation.participants) {
+                if (participant.request_id == 0U ||
+                    participant.sequence_id == 0U) {
+                    all_correlated = false;
+                }
+            }
+        }
+        check(all_reference && all_correlated,
+              "reference graph observations retain evidence correlation without entering graph identity");
+        check(all_concordant && no_cuda_regions,
+              "reference planned-vs-observed comparison is concordant without invented CUDA regions");
     }
 }
 
