@@ -729,3 +729,118 @@ The external oracle is now frozen.
 Stages 7C-7H may derive component/state/semantic requirements from this oracle.
 AIR core image execution is still not authorized until that evidence-backed
 gap map is complete.
+
+
+## Stage 7C-H retained-oracle analysis
+
+Prompt 7B is CLOSED / QUALIFIED.
+
+The next step does not rerun image generation.
+
+Authorities:
+
+- `scripts/analyze-adaptive-prompt7c-h-flux2.py`;
+- `scripts/qualify-adaptive-prompt7c-h-oracle-analysis.sh`.
+
+Inputs:
+
+- qualified Prompt 7B evidence directory;
+- pinned ComfyUI checkout;
+- current AIR source tree.
+
+The analyzer validates the retained oracle identity and derives:
+
+- `source-evidence.json`;
+- `component-census.json`;
+- `iteration-state-census.json`;
+- `semantic-value-census.json`;
+- `operation-boundary.json`;
+- `resource-residency-census.json`;
+- `current-air-gap-map.json`;
+- `unresolved-evidence.json`;
+- `prompt7c-h-summary.json`;
+- evidence checksums.
+
+The analysis is intentionally conservative.
+
+It treats as facts only what is supported by:
+
+- retained 7A/7B artifacts;
+- exact pinned ComfyUI source;
+- exact current AIR source;
+- measured runtime/resource evidence.
+
+It explicitly retains unknowns instead of guessing tensor representation or
+transition timing.
+
+### Expected semantic findings to test
+
+The qualified oracle already establishes that the second workload carries
+semantic concepts absent from the current token-only public/runtime vocabulary:
+
+- conditioning;
+- deterministic seed identity;
+- realized noise;
+- sigma schedule;
+- latent state;
+- decoded image.
+
+The selected 1024 x 1024 Flux2 latent source contract is:
+
+`[batch, 128, height/16, width/16]`
+
+which is:
+
+`[1, 128, 64, 64]`
+
+for the oracle.
+
+The pinned Flux2 scheduler source derives a 5-value sigma path for four
+sampling transitions. The analyzer recomputes that schedule from the pinned
+source constants and records it as evidence.
+
+### Architectural boundary under test
+
+Prompt 7C-H must determine what is reusable versus narrow in AIR.
+
+Expected reusable authorities:
+
+- hardware topology/environment;
+- Strategy Lab planning authority;
+- CapacityScheduler admission authority;
+- PreparedModel/resource ownership;
+- execution observation/evidence authority;
+- one production runtime path.
+
+Expected pressure areas:
+
+- token-only `RequestProfile`;
+- token/text-oriented `InferenceRequest` and response;
+- prefill/decode-specific `ExecutionPlan` vocabulary;
+- KV-specific resource accounting;
+- token-specific physical invocation/payload enums;
+- absence of explicit semantic image/latent/schedule/noise values;
+- absence of a workload-level iterative-state contract;
+- absence of per-component prepared-resource identity in runtime planning.
+
+No core type is changed by this analysis.
+
+### Expected unresolved evidence
+
+The 7B oracle did not retain precise:
+
+- per-component load latency;
+- per-component eviction latency;
+- exact per-phase component device residency;
+- per-operation transient memory;
+- per-step latent dtype/shape observations.
+
+These remain explicit unknowns.
+
+If the retained-oracle analysis confirms that those unknowns materially affect
+Prompt 8 architecture, Prompt 7G will run one focused residency/transition
+probe rather than repeating general image generation.
+
+Expected marker:
+
+`PROMPT7C_H_ORACLE_ANALYSIS=PASS`
