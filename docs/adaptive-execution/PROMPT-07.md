@@ -844,3 +844,207 @@ probe rather than repeating general image generation.
 Expected marker:
 
 `PROMPT7C_H_ORACLE_ANALYSIS=PASS`
+
+
+## Stage 7C-H final qualification
+
+Status: CLOSED / QUALIFIED.
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7C-H-FLUX2-Census-20260930-152948`
+
+Qualified AIR source:
+
+`04ad75e505eff5b5f0ef37830e00804b9c5f1a59`
+
+Final marker:
+
+`PROMPT7C_H_ORACLE_ANALYSIS=PASS`
+
+Retained-oracle findings:
+
+- oracle RGB pixel identity remained
+  `c3a4278c608408df5019cf15162707e29263dee76e7a0114a6b1dcf2c29e1aa6`;
+- latent semantic geometry is `[1, 128, 64, 64]`;
+- four Flux2 sampling transitions use the five-value sigma path:
+  `1.000000000, 0.967383988, 0.908143923, 0.767199964, 0.000000000`;
+- text-encoder staged size: `3669 MB`;
+- denoiser staged size: `3882 MB`;
+- VAE staged size: `160 MB`;
+- peak observed device memory from the qualified oracle remained
+  `10106 MiB`;
+- three unresolved evidence items were retained rather than guessed.
+
+The gap map falsified a token-only universal architecture while preserving the
+core AIR ownership model.
+
+Reusable authorities:
+
+- hardware topology/environment;
+- Strategy Lab planning authority;
+- CapacityScheduler admission authority;
+- PreparedModel/resource ownership;
+- ExecutionGraph/evidence concepts;
+- one production runtime.
+
+Evidence-backed pressure points:
+
+- workload-typed request/profile data;
+- semantic values beyond tokens/text;
+- workload-level iterative state/control;
+- identified prepared-resource/component residency;
+- workload-scoped physical plan payloads;
+- non-token physical invocation vocabulary;
+- workload-specific output/phase metrics.
+
+No second image runtime, planner, scheduler, capacity authority, or residency
+manager is justified by the evidence.
+
+### Retained unresolved evidence
+
+Prompt 7C-H retained:
+
+1. component transition/load/offload timing;
+2. per-phase component residency timeline;
+3. exact conditioning runtime shape/dtype only if materially required by the
+   Prompt 8 semantic boundary.
+
+The third item is not currently material.
+
+Prompt 7 already establishes conditioning as a semantic value. Exact tensor
+shape/dtype is a storage/representation property and is not required to define
+the workload-typed semantic boundary. It remains explicitly unknown rather
+than being measured merely because it is available to inspect.
+
+The two material remaining targets therefore belong to one focused Stage 7G
+probe.
+
+## Stage 7G focused residency / transition observability
+
+Status: CURRENT.
+
+Authorities:
+
+- `scripts/prompt7g_residency_probe.py`;
+- `scripts/qualify-adaptive-prompt7g-residency.sh`;
+- the unchanged qualified Prompt 7B FLUX.2 oracle driver.
+
+### Architecture decision
+
+Three approaches were considered.
+
+1. Modify the pinned ComfyUI checkout with instrumentation.
+
+   Rejected. This would contaminate the external oracle, create a forked
+   measurement runtime, and risk confusing observer behavior with oracle
+   behavior.
+
+2. Observe only external GPU telemetry.
+
+   Rejected as insufficient. Device-level memory/utilization samples cannot
+   identify which text-encoder/denoiser/VAE transition caused a residency
+   change.
+
+3. Attach a source-clean launch-time observer to the pinned runtime's existing
+   model-management boundaries and correlate those events with external device
+   telemetry.
+
+   Selected.
+
+The observer preserves ComfyUI's native import/startup order. It attaches only
+after the existing `comfy.model_management` and `comfy.model_patcher`
+modules are loaded, then removes its import hook immediately.
+
+It wraps existing boundaries only:
+
+- `LoadedModel.model_load`;
+- `LoadedModel.model_unload`;
+- `LoadedModel.model_use_more_vram`;
+- `ModelPatcher.partially_load`;
+- `ModelPatcher.partially_unload`;
+- `load_models_gpu`;
+- `free_memory`;
+- `unload_all_models`.
+
+No ComfyUI source file is modified.
+
+The probe reuses the exact Prompt 7B workflow and semantic comparison contract.
+After the two oracle executions complete, it requests ComfyUI's existing
+`POST /free` unload path to force a post-oracle eviction boundary for
+measurement.
+
+### Measurement contract
+
+Prompt 7G must distinguish what is actually measured:
+
+Measured:
+
+- component-associated model-management host-call durations;
+- runtime-reported loaded/model/offloaded bytes at observed boundaries;
+- ordered boundary residency snapshots;
+- approximately 100 ms NVIDIA device memory/utilization/power telemetry;
+- unchanged output pixel identity under observation.
+
+Not directly measured:
+
+- exact asynchronous GPU transfer completion duration;
+- exact per-layer DynamicVRAM device residency;
+- kernel-level transfer/compute overlap inside the external runtime.
+
+Those lower-level details must remain explicit external-runtime opacity. Prompt
+7 does not need to reverse-engineer ComfyUI's implementation to define AIR's
+own resource contracts.
+
+### Pre-publish failure prevention
+
+The first internal review of the probe found that importing ComfyUI
+model-management before its normal CLI initialization could silently cache
+default arguments and alter startup behavior.
+
+The probe was corrected before WolfCat handoff:
+
+- ComfyUI now initializes in native `main.py` order;
+- the observer attaches after normal imports;
+- the temporary import hook self-disables immediately;
+- the probe records the parsed CLI contract;
+- qualification fails unless deterministic mode, no-cache mode, custom-node
+  disablement, and stdout logging are actually active.
+
+This is pre-publish integration evidence, not a failed WolfCat experiment.
+
+### Required Prompt 7G gates
+
+1. qualified Prompt 7B and Prompt 7C-H evidence identities remain valid;
+2. AIR and pinned ComfyUI worktrees remain clean;
+3. the unchanged oracle retains the qualified RGB pixel identity;
+4. text encoder, Flux2 denoiser, and VAE each appear at existing
+   model-management load boundaries;
+5. all three appear at unload/eviction boundaries after the explicit
+   post-oracle free request;
+6. ordered runtime residency snapshots are retained;
+7. external GPU telemetry is retained;
+8. observer claims remain bounded to host-call/runtime-state/device-sample
+   evidence;
+9. exact lower-level async/per-layer residency is reported as opaque rather
+   than inferred;
+10. no AIR core execution type is modified.
+
+Expected markers:
+
+- `PROMPT7G_RESIDENCY_TRANSITION_OBSERVABILITY=PASS`;
+- `PROMPT7G_FLUX2_RESIDENCY_TRANSITION=PASS`.
+
+### Prompt 7G exit
+
+If the focused probe passes, Prompt 7 has enough evidence to close even if
+ComfyUI's exact per-layer asynchronous residency remains opaque.
+
+That opacity is an external-runtime implementation detail, not a missing AIR
+semantic requirement.
+
+The next step after a passing 7G probe is to derive the smallest Prompt 8
+implementation packet from the qualified Qwen2 + FLUX.2 evidence.
+
+Do not broaden Prompt 7 into deeper ComfyUI reverse engineering unless the
+focused probe falsifies a material resource assumption needed by Prompt 8.
