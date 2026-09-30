@@ -364,27 +364,32 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-Do not rerun the full 6C transition gate yet.
+Do not relax the frozen `atol=0.001` strict correctness gate.
 
-The bounded-build retry reached strict numerical qualification successfully, but
-`air-verify` returned exit code 9 on the first width-1 case. AIR's verifier
-maps exit 9 specifically to Reference prefill failure, before the alternate CUDA
-tactic can be judged.
+The retained 6C log and a manual all-baseline rerun produced the exact same
+errors:
 
-First inspect the retained child verifier log from:
+- decision 0 max_abs `0.00301743`;
+- decision 1 max_abs `0.00104904`;
+- exact greedy top-1 parity on both;
+- finite outputs.
 
-`~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-090736/strict/reuse8-p1.txt`
+Thus reuse8 did not cause the failure. The isolated 6B execution profile itself
+is above the strict absolute-error bound on this 1.5B case.
 
-The probe has been updated to run an explicit baseline Reference-oracle sanity
-case first and to print child log tails directly on failure.
+Run a narrow no-rebuild verifier sweep on the existing 6C CUDA binaries using
+the previously qualified product profile:
 
-Diagnostic source:
+- reuse8: reuse8 prefill/decode block + reuse8 decode output +
+  online-softmax prefill attention;
+- dense: dense prefill/decode block + reuse8 decode output +
+  online-softmax prefill attention;
+- widths 1, 8, 64;
+- unchanged `atol=0.001`.
 
-`28ef1cfb5371329a503e2534cafd64c40f87e9e0`
-
-After the exact Reference status is understood, repair the oracle/case or narrow
-the strict qualification contract without silently promoting 6B deterministic
-output equality to `strict_qualified`.
+If this passes, revise 6C so Strategy Lab evidence is measured for those exact
+strict-qualified plans. Keep 6B as isolated bottleneck evidence; do not reuse
+its baseline-attention performance numbers as product-plan evidence.
 
 ## Current architectural hypothesis
 
