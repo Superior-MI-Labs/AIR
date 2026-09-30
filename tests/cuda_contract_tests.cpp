@@ -3,6 +3,7 @@
 #include "air/storage.hpp"
 #include "cuda/cuda_executor_factory.hpp"
 #include "model/prepared_model.hpp"
+#include "runtime/backend.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -258,6 +259,114 @@ air::TokenId greedy_token(std::span<const float> logits) {
                       std::max_element(logits.begin(), logits.end())));
 }
 
+int verify_cuda_operation_capabilities() {
+    using Site = air::QualifiedOperationSite;
+
+    auto prepared = air::runtime_detail::prepare_cuda_model(tiny_qwen2(), 0);
+    if (!prepared) {
+        std::cerr << "CUDA prepared-model capability fixture failed: "
+                  << prepared.status().message() << '\n';
+        return 1;
+    }
+
+    const auto& capabilities = prepared.value()->capabilities();
+    if (capabilities.backend != air::BackendKind::cuda) {
+        std::cerr << "prepared CUDA backend reported wrong backend identity\n";
+        return 1;
+    }
+
+    const auto exact_linear = [&](Site site,
+                                  std::initializer_list<air::QuantizedLinearExecutionKind> expected,
+                                  const char* label) -> bool {
+        auto actual = air::linear_implementations(capabilities, site);
+        if (!actual) {
+            std::cerr << label << " legality query failed: "
+                      << actual.status().message() << '\n';
+            return false;
+        }
+        if (actual.value().size() != expected.size() ||
+            !std::equal(actual.value().begin(), actual.value().end(), expected.begin())) {
+            std::cerr << label << " advertised unexpected linear implementation set\n";
+            return false;
+        }
+        return true;
+    };
+
+    const auto exact_attention = [&](Site site,
+                                     std::initializer_list<air::AttentionExecutionKind> expected,
+                                     const char* label) -> bool {
+        auto actual = air::attention_implementations(capabilities, site);
+        if (!actual) {
+            std::cerr << label << " legality query failed: "
+                      << actual.status().message() << '\n';
+            return false;
+        }
+        if (actual.value().size() != expected.size() ||
+            !std::equal(actual.value().begin(), actual.value().end(), expected.begin())) {
+            std::cerr << label << " advertised unexpected attention implementation set\n";
+            return false;
+        }
+        return true;
+    };
+
+    if (!exact_linear(
+            Site::prefill_transformer_block_linear,
+            {
+                air::QuantizedLinearExecutionKind::baseline,
+                air::QuantizedLinearExecutionKind::batch_reuse4,
+                air::QuantizedLinearExecutionKind::batch_reuse8,
+                air::QuantizedLinearExecutionKind::dense_f32_cublas,
+            },
+            "CUDA prefill block-linear")) {
+        return 1;
+    }
+    if (!exact_linear(
+            Site::decode_transformer_block_linear,
+            {
+                air::QuantizedLinearExecutionKind::baseline,
+                air::QuantizedLinearExecutionKind::batch_reuse8,
+                air::QuantizedLinearExecutionKind::dense_f32_cublas,
+            },
+            "CUDA decode block-linear")) {
+        return 1;
+    }
+    if (!exact_linear(
+            Site::decode_output_projection,
+            {
+                air::QuantizedLinearExecutionKind::baseline,
+                air::QuantizedLinearExecutionKind::batch_reuse8,
+            },
+            "CUDA decode output projection")) {
+        return 1;
+    }
+    if (!exact_attention(
+            Site::prefill_attention,
+            {
+                air::AttentionExecutionKind::baseline,
+                air::AttentionExecutionKind::online_softmax,
+            },
+            "CUDA prefill attention")) {
+        return 1;
+    }
+    if (!exact_attention(
+            Site::decode_attention,
+            {
+                air::AttentionExecutionKind::baseline,
+            },
+            "CUDA decode attention")) {
+        return 1;
+    }
+
+    if (air::linear_implementations(capabilities, Site::prefill_attention) ||
+        air::attention_implementations(capabilities, Site::decode_output_projection)) {
+        std::cerr << "CUDA operation legality accepted an implementation-family mismatch\n";
+        return 1;
+    }
+
+    std::cout << "CUDA prepared backend operation-site legality passed\n";
+    return 0;
+}
+
 int verify_cuda_alias_semantics() {
     auto canonical_model = tiny_qwen2();
     auto canonical_reference = air::ReferenceExecutor::create(canonical_model);
@@ -488,6 +597,9 @@ int main() {
         std::cout << "CUDA backend compiled; no runtime device available for parity test\n";
         return 0;
     }
+
+    const int capability = verify_cuda_operation_capabilities();
+    if (capability != 0) return capability;
 
     const int parity = verify_cuda_reference_parity();
     if (parity != 0) return parity;
