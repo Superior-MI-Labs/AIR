@@ -75,6 +75,84 @@ Result<AttentionExecutionKind> attention_execution_kind_from_string(std::string_
     return Status::data_error("unknown attention execution kind: " + std::string(value));
 }
 
+const char* to_string(QualifiedOperationSite site) noexcept {
+    switch (site) {
+    case QualifiedOperationSite::prefill_transformer_block_linear:
+        return "prefill-transformer-block-linear";
+    case QualifiedOperationSite::decode_transformer_block_linear:
+        return "decode-transformer-block-linear";
+    case QualifiedOperationSite::decode_output_projection:
+        return "decode-output-projection";
+    case QualifiedOperationSite::prefill_attention:
+        return "prefill-attention";
+    case QualifiedOperationSite::decode_attention:
+        return "decode-attention";
+    }
+    return "unknown";
+}
+
+const char* to_string(OperationImplementationFamily family) noexcept {
+    switch (family) {
+    case OperationImplementationFamily::linear: return "linear";
+    case OperationImplementationFamily::attention: return "attention";
+    }
+    return "unknown";
+}
+
+OperationImplementationFamily implementation_family(
+    QualifiedOperationSite site) noexcept {
+    switch (site) {
+    case QualifiedOperationSite::prefill_transformer_block_linear:
+    case QualifiedOperationSite::decode_transformer_block_linear:
+    case QualifiedOperationSite::decode_output_projection:
+        return OperationImplementationFamily::linear;
+    case QualifiedOperationSite::prefill_attention:
+    case QualifiedOperationSite::decode_attention:
+        return OperationImplementationFamily::attention;
+    }
+    return OperationImplementationFamily::linear;
+}
+
+Result<std::span<const QuantizedLinearExecutionKind>> linear_implementations(
+    const BackendCapabilities& capabilities,
+    QualifiedOperationSite site) {
+    switch (site) {
+    case QualifiedOperationSite::prefill_transformer_block_linear:
+        return std::span<const QuantizedLinearExecutionKind>(
+            capabilities.prefill_block_quantized_linear);
+    case QualifiedOperationSite::decode_transformer_block_linear:
+        return std::span<const QuantizedLinearExecutionKind>(
+            capabilities.decode_block_quantized_linear);
+    case QualifiedOperationSite::decode_output_projection:
+        return std::span<const QuantizedLinearExecutionKind>(
+            capabilities.decode_output_quantized_linear);
+    case QualifiedOperationSite::prefill_attention:
+    case QualifiedOperationSite::decode_attention:
+        return Status::invalid_argument(
+            "qualified operation site does not use a linear implementation family");
+    }
+    return Status::invalid_argument("unknown qualified operation site");
+}
+
+Result<std::span<const AttentionExecutionKind>> attention_implementations(
+    const BackendCapabilities& capabilities,
+    QualifiedOperationSite site) {
+    switch (site) {
+    case QualifiedOperationSite::prefill_attention:
+        return std::span<const AttentionExecutionKind>(
+            capabilities.prefill_attention);
+    case QualifiedOperationSite::decode_attention:
+        return std::span<const AttentionExecutionKind>(
+            capabilities.decode_attention);
+    case QualifiedOperationSite::prefill_transformer_block_linear:
+    case QualifiedOperationSite::decode_transformer_block_linear:
+    case QualifiedOperationSite::decode_output_projection:
+        return Status::invalid_argument(
+            "qualified operation site does not use an attention implementation family");
+    }
+    return Status::invalid_argument("unknown qualified operation site");
+}
+
 Status validate_execution_plan(const ExecutionPlan& plan,
                                const BackendCapabilities& capabilities) {
     if (plan.backend != capabilities.backend) {
@@ -99,26 +177,54 @@ Status validate_execution_plan(const ExecutionPlan& plan,
     if (capabilities.exact_prefix_reuse && !capabilities.sequence_checkpointing) {
         return Status::invalid_state("exact prefix reuse requires sequence checkpointing capability");
     }
-    const auto supports = [](const auto& values, QuantizedLinearExecutionKind value) {
-        return std::find(values.begin(), values.end(), value) != values.end();
+    const auto supports_linear = [&](QualifiedOperationSite site,
+                                     QuantizedLinearExecutionKind value) {
+        auto implementations = linear_implementations(capabilities, site);
+        return implementations &&
+            std::find(
+                implementations.value().begin(),
+                implementations.value().end(),
+                value) != implementations.value().end();
     };
-    if (!supports(capabilities.prefill_block_quantized_linear, plan.linear.prefill_block)) {
-        return Status::unsupported("execution plan requests unsupported prefill block-linear tactic");
+    if (!supports_linear(
+            QualifiedOperationSite::prefill_transformer_block_linear,
+            plan.linear.prefill_block)) {
+        return Status::unsupported(
+            "execution plan requests unsupported prefill block-linear tactic");
     }
-    if (!supports(capabilities.decode_block_quantized_linear, plan.linear.decode_block)) {
-        return Status::unsupported("execution plan requests unsupported decode block-linear tactic");
+    if (!supports_linear(
+            QualifiedOperationSite::decode_transformer_block_linear,
+            plan.linear.decode_block)) {
+        return Status::unsupported(
+            "execution plan requests unsupported decode block-linear tactic");
     }
-    if (!supports(capabilities.decode_output_quantized_linear, plan.linear.decode_output)) {
-        return Status::unsupported("execution plan requests unsupported decode output-projection tactic");
+    if (!supports_linear(
+            QualifiedOperationSite::decode_output_projection,
+            plan.linear.decode_output)) {
+        return Status::unsupported(
+            "execution plan requests unsupported decode output-projection tactic");
     }
-    const auto supports_attention = [](const auto& values, AttentionExecutionKind value) {
-        return std::find(values.begin(), values.end(), value) != values.end();
+
+    const auto supports_attention = [&](QualifiedOperationSite site,
+                                        AttentionExecutionKind value) {
+        auto implementations = attention_implementations(capabilities, site);
+        return implementations &&
+            std::find(
+                implementations.value().begin(),
+                implementations.value().end(),
+                value) != implementations.value().end();
     };
-    if (!supports_attention(capabilities.prefill_attention, plan.attention.prefill)) {
-        return Status::unsupported("execution plan requests unsupported prefill attention tactic");
+    if (!supports_attention(
+            QualifiedOperationSite::prefill_attention,
+            plan.attention.prefill)) {
+        return Status::unsupported(
+            "execution plan requests unsupported prefill attention tactic");
     }
-    if (!supports_attention(capabilities.decode_attention, plan.attention.decode)) {
-        return Status::unsupported("execution plan requests unsupported decode attention tactic");
+    if (!supports_attention(
+            QualifiedOperationSite::decode_attention,
+            plan.attention.decode)) {
+        return Status::unsupported(
+            "execution plan requests unsupported decode attention tactic");
     }
     return Status::ok();
 }
