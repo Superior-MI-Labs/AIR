@@ -50,5 +50,7 @@ struct ParsedRequest {
 [[nodiscard]] std::string events_json(const std::vector<RuntimeEvent>& events);
 [[nodiscard]] std::string execution_timeline_json(
     const ExecutionTimelineSnapshot& timeline);
+[[nodiscard]] std::string execution_graph_timeline_json(
+    const ExecutionGraphTimelineSnapshot& timeline);
 
 } // namespace air::server
