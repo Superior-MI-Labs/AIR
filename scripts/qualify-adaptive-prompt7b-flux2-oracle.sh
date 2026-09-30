@@ -29,7 +29,6 @@ SERVER_PID=""
 TELEMETRY_PID=""
 
 cleanup() {
-    set +e
     if [[ -n "$TELEMETRY_PID" ]]; then
         kill "$TELEMETRY_PID" 2>/dev/null || true
         wait "$TELEMETRY_PID" 2>/dev/null || true
