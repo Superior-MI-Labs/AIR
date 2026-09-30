@@ -62,7 +62,8 @@ cmake --build "$BUILD" --target air-server -j"$(nproc)"     > "$OUT/build.log" 2
 echo
 echo "=== BALANCED OBSERVER OVERHEAD FALSIFICATION ==="
 STAGE="balanced-overhead"
-python3 - "$BUILD/air-server" "$MODEL" "$OUT" "$BASE_PORT"     2>&1 | tee "$OUT/overhead-run.log" <<'PY'
+python3 - "$BUILD/air-server" "$MODEL" "$OUT" "$BASE_PORT" <<'PY' \
+    2>&1 | tee "$OUT/overhead-run.log"
 import csv
 import json
 import pathlib
@@ -178,10 +179,13 @@ for round_index, order in enumerate(rounds, start=1):
             ], stdout=log, stderr=subprocess.STDOUT)
             try:
                 wait_health(port, proc)
+                gpu_telemetry(round_index, position, mode, "loaded")
                 for _ in range(2):
                     generate(port)
+                gpu_telemetry(round_index, position, mode, "warmed")
                 values = [generate(port) for _ in range(6)]
                 samples[mode].extend(values)
+                gpu_telemetry(round_index, position, mode, "post-samples")
 
                 with urllib.request.urlopen(
                     f"http://127.0.0.1:{port}/timeline", timeout=5
