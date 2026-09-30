@@ -276,9 +276,35 @@ execution authority.
 
 Slice 5C implementation is COMPLETE / LIVE EVIDENCE PENDING.
 
-Implementation/qualification source:
+Initial implementation/qualification source:
 
 `37feee09d6585245587a1ae055e1e47bdf618377`
+
+First WolfCat live attempt from handoff
+`b92dd505e9ca3dbcaac6ba04606483f8043e5589` falsified the CUDA qualification
+fixture before graph/evidence validation. CPU 13/13 passed; CUDA 12/13 passed;
+the CUDA contract reported that the configured cohort did not exercise native
+decode batching. Evidence:
+`/home/emerson/Downloads/AIR-0.11-Prompt5C-20260929-234809`.
+
+Root cause: the fixture used default baseline decode tactics while production
+native decode batching intentionally requires at least one non-baseline decode
+linear implementation. Runtime behavior was preserved.
+
+The repaired fixture selects qualified `dense-f32-cublas` decode-block work
+through the existing public `ExecutionConfig` contract and separates prefill
+and decode batch diagnostics.
+
+Fixture fix source:
+
+`10fb4c65387fa6327ceb605d33746557aa87ae38`
+
+Failure-retention documentation head:
+
+`b956f7d3bfd906aa6a6816b329e6281c1d853c4b`
+
+Adaptive CPU preflight passed again at the repaired handoff with 13/13 CTests
+and `ADAPTIVE_PREFLIGHT=PASS`.
 
 5C now derives ExecutionGraph only in detailed observation mode at the exact
 already-concrete production invocation seams:
@@ -308,12 +334,16 @@ GitHub Actions adaptive preflight passed at
 
 ## Immediate next action
 
-Run both WolfCat evidence gates:
+Pull the repaired branch and rerun the WolfCat correctness gate first:
 
 ```text
 bash scripts/qualify-adaptive-prompt5c.sh \
   ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
 
+Run the balanced overhead gate only after correctness passes:
+
+```text
 bash scripts/requalify-adaptive-prompt5c-overhead.sh \
   ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
 ```
