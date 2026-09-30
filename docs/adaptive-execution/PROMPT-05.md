@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 5
 
-Status: CURRENT / CENSUS
+Status: 5B IMPLEMENTED / LIVE QUALIFICATION PENDING
 Title: ExecutionGraph R0 - derived physical execution representation
 
 ## Qualified baseline
@@ -492,3 +492,183 @@ implementation.
 rules, serialization/inspection, and characterization tests are green.
 
 Do not make production execution graph-driven in 5B.
+
+
+## 5B implementation result
+
+ExecutionGraph R0 additive implementation is complete.
+
+Implementation source head:
+
+`257673c4e4206698fe0c6f1c979694b5761a7474`
+
+Implemented boundary:
+
+```text
+already-concrete physical invocation
+        +
+existing ExecutionPlan
+        +
+existing BackendCapabilities
+        +
+existing topology-scoped placement
+        ->
+derive_execution_graph(...)
+        ->
+immutable ExecutionGraph R0
+```
+
+The implementation adds:
+
+- schema-versioned `ExecutionGraph` derived data;
+- explicit physical invocation kinds for single/native-batch prefill and
+  single/native-greedy-batch decode;
+- concrete participant work/output descriptors;
+- topology fingerprint plus topology-local hardware resource placement;
+- references to already-selected Prompt 4 linear/attention implementation
+  identities;
+- coarse compute, transfer, and synchronization regions;
+- deterministic structural graph identity;
+- stable inspection serialization;
+- private graph construction so canonical identity is owned only by
+  `derive_execution_graph()`.
+
+The derivation function first delegates execution-plan legality to the existing
+Prompt 4 authority.
+
+It does not:
+
+- schedule work;
+- form a batch;
+- choose a backend;
+- choose an implementation;
+- allocate or restore sequence state;
+- prepare backend artifacts;
+- execute a graph node;
+- mutate runtime state;
+- observe or rewrite execution evidence.
+
+No production serving, scheduler, PreparedModel, CUDA, Reference, sequence-state,
+or hardware-owner implementation was changed in 5B.
+
+### Deliberate R0 precision limits
+
+R0 remains coarse where the current source/evidence does not justify a stronger
+claim.
+
+In particular:
+
+- model execution is represented as a physical compute region rather than an
+  invented universal catalog of Qwen kernels;
+- Prompt 3 host observations are not re-labeled as exact GPU kernel durations;
+- output-transfer work quantities are retained only where the quantity is
+  actually known;
+- unknown full-logit payload size is not guessed by the graph;
+- dynamic free memory and other environment measurements do not become
+  structural graph identity.
+
+### Topology-scoped identity
+
+The census originally identified hardware resource identity as an R0 input.
+Implementation review tightened this rule:
+
+A resource ID such as `accelerator0` is topology-local and is not globally
+meaningful by itself.
+
+ExecutionGraph identity therefore binds:
+
+```text
+HardwareTopology fingerprint
+        +
+topology-local resource identity
+```
+
+while excluding volatile environment values such as current free VRAM.
+
+## 5B characterization coverage
+
+The core characterization tests now verify that:
+
+1. identical concrete physical invocations produce identical graph identities
+   and serialization;
+2. already-consumed planner strategy labels and scheduling quantum do not
+   fragment physical identity;
+3. concrete work width changes graph identity;
+4. topology identity scopes placement and changes graph identity;
+5. a decode-output implementation change does not contaminate prefill graph
+   identity;
+6. changing the selected prefill implementation changes the prefill graph;
+7. CUDA logits, device-greedy, target-logprob, and discard paths expose only
+   the physical transfer/synchronization structure justified by current source;
+8. native prefill and native decode batches remain structurally explicit;
+9. Reference execution does not invent CUDA transfer/synchronization regions;
+10. invalid tactic combinations are rejected through the existing Prompt 4
+    legality authority;
+11. missing topology/resource identity is rejected rather than guessed.
+
+The tests emit:
+
+`ExecutionGraph R0 characterization passed`
+
+when the characterization block succeeds.
+
+## 5B CPU preflight
+
+GitHub Actions adaptive CPU preflight passed for the implementation and
+qualification-script head:
+
+`257673c4e4206698fe0c6f1c979694b5761a7474`
+
+Workflow run:
+
+`36660017292`
+
+Results:
+
+- adaptive shell syntax gate PASS;
+- Release CPU build PASS;
+- 13/13 CTests PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`.
+
+## 5B live qualification authority
+
+WolfCat CUDA qualification authority:
+
+`scripts/qualify-adaptive-prompt5b.sh`
+
+The qualifier requires:
+
+- a clean source worktree;
+- adaptive CPU preflight;
+- a fresh CUDA Release build;
+- the full CUDA CTest matrix;
+- the explicit ExecutionGraph R0 characterization marker;
+- existing real CUDA operation-site legality nonregression;
+- existing renamed-source semantic/tactic independence nonregression;
+- real-model CUDA generation;
+- unchanged source worktree;
+- retained machine/evidence identity and SHA-256 evidence checksums.
+
+Run:
+
+```text
+bash scripts/qualify-adaptive-prompt5b.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
+
+Expected final gate:
+
+`PROMPT5B_EXECUTION_GRAPH=PASS`
+
+## 5B stop condition
+
+5B implementation is complete but is not CLOSED / QUALIFIED until the live
+WolfCat CUDA gate passes.
+
+Do not make execution graph-driven and do not begin the next Prompt 5 slice
+before that result.
+
+After qualification, the next safe pressure test is read-only integration at
+the already-concrete invocation seam so planned ExecutionGraph structure can be
+compared with Prompt 3 observed execution evidence. That future slice must
+still not dispatch graph nodes.
