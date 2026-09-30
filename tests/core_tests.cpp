@@ -710,6 +710,22 @@ void test_execution_graph_projection() {
           graph_a.value().identity() == policy_graph.value().identity(),
           "planner strategy labels and already-consumed scheduler quantum do not fragment physical graph identity");
 
+    auto changed_work = cuda_prefill;
+    changed_work.participants.front().work_units = 17U;
+    auto changed_work_graph =
+        air::derive_execution_graph(cuda_plan, cuda, changed_work);
+    check(graph_a && changed_work_graph &&
+          graph_a.value().identity() != changed_work_graph.value().identity(),
+          "concrete token/work width changes physical graph identity");
+
+    auto changed_topology = cuda_prefill;
+    changed_topology.topology_fingerprint = "hardware-topology:test-cuda-other";
+    auto changed_topology_graph =
+        air::derive_execution_graph(cuda_plan, cuda, changed_topology);
+    check(graph_a && changed_topology_graph &&
+          graph_a.value().identity() != changed_topology_graph.value().identity(),
+          "hardware topology identity scopes topology-local placement");
+
     auto unrelated_decode_change = cuda_plan;
     unrelated_decode_change.linear.decode_output =
         air::QuantizedLinearExecutionKind::batch_reuse8;
