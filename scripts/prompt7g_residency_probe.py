@@ -284,9 +284,21 @@ def install_probe(mm: Any, model_patcher_module: Any, writer: EventWriter) -> No
     for function in ("load_models_gpu", "free_memory", "unload_all_models"):
         wrap_global(function)
 
+    cli_module = sys.modules.get("comfy.cli_args")
+    cli_args = getattr(cli_module, "args", None)
     writer.write(
         {
             "event": "probe-installed",
+            "cli_contract": {
+                "deterministic": primitive(getattr(cli_args, "deterministic", None)),
+                "cache_none": primitive(getattr(cli_args, "cache_none", None)),
+                "disable_all_custom_nodes": primitive(
+                    getattr(cli_args, "disable_all_custom_nodes", None)
+                ),
+                "listen": primitive(getattr(cli_args, "listen", None)),
+                "port": primitive(getattr(cli_args, "port", None)),
+                "log_stdout": primitive(getattr(cli_args, "log_stdout", None)),
+            },
             "measurement_contract": {
                 "host_call_duration": "measured",
                 "runtime_loaded_bytes_at_boundaries": "measured",
@@ -448,6 +460,20 @@ def analyze_mode(argv: list[str]) -> int:
         raise SystemExit(f"baseline oracle pixel identity changed: {baseline_hashes}")
     if probe_hashes != {EXPECTED_PIXEL_SHA256} or not probe_oracle.get("same_pixel_sha256"):
         raise SystemExit(f"probe oracle pixel identity changed: {probe_hashes}")
+
+    installed = next((e for e in events if e.get("event") == "probe-installed"), None)
+    if installed is None:
+        raise SystemExit("Prompt 7G probe installation event missing")
+    cli = installed.get("cli_contract", {})
+    expected_cli = {
+        "deterministic": True,
+        "cache_none": True,
+        "disable_all_custom_nodes": True,
+        "log_stdout": True,
+    }
+    bad_cli = {k: (cli.get(k), v) for k, v in expected_cli.items() if cli.get(k) != v}
+    if bad_cli:
+        raise SystemExit(f"Prompt 7G ComfyUI CLI contract not active: {bad_cli}")
 
     end_calls = [
         e
