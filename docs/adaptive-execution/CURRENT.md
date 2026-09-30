@@ -419,14 +419,31 @@ are authorized in Prompt 7.
 
 ## Immediate next action
 
-Perform Prompt 7 Stage 7A candidate selection and external-oracle preflight.
+Run the read-only Prompt 7A image candidate census:
 
-Prefer already-available local workflows when they satisfy the selection
-criteria, but select by reproducibility and architectural discrimination rather
-than convenience or popularity.
+```text
+bash scripts/census-adaptive-prompt7-image-candidates.sh \
+  ~/Models/Media/Image \
+  ~/Projects/AI-Runtimes/ComfyUI
+```
 
-Do not modify AIR core execution types until the selected workflow and oracle
-are frozen.
+Expected marker:
+
+`PROMPT7A_IMAGE_CANDIDATE_CENSUS=PASS`
+
+Then compare the actually installed candidates by:
+
+- reproducibility;
+- component/resource inspectability;
+- fixed-seed oracle support;
+- resource fit on WolfCat;
+- residency/offload observability;
+- usefulness as a structural discriminator from Qwen2.
+
+Do not select by popularity or convenience.
+
+After one candidate is selected, freeze exact workflow/runtime/config/artifact
+identity and run the external oracle before changing AIR core execution types.
 
 ## Current architectural hypothesis
 
