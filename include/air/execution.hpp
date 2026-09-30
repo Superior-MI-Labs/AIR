@@ -72,8 +72,8 @@ enum class OperationImplementationFamily {
 
 [[nodiscard]] const char* to_string(QualifiedOperationSite site) noexcept;
 [[nodiscard]] const char* to_string(OperationImplementationFamily family) noexcept;
-[[nodiscard]] OperationImplementationFamily implementation_family(
-    QualifiedOperationSite site) noexcept;
+[[nodiscard]] Result<OperationImplementationFamily> implementation_family(
+    QualifiedOperationSite site);
 
 struct BackendCapabilities {
     BackendKind backend{BackendKind::reference};
