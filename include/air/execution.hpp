@@ -164,5 +164,164 @@ struct ExecutionPlan {
 [[nodiscard]] Status validate_execution_plan(const ExecutionPlan& plan,
                                              const BackendCapabilities& capabilities);
 
+// ExecutionGraph R0 describes one already-concrete physical backend invocation.
+// It is derived execution data, not model semantics, scheduler authority, or an
+// executable graph. The production backend path remains unchanged in Prompt 5B.
+inline constexpr std::uint32_t execution_graph_schema_version = 1U;
+
+enum class PhysicalInvocationKind {
+    prefill_single = 0,
+    prefill_native_batch,
+    decode_single,
+    decode_native_greedy_batch,
+};
+
+enum class PhysicalOutputMode {
+    discard = 0,
+    logits,
+    greedy,
+    target_logprobs,
+};
+
+enum class ExecutionGraphNodeKind {
+    compute_region = 0,
+    transfer_region,
+    synchronization_region,
+};
+
+enum class ExecutionComputeRegionKind {
+    model = 0,
+    device_greedy_selection,
+    target_logprob_reduction,
+};
+
+enum class ExecutionTransferDirection {
+    host_to_device = 0,
+    device_to_host,
+};
+
+enum class ExecutionPayloadKind {
+    input_tokens = 0,
+    full_logits,
+    greedy_result,
+    target_tokens,
+    target_logprob_results,
+};
+
+enum class ExecutionSynchronizationKind {
+    backend_stream_wait = 0,
+};
+
+[[nodiscard]] const char* to_string(PhysicalInvocationKind kind) noexcept;
+[[nodiscard]] const char* to_string(PhysicalOutputMode mode) noexcept;
+[[nodiscard]] const char* to_string(ExecutionGraphNodeKind kind) noexcept;
+[[nodiscard]] const char* to_string(ExecutionComputeRegionKind kind) noexcept;
+[[nodiscard]] const char* to_string(ExecutionTransferDirection direction) noexcept;
+[[nodiscard]] const char* to_string(ExecutionPayloadKind payload) noexcept;
+[[nodiscard]] const char* to_string(ExecutionSynchronizationKind kind) noexcept;
+
+struct PhysicalInvocationParticipant {
+    // Amount of scheduler/backend work represented by this participant. For
+    // token paths this is the concrete token count of the invocation.
+    std::uint64_t work_units{0};
+
+    // Backend output behavior already selected by the serving path.
+    PhysicalOutputMode output{PhysicalOutputMode::logits};
+
+    // Non-zero only for target-logprob output.
+    std::uint32_t target_count{0};
+};
+
+struct PhysicalInvocation {
+    PhysicalInvocationKind kind{PhysicalInvocationKind::prefill_single};
+
+    // Physical ordering is retained because native backend packing may depend on
+    // participant order. Request/sequence IDs deliberately do not appear here.
+    std::vector<PhysicalInvocationParticipant> participants;
+
+    // Existing HardwareTopology node/resource identity chosen by the current
+    // backend/placement authority. ExecutionGraph references it but never owns
+    // or rediscovers topology.
+    std::string hardware_resource_id;
+};
+
+struct ExecutionImplementationBinding {
+    QualifiedOperationSite site{QualifiedOperationSite::prefill_transformer_block_linear};
+    std::optional<QuantizedLinearExecutionKind> linear;
+    std::optional<AttentionExecutionKind> attention;
+};
+
+struct ExecutionGraphNode {
+    std::uint32_t id{0};
+    ExecutionGraphNodeKind kind{ExecutionGraphNodeKind::compute_region};
+    std::string hardware_resource_id;
+    std::uint32_t participant_count{0};
+    std::uint64_t work_units{0};
+    std::vector<std::uint32_t> dependencies;
+
+    std::optional<ExecutionComputeRegionKind> compute;
+    std::optional<ExecutionTransferDirection> transfer_direction;
+    std::optional<ExecutionPayloadKind> payload;
+    std::optional<ExecutionSynchronizationKind> synchronization;
+
+    // Present only on the model compute region. These are references to the
+    // already-selected Prompt 4 implementation identities, not a new registry.
+    std::vector<ExecutionImplementationBinding> implementations;
+};
+
+class ExecutionGraph final {
+public:
+    ExecutionGraph(std::string identity,
+                   BackendKind backend,
+                   PhysicalInvocation invocation,
+                   KvStorageKind state_storage,
+                   std::optional<std::uint32_t> state_page_tokens,
+                   std::vector<ExecutionGraphNode> nodes)
+        : identity_(std::move(identity)),
+          backend_(backend),
+          invocation_(std::move(invocation)),
+          state_storage_(state_storage),
+          state_page_tokens_(state_page_tokens),
+          nodes_(std::move(nodes)) {}
+
+    [[nodiscard]] std::uint32_t schema_version() const noexcept {
+        return execution_graph_schema_version;
+    }
+    [[nodiscard]] const std::string& identity() const noexcept { return identity_; }
+    [[nodiscard]] BackendKind backend() const noexcept { return backend_; }
+    [[nodiscard]] const PhysicalInvocation& invocation() const noexcept {
+        return invocation_;
+    }
+    [[nodiscard]] KvStorageKind state_storage() const noexcept {
+        return state_storage_;
+    }
+    [[nodiscard]] const std::optional<std::uint32_t>& state_page_tokens() const noexcept {
+        return state_page_tokens_;
+    }
+    [[nodiscard]] std::span<const ExecutionGraphNode> nodes() const noexcept {
+        return nodes_;
+    }
+
+private:
+    std::string identity_;
+    BackendKind backend_{BackendKind::reference};
+    PhysicalInvocation invocation_{};
+    KvStorageKind state_storage_{KvStorageKind::contiguous};
+    std::optional<std::uint32_t> state_page_tokens_;
+    std::vector<ExecutionGraphNode> nodes_;
+};
+
+// Pure projection only. This function validates the existing plan against the
+// existing capability authority and derives physical description data. It does
+// not schedule, allocate, prepare, restore, execute, or observe a backend.
+[[nodiscard]] Result<ExecutionGraph> derive_execution_graph(
+    const ExecutionPlan& plan,
+    const BackendCapabilities& capabilities,
+    PhysicalInvocation invocation);
+
+// Stable inspection form. Identity is a digest of the same canonical structural
+// fields excluding the identity line itself.
+[[nodiscard]] std::string serialize_execution_graph(const ExecutionGraph& graph);
+
 
 } // namespace air
