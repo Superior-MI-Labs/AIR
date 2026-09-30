@@ -926,6 +926,66 @@ Expected final marker:
 
 `PROMPT5C_OVERHEAD_REMEASURE=PASS`
 
+## 5C first live attempt - qualification fixture falsified
+
+The first WolfCat 5C qualification attempt failed before graph/evidence
+validation.
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt5C-20260929-234809`
+
+Source:
+
+`b92dd505e9ca3dbcaac6ba04606483f8043e5589`
+
+Observed result:
+
+- adaptive CPU preflight PASS;
+- CPU 13/13 CTests PASS;
+- CUDA build PASS;
+- CUDA 12/13 CTests PASS;
+- `air-cuda-contract-tests` failed with:
+  `CUDA graph cohort did not exercise native prefill/decode batching`;
+- final gate:
+  `PROMPT5C_GRAPH_EVIDENCE=FAIL`;
+- failed stage:
+  `cuda-ctest`;
+- qualifier exit code 8;
+- overhead remeasurement correctly did not run.
+
+Root-cause analysis found a qualification-fixture error, not a production
+runtime regression.
+
+The fixture created an explicit CUDA service with default `ExecutionConfig`.
+That means both decode linear tactics remained `baseline`.
+
+Production native decode batching is intentionally eligible only when:
+
+- the backend advertises native decode width greater than one;
+- requests are deterministic greedy decode;
+- and at least one selected decode linear implementation is non-baseline.
+
+Therefore the fixture demanded native decode batching while configuring a plan
+for which the current scheduler intentionally does not select that path.
+
+The runtime eligibility rule is preserved.
+
+Fix:
+
+- configure the test cohort through the existing public `ExecutionConfig`
+  contract with qualified `dense-f32-cublas` for decode block linear work;
+- assert that the selected plan retained that tactic;
+- report prefill and decode batch counters separately on failure.
+
+Fix source:
+
+`10fb4c65387fa6327ceb605d33746557aa87ae38`
+
+This failure is retained because it demonstrates that 5C qualification must
+prove the tested physical path was actually exercised rather than treating a
+successful request as evidence for a path that never ran.
+
 ## 5C stop condition
 
 Do not close 5C until both live evidence gates have been run and reviewed.
