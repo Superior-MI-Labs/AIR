@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
-Updated: 2026-09-29
-Status: PROMPT 5 CURRENT
+Updated: 2026-09-30
+Status: PROMPT 7 CURRENT
 
 ## Frozen baseline
 
@@ -38,9 +38,13 @@ adaptive execution substrate where:
 
 ## Current wave
 
-Wave 0: freeze, assumption census, and observability contract.
+Wave 6 / Prompt 7: image workflow oracle + package/component model.
 
-No broad refactor is authorized yet.
+Prompt 6 is CLOSED / QUALIFIED.
+
+Prompt 7 is evidence-first. No broad image-runtime refactor is authorized
+until one external image workflow is selected, frozen as an oracle, and its
+component/state/iteration requirements are measured.
 
 ## Work completed in Wave 0 initialization
 
@@ -344,51 +348,85 @@ Decision:
   not cold preparation latency, is now the dominant unresolved tradeoff;
 - no universal/default tactic is promoted yet.
 
-### Prompt 6C current
+### Prompt 6C closed / qualified
 
-Prompt 6C is CURRENT / RESIDENCY + TRANSITION ECONOMICS.
+Retained exact-plan evidence:
 
-6C reuses the existing Strategy Lab transition model rather than creating a new
-optimizer.
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245`
 
-First step: extract total device residency and hot-preparation evidence already
-captured by 6B.
+Retained validation summary:
 
-Then choose the smallest next live test needed to measure:
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245/prompt6c-transition-summary-retained.json`
 
-- remaining VRAM/capacity with dense resident;
-- dense-to-reuse eviction;
-- reuse-to-dense re-preparation;
-- low-memory budget rejection;
-- absence of hidden dense residency after transition.
-
-## Immediate next action
-
-Do not rerun the full 6C benchmark.
-
-The exact-plan run at
-`~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245` completed all
-measurement and product-probe stages. It stopped only because final validation
-incorrectly required hot no-op prepare/trim wall-clock durations to be exactly
-zero.
-
-Pull the current branch and run:
-
-```text
-python3 scripts/validate-adaptive-prompt6c-evidence.py \
-  ~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245
-```
-
-Expected marker:
+Final marker:
 
 `PROMPT6C_RETAINED_EVIDENCE_VALIDATION=PASS`
 
-If PASS, retain the existing measurement evidence, append the generated
-`prompt6c-transition-summary-retained.json`, and close/assess Prompt 6C
-without repeating the balanced model experiments.
+Qualified exact-product-plan results:
 
-If FAIL, treat the specific failed state/resource invariant as the next
-falsification target; do not weaken it generically.
+- reuse8 prefill: `82.0553334475 tok/s`;
+- dense prefill: `349.5992724 tok/s`;
+- dense/reuse8 ratio: `4.26053076274046x`;
+- dense optional prepared artifact: `4.880859375 GiB`;
+- dense cold preparation: `44.3189706 ms`;
+- dense eviction mean: `2.718012 ms`;
+- hot second dense request prepared-state-hot: true;
+- hot second dense request incremental preparation bytes: 0;
+- dense re-preparation samples: `52.716044 ms`, `54.203769 ms`;
+- preparation-only break-even: `4.751950219986411` prefill tokens;
+- preparation+eviction round-trip break-even:
+  `5.043379771405769` prefill tokens;
+- low prepared-memory budget selected `reuse8-medium`;
+- minimum-VRAM selected `reuse8-medium`;
+- hidden dense residency after eviction: false.
+
+Prompt 6 is CLOSED / QUALIFIED.
+
+Its release-strategy exit criteria are satisfied:
+
+- a real WolfCat bottleneck was reduced;
+- correctness/nonregression passed;
+- negative experiments were retained.
+
+No 6D concurrency/fairness experiment is required for closure. Existing
+scheduler contracts already cover round-robin fairness, decode-first budget,
+admission/capacity, exact concurrency-region behavior, cancellation cleanup,
+and transition-capacity accounting.
+
+## Prompt 7 current
+
+Prompt 7 is CURRENT / IMAGE WORKFLOW ORACLE + PACKAGE/COMPONENT MODEL.
+
+Authority:
+
+`docs/adaptive-execution/PROMPT-07.md`
+
+Prompt 7 does not implement image generation inside AIR.
+
+It first:
+
+1. selects one concrete image workflow that runs externally on qualified
+   hardware;
+2. freezes exact workflow/runtime/resource identity;
+3. captures external oracle output/behavior;
+4. inventories components, residency/offload, iteration state, semantic values,
+   and scheduler/solver behavior;
+5. maps those requirements against current AIR;
+6. derives the smallest Prompt 8 implementation packet.
+
+No universal semantic IR and no image-specific second runtime/planner/scheduler
+are authorized in Prompt 7.
+
+## Immediate next action
+
+Perform Prompt 7 Stage 7A candidate selection and external-oracle preflight.
+
+Prefer already-available local workflows when they satisfy the selection
+criteria, but select by reproducibility and architectural discrimination rather
+than convenience or popularity.
+
+Do not modify AIR core execution types until the selected workflow and oracle
+are frozen.
 
 ## Current architectural hypothesis
 
