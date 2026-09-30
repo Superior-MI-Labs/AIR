@@ -839,3 +839,91 @@ Next diagnostic: rerun the current 1.5B verifier on the already-built binaries
 using the product execution profiles at widths 1, 8, and 64. If they retain the
 frozen 0.001 qualification, 6C must measure performance/transition evidence for
 those exact plans rather than relabeling the baseline-attention 6B measurements.
+
+
+## 6C strict product-profile sweep qualified
+
+Manual no-rebuild WolfCat verification against the already-built 6C CUDA
+binaries established that the previously qualified Strategy Lab product
+profiles retain the frozen absolute correctness gate on Qwen2.5-1.5B.
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Strict-Product-Profile`
+
+Frozen gate:
+
+`atol=0.001`
+
+Reuse8 product profile:
+
+- prefill block: `batch-reuse8`;
+- decode block: `batch-reuse8`;
+- decode output: `batch-reuse8`;
+- prefill attention: `online-softmax`;
+- decode attention: `baseline`.
+
+Results:
+
+- width 1: PASS, max_abs `3.34978104e-05`;
+- width 8: PASS, max_abs `3.00407410e-05`;
+- width 64: PASS, max_abs `5.57899475e-05`.
+
+Dense product profile:
+
+- prefill block: `dense-f32-cublas`;
+- decode block: `dense-f32-cublas`;
+- decode output: `batch-reuse8`;
+- prefill attention: `online-softmax`;
+- decode attention: `baseline`.
+
+Results:
+
+- width 1: PASS, max_abs `3.91006470e-05`;
+- width 8: PASS, max_abs `3.23057175e-05`;
+- width 64: PASS, max_abs `4.24385071e-05`.
+
+All six cases:
+
+- exit code 0;
+- top-1 parity PASS;
+- finite outputs PASS;
+- `atol=0.001` PASS.
+
+Final marker:
+
+`PROMPT6C_STRICT_PRODUCT_PROFILE=PASS`
+
+### 6C evidence-contract correction
+
+6B remains valid isolation evidence showing that transformer-block physical
+implementation choice is a dominant prefill bottleneck on the 1.5B workload.
+
+But 6B held prefill attention and decode tactics at baseline to isolate that
+variable. Those timings are not evidence for the exact product plans above.
+
+Therefore 6C no longer imports 6B performance distributions into the Strategy
+Lab manifest.
+
+The revised 6C gate:
+
+1. reruns the six strict product-profile verifier cases;
+2. measures the exact reuse8 and dense product plans on the same medium prompt
+   in four balanced rounds;
+3. measures five fresh-process cold dense preparations for the exact dense
+   product plan;
+4. measures the exact reuse8 product plan on the small eviction-destination
+   workload;
+5. requires deterministic output equality between measured medium product
+   plans;
+6. builds schema-v10 Strategy Lab evidence only from those exact plan
+   measurements;
+7. then measures eviction, hot reuse, oscillation/re-preparation, explicit
+   prepared-memory rejection, minimum-VRAM behavior, and live VRAM telemetry.
+
+The Prompt 6B evidence directory remains an input only to prove workload/prompt
+identity and retain provenance. Its performance rates are not reused as product
+plan rates.
+
+The final preparation and round-trip break-even calculations likewise use the
+new 6C exact-product-plan rates.
