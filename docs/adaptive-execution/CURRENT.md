@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
 Updated: 2026-09-29
-Status: PROMPT 4 CURRENT
+Status: PROMPT 5 CURRENT
 
 ## Frozen baseline
 
@@ -162,9 +162,30 @@ Decision:
 - detailed remains an explicit diagnostic/research level;
 - no observer optimization is justified by current evidence.
 
-## Prompt 4 current
+## Prompt 4 qualified baseline
 
-Prompt 4 implementation is complete through live qualification.
+Prompt 4 is CLOSED / QUALIFIED.
+
+Qualified source:
+`d7087bafa0bacdc6d302cfe3eaf4ba18ec7853e8`
+
+WolfCat evidence:
+`/home/emerson/Downloads/AIR-0.11-Prompt4-20260929-220128`
+
+Qualification results:
+
+- adaptive CPU preflight PASS, 13/13 CTests;
+- fresh CUDA Release build PASS;
+- CUDA 13/13 CTests PASS;
+- real prepared-CUDA operation-site legality PASS;
+- Reference/CUDA semantic-binding parity PASS;
+- renamed-source CUDA execution/tactic independence PASS;
+- real Qwen2.5 CUDA generation PASS;
+- selected execution-plan implementations all legal;
+- worktree remained clean;
+- evidence checksums retained.
+
+The Prompt 4 boundary is now qualified.
 
 Core boundary:
 
@@ -198,16 +219,38 @@ Final implementation/qualifier CPU preflight PASS:
 
 `d70bc2e891351aeae6899c6d8227ae066f2dc405`
 
-## Immediate next action
+## Prompt 5 current
 
-Run on WolfCat-Studio:
+Prompt 5 is the ExecutionGraph R0 program.
+
+The first step is a source/ownership census, not a graph executor.
+
+Prompt 5 must prove that AIR can represent the physical execution already
+performed by the qualified Qwen path as deterministic derived data without
+creating a second runtime, planner, scheduler, state owner, or semantic graph.
+
+Preferred implementation strategy:
 
 ```text
-bash scripts/qualify-adaptive-prompt4.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+current semantic/runtime authorities
+        ->
+derive immutable physical ExecutionGraph
+        ->
+validate graph against actual qualified execution
 ```
 
-Do not begin Prompt 5 until this live CUDA/nonregression gate passes.
+Do not make production execution graph-driven until the derived representation
+has been characterized and falsified against the existing path.
+
+See:
+`docs/adaptive-execution/PROMPT-05.md`
+
+## Immediate next action
+
+Perform the Prompt 5 execution-path census defined in `PROMPT-05.md`.
+
+Do not add graph execution, schedule optimization, or generalized semantic IR
+during the census slice.
 
 ## Current architectural hypothesis
 
