@@ -2792,18 +2792,6 @@ Result<std::unique_ptr<InferenceService>> InferenceService::create(
     impl->tokenizer = std::move(tokenizer).value();
     impl->requested_backend = backend;
     impl->cuda_device = cuda_device;
-    if (scheduler.execution_observation_level ==
-        ExecutionObservationLevel::detailed) {
-        auto topology = discover_machine_topology();
-        if (topology) {
-            impl->execution_graph_topology =
-                std::move(topology).value();
-            impl->execution_graph_topology_status = "ready";
-        } else {
-            impl->execution_graph_topology_status =
-                "unavailable:" + topology.status().message();
-        }
-    }
     impl->event_log_path = std::move(event_log_path);
     if (!impl->event_log_path.empty()) {
         impl->event_log.open(impl->event_log_path, std::ios::app);
@@ -2823,6 +2811,22 @@ Result<std::unique_ptr<InferenceService>> InferenceService::create(
             impl->peak_device_bytes = impl->cuda->resident_device_bytes();
         } else if (backend == BackendPreference::cuda) {
             return cuda.status();
+        }
+    }
+
+    // Preserve backend preparation ordering. Detailed graph observation may
+    // inspect structural machine topology only after the existing backend has
+    // prepared, so discovery cannot influence preparation/admission behavior.
+    if (scheduler.execution_observation_level ==
+        ExecutionObservationLevel::detailed) {
+        auto topology = discover_machine_topology();
+        if (topology) {
+            impl->execution_graph_topology =
+                std::move(topology).value();
+            impl->execution_graph_topology_status = "ready";
+        } else {
+            impl->execution_graph_topology_status =
+                "unavailable:" + topology.status().message();
         }
     }
 
