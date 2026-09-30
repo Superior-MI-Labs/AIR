@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 4
 
-Status: IN PROGRESS
+Status: CLOSED / QUALIFIED
 Title: Semantic operation / physical implementation boundary
 
 ## Prompt objective
@@ -250,3 +250,42 @@ Slice 4A stops when:
 5. adaptive CPU preflight passes.
 
 Do not proceed into 4B until 4A is green.
+
+
+## Final live qualification
+
+Prompt 4 qualified on WolfCat-Studio from exact source:
+
+`d7087bafa0bacdc6d302cfe3eaf4ba18ec7853e8`
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt4-20260929-220128`
+
+Results:
+
+- adaptive CPU preflight: 13/13 CTests PASS;
+- CUDA Release CTest matrix: 13/13 PASS;
+- real prepared CUDA operation-site legality PASS;
+- CUDA/Reference semantic-binding parity PASS;
+- CUDA dense tactic remains independent of Qwen2 source tensor names;
+- real Qwen2.5 CUDA generation PASS;
+- selected backend: CUDA;
+- selected prefill/decode linear and attention implementations were all within
+  the qualified legal sets;
+- qualifier exit code: 0;
+- final gate: `PROMPT4_OPERATION_BOUNDARY=PASS`.
+
+This closes Prompt 4.
+
+The qualified result proves the narrow boundary AIR needs for Prompt 5:
+physical execution representation can refer to qualified operation sites and
+legal implementation identities without consulting source tensor names or
+duplicating backend capability storage.
+
+## Next prompt
+
+Prompt 5 introduces ExecutionGraph R0 as derived physical execution data.
+
+The first Prompt 5 slice is census/characterization only. It must not create a
+second graph executor or move scheduling authority.
