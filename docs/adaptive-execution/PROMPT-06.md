@@ -1006,3 +1006,42 @@ The 6C validator has been corrected to use these state/resource invariants.
 The original exact-plan evidence directory is retained as valid measurement
 evidence with a failed validation assertion; it is not classified as a runtime
 or strategy failure.
+
+
+### 6C retained-evidence requalification
+
+Because the exact-plan run completed all expensive measurement and product
+probe stages before the validation assertion fired, AIR provides a
+validation-only requalification path:
+
+`scripts/validate-adaptive-prompt6c-evidence.py`
+
+This validator consumes the retained evidence directory and does not rerun
+model benchmarks.
+
+It requires:
+
+- dense hot-state classification on the second medium request;
+- zero incremental preparation bytes on that hot request;
+- identical dense artifact residency before/after;
+- idempotent trim/prepare check time below measured cold preparation;
+- five positive dense -> reuse8 eviction measurements with zero hidden
+  residency afterward;
+- two explicit dense repreparations during three oscillation cycles with
+  preparation bytes equal to the dense artifact;
+- explicit low prepared-memory rejection of dense;
+- minimum-VRAM selection of reuse8;
+- retained GPU telemetry.
+
+On success it writes:
+
+`prompt6c-transition-summary-retained.json`
+
+and emits:
+
+`PROMPT6C_RETAINED_EVIDENCE_VALIDATION=PASS`
+
+A retained-evidence PASS is sufficient to requalify the already completed
+measurement run because the runtime/measurement artifacts are unchanged; only
+the incorrect exact-zero wall-time assertion was replaced by resource/state
+invariants.
