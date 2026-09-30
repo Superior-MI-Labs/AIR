@@ -417,32 +417,72 @@ are authorized in Prompt 7.
 
 ## Immediate next action
 
-Prompt 7B is CLOSED / QUALIFIED.
+Prompt 7C-H is CLOSED / QUALIFIED.
 
-Qualified external-oracle evidence:
+Qualified retained-oracle evidence:
 
-`~/Downloads/AIR-0.11-Prompt7B-FLUX2-Oracle-20260930-145158`
+`~/Downloads/AIR-0.11-Prompt7C-H-FLUX2-Census-20260930-152948`
 
-Key result:
+Qualified source:
 
-- two forced 1024 x 1024 executions;
-- four Flux2 scheduler steps;
-- Euler / CFG 1 / fixed seed;
-- identical RGB pixel SHA-256 across runs;
-- distinct PNG container hashes;
-- peak observed GPU memory `10106 MiB`;
-- DynamicVRAM / async offload evidence retained.
+`04ad75e505eff5b5f0ef37830e00804b9c5f1a59`
 
-Run the read-only Prompt 7C-H retained-oracle analysis.
+Final marker:
 
-It will derive the component census, iteration/state census, semantic-value
-census, operation boundary, resource/residency census, current-AIR gap map, and
-explicit unresolved evidence without loading the image models again.
+`PROMPT7C_H_ORACLE_ANALYSIS=PASS`
 
-If the result confirms that precise component transition/residency timing is
-the only material missing evidence, perform one focused Prompt 7G probe next.
+Key findings:
 
-Do not modify AIR core image execution types before the gap map is qualified.
+- latent semantic geometry: `[1, 128, 64, 64]`;
+- Flux2 four-transition sigma path retained;
+- staged component observations:
+  - text encoder `3669 MB`;
+  - denoiser `3882 MB`;
+  - VAE `160 MB`;
+- peak qualified-oracle device memory remained `10106 MiB`;
+- existing hardware/environment, planning, capacity, resource-ownership, graph,
+  evidence, and one-runtime authorities remain reusable;
+- token-only request/value/iteration/resource/plan/output vocabularies require
+  workload-typed evolution;
+- no second image runtime/planner/scheduler/residency authority is justified.
+
+Three unresolved items were retained. Exact conditioning tensor shape/dtype is
+not currently material to the Prompt 8 semantic boundary and remains
+explicitly deferred. The two material remaining items are component transition
+timing and residency chronology.
+
+Prompt 7G is CURRENT / FOCUSED RESIDENCY + TRANSITION OBSERVABILITY.
+
+Authorities:
+
+- `scripts/prompt7g_residency_probe.py`;
+- `scripts/qualify-adaptive-prompt7g-residency.sh`;
+- unchanged `scripts/prompt7b_flux2_oracle.py`.
+
+Prompt 7G keeps the pinned ComfyUI checkout clean. A launch-time observer
+attaches after ComfyUI's native module initialization and wraps only existing
+model-management load/unload boundaries. The same qualified FLUX.2 oracle runs
+unchanged, followed by the existing ComfyUI `POST /free` path to expose
+eviction boundaries. Device telemetry is sampled separately.
+
+Measurement claims are intentionally narrow:
+
+- host-call transition duration: measured;
+- runtime-reported loaded bytes/residency at observed boundaries: measured;
+- device memory/utilization trajectory: sampled;
+- exact asynchronous transfer completion: not directly measured;
+- exact per-layer DynamicVRAM residency: external-runtime opaque.
+
+The observer must preserve the qualified RGB pixel identity and must not mutate
+AIR or ComfyUI source.
+
+Run Prompt 7G next.
+
+If it passes, close Prompt 7 and derive the smallest Prompt 8 implementation
+packet from the qualified Qwen2 + FLUX.2 evidence. Do not extend Prompt 7 into
+general ComfyUI reverse engineering unless 7G falsifies a resource assumption
+that Prompt 8 actually needs.
+
 
 ## Current architectural hypothesis
 
