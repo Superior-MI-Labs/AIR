@@ -695,3 +695,41 @@ Expected final marker:
 `PROMPT6C_TRANSITION_ECONOMICS=PASS`
 
 No product-default tactic is changed by this gate.
+
+
+## 6C first live attempt: build-system defect, experiment not started
+
+The first WolfCat 6C attempt at source
+`d3e9155e0f000e36a36285b195cdecf2efa3deff` aborted before CUDA build or
+transition measurement.
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-083041`
+
+Observed result:
+
+- adaptive CPU preflight: 13/13 PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`;
+- no competing GPU compute process;
+- no llama-server process;
+- CUDA toolchain discovery succeeded;
+- CMake generation failed only because `AIR_BUILD_RESEARCH=ON` activated six
+  stale targets whose `research/*.cpp` source paths do not exist.
+
+The frozen `v0.10.0` tree also contains no `research/` source directory,
+and Git history contains no commits for the referenced paths. Therefore this is
+classified as a pre-existing stale CMake configuration defect, not a Prompt 6C
+execution or numerical failure.
+
+Corrective action:
+
+- retire the nonexistent research-only targets from CMake;
+- retain `AIR_BUILD_RESEARCH` as a backward-compatible configure switch so
+  older qualification scripts do not fail;
+- make 6C build the live CUDA targets directly without the switch;
+- add an adaptive-preflight configure check with
+  `AIR_BUILD_RESEARCH=ON` so stale research target references cannot recur.
+
+The 6C transition experiment remains pending until the corrected head passes
+preflight and is rerun on WolfCat.
