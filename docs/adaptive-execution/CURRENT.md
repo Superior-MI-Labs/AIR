@@ -364,7 +364,13 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-Run the implemented 6C WolfCat transition gate after final branch preflight:
+The first 6C WolfCat attempt did not reach the experiment. CPU preflight passed
+13/13, but CUDA configure exposed a pre-existing stale
+`AIR_BUILD_RESEARCH` CMake block referencing six source files that do not exist
+in the current tree, frozen v0.10.0, or Git history.
+
+The build-system defect has been corrected. After the corrected branch head
+passes adaptive preflight, pull it and rerun:
 
 ```text
 bash scripts/qualify-adaptive-prompt6c-transitions.sh \
@@ -372,10 +378,10 @@ bash scripts/qualify-adaptive-prompt6c-transitions.sh \
   ~/Downloads/AIR-0.11-Prompt6B-Prefill-Tactics-20260930-050028
 ```
 
-6C first performs fresh strict numerical qualification, then measures the
-missing dense eviction/re-preparation/residency economics through existing
-Strategy Lab and PreparedModel ownership. No production policy is changed by
-the gate.
+The failed directory
+`~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-083041` is retained as
+negative harness/build-system evidence. It is not transition-economics evidence
+because no CUDA execution or 6C measurement began.
 
 ## Current architectural hypothesis
 
