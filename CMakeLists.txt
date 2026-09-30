@@ -5,7 +5,7 @@ project(AIR VERSION 0.10.0 LANGUAGES CXX)
 option(AIR_BUILD_TESTS "Build AIR tests" ON)
 option(AIR_ENABLE_CUDA "Build the NVIDIA CUDA executor" OFF)
 option(AIR_ENABLE_NVTX "Enable opt-in NVTX ranges for CUDA profiling builds" OFF)
-option(AIR_BUILD_RESEARCH "Build AIR research-only experiment binaries" OFF)
+option(AIR_BUILD_RESEARCH "Compatibility switch for AIR research workflows; no separate research binaries are built" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -236,41 +236,9 @@ endif()
 
 
 if(AIR_BUILD_RESEARCH)
-    add_executable(air-prefill-batch-verify research/prefill_batch_verify.cpp)
-    target_include_directories(air-prefill-batch-verify PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(air-prefill-batch-verify PRIVATE AIR::core AIR::cuda)
-    air_enable_warnings(air-prefill-batch-verify)
-
-    add_executable(air-regime-transition-verify research/regime_transition_verify.cpp)
-    target_include_directories(air-regime-transition-verify PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(air-regime-transition-verify PRIVATE AIR::core AIR::cuda)
-    air_enable_warnings(air-regime-transition-verify)
-
-    add_executable(air-numerical-research research/numerical_equivalence.cpp)
-    target_include_directories(air-numerical-research PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/research)
-    target_link_libraries(air-numerical-research PRIVATE AIR::core)
-    air_enable_warnings(air-numerical-research)
-
-    add_executable(air-numerical-methods-tests research/numerical_methods_tests.cpp)
-    target_include_directories(air-numerical-methods-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/research)
-    target_link_libraries(air-numerical-methods-tests PRIVATE AIR::core)
-    air_enable_warnings(air-numerical-methods-tests)
-    if(AIR_BUILD_TESTS)
-        add_test(NAME air-numerical-methods-tests COMMAND air-numerical-methods-tests)
-    endif()
-
-    add_executable(air-packed-quantized-tests research/packed_quantized_tests.cpp)
-    target_include_directories(air-packed-quantized-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/research)
-    target_link_libraries(air-packed-quantized-tests PRIVATE AIR::core)
-    air_enable_warnings(air-packed-quantized-tests)
-
-    add_executable(air-packed-model-check research/packed_model_check.cpp)
-    target_include_directories(air-packed-model-check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/research)
-    target_link_libraries(air-packed-model-check PRIVATE AIR::core)
-    air_enable_warnings(air-packed-model-check)
-    if(AIR_BUILD_TESTS)
-        add_test(NAME air-packed-quantized-tests COMMAND air-packed-quantized-tests)
-    endif()
+    message(STATUS
+        "AIR_BUILD_RESEARCH compatibility mode enabled; "
+        "research workflows use air-verify, air-bench, and air-strategy-probe")
 endif()
 
 include(GNUInstallDirs)
