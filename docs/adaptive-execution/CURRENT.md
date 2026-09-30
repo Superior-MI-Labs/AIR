@@ -364,30 +364,31 @@ Then choose the smallest next live test needed to measure:
 
 ## Immediate next action
 
-The exact-plan 6C measurement run completed all experiment/probe stages and
-failed only in final validation because the harness incorrectly required
-hot-state trim/prepare wall-clock durations to equal exactly zero.
+Do not rerun the full 6C benchmark.
 
-Measured product-plan evidence already retained:
+The exact-plan run at
+`~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245` completed all
+measurement and product-probe stages. It stopped only because final validation
+incorrectly required hot no-op prepare/trim wall-clock durations to be exactly
+zero.
 
-- reuse8 prefill: 82.055 tok/s;
-- dense prefill: 349.599 tok/s;
-- dense cold preparation: 44.319 ms;
-- dense prepared artifact: 4.881 GiB;
-- dense eviction: 2.718 ms mean, 0.486 ms 95% half-width.
+Pull the current branch and run:
 
-The validator is corrected to prove hot residency by state/resource
-invariants instead:
+```text
+python3 scripts/validate-adaptive-prompt6c-evidence.py \
+  ~/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245
+```
 
-- prepared-state-hot planner classification;
-- zero new preparation bytes;
-- same dense artifact resident before/after;
-- idempotent transition-check time below cold preparation cost.
+Expected marker:
 
-After exact-head preflight passes, inspect the retained hot-dense JSON from the
-existing evidence directory first. If those invariants hold, the existing
-measurement run can be retained and only the final validator needs
-requalification; do not automatically rerun all balanced benchmarks.
+`PROMPT6C_RETAINED_EVIDENCE_VALIDATION=PASS`
+
+If PASS, retain the existing measurement evidence, append the generated
+`prompt6c-transition-summary-retained.json`, and close/assess Prompt 6C
+without repeating the balanced model experiments.
+
+If FAIL, treat the specific failed state/resource invariant as the next
+falsification target; do not weaken it generically.
 
 ## Current architectural hypothesis
 
