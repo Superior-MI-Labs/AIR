@@ -39,6 +39,11 @@ while IFS= read -r script; do
     bash -n "$script"
 done < <(find scripts -maxdepth 1 -type f -name '*.sh' -print | sort)
 
+STAGE="python-syntax"
+while IFS= read -r script; do
+    python3 -m py_compile "$script"
+done < <(find scripts -maxdepth 1 -type f -name '*.py' -print | sort)
+
 STAGE="clean-build-dir"
 rm -rf "$OUT"
 mkdir -p "$OUT"
