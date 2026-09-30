@@ -276,33 +276,75 @@ remains authoritative.
 
 Prompt 6 is CURRENT.
 
-Prompt 6 is the Schedule Compiler + Bottleneck Optimization program.
+Prompt 6A is CURRENT / LIVE WOLFCAT CENSUS PENDING.
 
-The first slice is census/evidence only.
+Source census is recorded in:
 
-Do not begin with a preferred optimization such as CUDA Graph capture, extra
-streams, pinned memory, prefetching, or fusion.
+`docs/adaptive-execution/PROMPT-06.md`
 
-First determine which current physical delays are actually material on
-WolfCat-Studio and which layer owns each one.
+The first falsification target is not a CUDA-code rewrite.
 
-Initial questions:
+Current source shows that intermediate/outputless CUDA prefill chunks
+synchronize before host KV transaction commit. Those waits are semantically
+different from greedy/logit/target-logprob host-result waits and from
+prepared-state transition synchronization.
 
-1. Where is CPU time spent while CUDA work is in flight?
-2. Which current `cudaStreamSynchronize` boundaries represent required
-   dependencies versus conservative host waits?
-3. Which H2D/D2H transfers are latency-critical, repeated, or potentially
-   stageable?
-4. Which allocations/preparations recur on hot paths?
-5. Which physical operations have enough stable repetition to make CUDA Graph
-   capture plausible?
-6. Which waits/transfers can be overlapped without changing sequence-state
-   transaction semantics?
-7. Which candidate optimization can be tested through the one existing
-   scheduler/runtime authority rather than adding a parallel scheduler?
+The first experiment varies only the already-owned scheduler prefill quantum:
 
-The first Prompt 6 artifact must be a bottleneck/evidence map tied to existing
-source owners and measured WolfCat data.
+- 32 tokens;
+- 64 tokens;
+- 128 tokens.
+
+It holds model, backend, tactics, token budget, prompt, temperature, prefix
+cache, and observation mode constant.
+
+The experiment measures:
+
+- TTFT;
+- prefill time/rate;
+- outputless prefill synchronization count;
+- outputless host-wait duration;
+- greedy-result wait;
+- H2D token enqueue count/bytes/duration;
+- backend prefill-call count/duration;
+- GPU telemetry.
+
+Synchronization spans are treated as nested host waits that include outstanding
+GPU work. They are not labeled as GPU-kernel or transfer duration.
+
+Qualification/census authority:
+
+`scripts/qualify-adaptive-prompt6a-prefill-boundaries.sh`
+
+Implementation/census-script head:
+
+`5d2cb7f20113e161151a22844e540a225ae42cac`
+
+GitHub Actions adaptive preflight run:
+
+`36672482563`
+
+Result:
+
+- shell syntax gate PASS;
+- Release CPU build PASS;
+- 13/13 CTests PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`.
+
+## Immediate next action
+
+Run on WolfCat-Studio:
+
+```text
+bash scripts/qualify-adaptive-prompt6a-prefill-boundaries.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
+
+No quantum is promoted from this single-request experiment alone.
+
+If a candidate produces a repeatable improvement, the next slice must test
+concurrency/fairness, TTFT distribution, cancellation, and native
+multi-sequence prefill before any scheduling policy changes.
 
 ## Current architectural hypothesis
 
