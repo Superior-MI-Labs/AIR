@@ -131,13 +131,6 @@ These are now converted into repository-level prevention:
 Future prompt code must pass preflight before being handed off for live
 WolfCat qualification.
 
-## Immediate next action
-
-Do not begin Prompt 3 implementation until the new CPU preflight itself has
-passed on the branch.
-
-After that, open Prompt 3: typed execution observation and physical timeline.
-
 ## Prompt 3 qualified baseline
 
 Prompt 3 is CLOSED / QUALIFIED.
@@ -171,13 +164,50 @@ Decision:
 
 ## Prompt 4 current
 
-Prompt 4 now opens the semantic-operation / physical-implementation boundary.
+Prompt 4 implementation is complete through live qualification.
 
-Do not invent a universal operation IR.
+Core boundary:
 
-The first action is census/characterization of existing execution tactics and
-where semantic meaning is currently coupled to backend-specific implementation
-choices.
+```text
+qualified semantic operation site
+        ->
+typed legal physical implementation set
+```
+
+Implemented operation sites:
+
+- prefill transformer-block linear;
+- decode transformer-block linear;
+- decode output projection;
+- prefill attention;
+- decode attention.
+
+`validate_execution_plan()` now delegates implementation legality to the
+operation-site authority rather than directly knowing capability storage.
+
+Architecture decisions:
+
+- no universal operation catalog before the second architecture;
+- no duplicate preparation/residency metadata registry;
+- no standalone `/operations` endpoint before Prompt 5 ExecutionGraph.
+
+Real prepared-CUDA capability coverage is in
+`air-cuda-contract-tests`.
+
+Final implementation/qualifier CPU preflight PASS:
+
+`d70bc2e891351aeae6899c6d8227ae066f2dc405`
+
+## Immediate next action
+
+Run on WolfCat-Studio:
+
+```text
+bash scripts/qualify-adaptive-prompt4.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
+
+Do not begin Prompt 5 until this live CUDA/nonregression gate passes.
 
 ## Current architectural hypothesis
 
