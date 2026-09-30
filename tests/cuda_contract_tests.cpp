@@ -590,8 +590,22 @@ int verify_cuda_execution_graph_observation() {
         air::ExecutionObservationLevel::detailed;
     scheduler.execution_span_capacity = 512U;
 
+    // Native decode batching is intentionally not selected for a fully
+    // baseline decode plan. Exercise the production batch path through a
+    // qualified non-baseline decode-block implementation rather than weakening
+    // the scheduler's eligibility rule for this test.
+    air::ExecutionConfig execution;
+    execution.cuda_decode_block_linear =
+        air::QuantizedLinearExecutionKind::dense_f32_cublas;
+
     auto service = air::InferenceService::create(
-        model, air::BackendPreference::cuda, 0, scheduler);
+        model,
+        air::BackendPreference::cuda,
+        0,
+        scheduler,
+        {},
+        {},
+        execution);
     if (!service) {
         std::cerr << "detailed CUDA graph service failed: "
                   << service.status().message() << '\n';
@@ -617,9 +631,30 @@ int verify_cuda_execution_graph_observation() {
     }
 
     const auto after_cohort = service.value()->snapshot();
-    if (after_cohort.physical_prefill_batches == 0U ||
-        after_cohort.native_decode_batches == 0U) {
-        std::cerr << "CUDA graph cohort did not exercise native prefill/decode batching\n";
+    if (after_cohort.planned_decode_block_linear_tactic !=
+        "dense-f32-cublas") {
+        std::cerr << "CUDA graph cohort did not retain the requested qualified decode tactic: "
+                  << after_cohort.planned_decode_block_linear_tactic << '\n';
+        return 1;
+    }
+    if (after_cohort.physical_prefill_batches == 0U) {
+        std::cerr << "CUDA graph cohort did not exercise native prefill batching"
+                  << " physical_prefill_batches="
+                  << after_cohort.physical_prefill_batches
+                  << " physical_prefill_max_sequences="
+                  << after_cohort.physical_prefill_max_sequences << '\n';
+        return 1;
+    }
+    if (after_cohort.native_decode_batches == 0U) {
+        std::cerr << "CUDA graph cohort did not exercise native decode batching"
+                  << " native_decode_batches="
+                  << after_cohort.native_decode_batches
+                  << " native_decode_sequences="
+                  << after_cohort.native_decode_sequences
+                  << " decode_block="
+                  << after_cohort.planned_decode_block_linear_tactic
+                  << " decode_output="
+                  << after_cohort.planned_decode_output_linear_tactic << '\n';
         return 1;
     }
 
