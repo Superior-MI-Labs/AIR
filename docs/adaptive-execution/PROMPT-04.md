@@ -183,6 +183,36 @@ the future Control Room to answer:
 
 The browser must not reconstruct this mapping.
 
+## 4D implementation
+
+Live qualification authority:
+
+`scripts/qualify-adaptive-prompt4.sh`
+
+The qualifier performs:
+
+1. mandatory CPU preflight;
+2. fresh CUDA build;
+3. full CUDA CTest matrix;
+4. explicit real prepared-CUDA operation-site capability contract;
+5. existing renamed-source CUDA semantic falsification;
+6. short real-model CUDA generation;
+7. active-plan tactic legality validation;
+8. worktree cleanliness and bounded evidence checksums.
+
+The qualifier deliberately asserts expected capability values as evidence, not
+as runtime authority. Production legality remains owned by the typed
+operation-site queries.
+
+Pre-handoff audit caught and fixed:
+
+- qualifier cleanup disabling shell `errexit` globally;
+- checksum collection recursively hashing build trees;
+- implicit invalid-site family fallback;
+- missing explicit `<initializer_list>` dependency in the CUDA contract test.
+
+These were repaired before live user handoff.
+
 ## 4D - qualification
 
 Qualify:
