@@ -581,3 +581,117 @@ That determines whether the next live test should focus first on capacity
 pressure or transition/eviction.
 
 No product-default tactic change is authorized yet.
+
+
+## 6C implementation / live gate
+
+6C is implemented as a research/qualification harness only. Production AIR
+runtime behavior is unchanged.
+
+Authorities reused:
+
+- `air-verify` for strict Reference/CUDA numerical qualification;
+- `air-bench` for the measured short reuse8 destination lane and product
+  budget/objective gates;
+- schema-v10 ExecutionManifest for qualified strategy evidence;
+- `StrategyLabPlanner` for plan choice and transition economics;
+- `PreparedModel` for prepared-artifact preparation/eviction;
+- `InferenceService` as the only execution path;
+- `air-strategy-probe` for same-service hot-state/eviction/oscillation
+  transitions.
+
+Implementation:
+
+- `scripts/prompt6c_transition_probe.py`;
+- `scripts/qualify-adaptive-prompt6c-transitions.sh`.
+
+### Strict qualification rule
+
+6B deterministic output equality is not silently treated as
+`strict_qualified`.
+
+Before constructing the 1.5B transition manifest, 6C runs the existing
+Reference/CUDA differential verifier for both reuse8 and dense prefill tactics
+at widths 1, 8, and 64 with:
+
+- two teacher-forced greedy decisions;
+- top-8 evidence;
+- absolute tolerance 0.001;
+- baseline decode block/output and attention tactics.
+
+Only after those gates pass does the temporary schema-v10 manifest mark the
+1.5B strategies strict-qualified.
+
+### Manifest evidence
+
+The medium reuse8/dense lanes are derived directly from the qualified 6B
+evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6B-Prefill-Tactics-20260930-050028`
+
+The harness requires exact token-count identity with the original 6B prompt and
+reuses:
+
+- three balanced-session prefill distributions;
+- raw per-request decode rates;
+- preparation measurements;
+- prepared artifact bytes;
+- peak device/KV evidence;
+- q32 scheduling geometry;
+- current CUDA KV page geometry.
+
+A fresh short reuse8 lane is measured because the eviction destination must have
+its own workload evidence rather than borrowing the long-prompt rate.
+
+### Transition sequence
+
+The bootstrap manifest deliberately leaves dense eviction unmeasured.
+
+Five qualification-only product-path transitions run:
+
+`dense-medium -> reuse8-small`
+
+using the existing Strategy Lab override that permits an unknown eviction only
+for measurement.
+
+Each round must prove:
+
+- dense was selected for the measured medium region;
+- the exact dense artifact bytes were prepared;
+- the artifact was resident after the medium request;
+- reuse8 was selected for the small region;
+- positive eviction latency was observed;
+- prepared-artifact residency returned to zero.
+
+The measured eviction distribution is then written into a final schema-v10
+manifest.
+
+With the qualification override removed, the final product gates require:
+
+1. `hot-dense`: second medium request reuses the resident dense artifact with
+   zero preparation/eviction;
+2. `eviction`: dense -> reuse8 performs measured eviction and leaves zero
+   dense residency;
+3. `oscillation`: three medium/small cycles repeatedly reprepare and evict
+   dense through the same InferenceService path with no hidden final residue;
+4. explicit prepared-memory budget one byte below dense residency rejects dense
+   as `rejected:memory-infeasible` and selects reuse8;
+5. `minimum-vram` selects reuse8 and retains no dense artifact.
+
+The probe samples `nvidia-smi` during live transitions and records minimum
+observed free VRAM, maximum used VRAM, temperature, power, utilization, and SM
+clock evidence.
+
+### 6C live authority
+
+`scripts/qualify-adaptive-prompt6c-transitions.sh`
+
+Arguments:
+
+`MODEL [PROMPT6B_EVIDENCE_DIRECTORY]`
+
+Expected final marker:
+
+`PROMPT6C_TRANSITION_ECONOMICS=PASS`
+
+No product-default tactic is changed by this gate.
