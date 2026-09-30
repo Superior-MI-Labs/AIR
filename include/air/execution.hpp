@@ -240,9 +240,11 @@ struct PhysicalInvocation {
     // participant order. Request/sequence IDs deliberately do not appear here.
     std::vector<PhysicalInvocationParticipant> participants;
 
-    // Existing HardwareTopology node/resource identity chosen by the current
-    // backend/placement authority. ExecutionGraph references it but never owns
-    // or rediscovers topology.
+    // Existing HardwareTopology identity and node/resource identity chosen by
+    // the current machine/backend placement authorities. The resource ID is
+    // topology-local, so both are required for unambiguous physical placement.
+    // ExecutionGraph references these values but never owns or rediscovers them.
+    std::string topology_fingerprint;
     std::string hardware_resource_id;
 };
 
