@@ -276,90 +276,95 @@ remains authoritative.
 
 Prompt 6 is CURRENT.
 
-Prompt 6A is CURRENT / LIVE WOLFCAT CENSUS PENDING.
+### Prompt 6A closed / falsified optimization hypothesis
 
-Source census is recorded in:
+Final source:
 
-`docs/adaptive-execution/PROMPT-06.md`
-
-The first falsification target is not a CUDA-code rewrite.
-
-Current source shows that intermediate/outputless CUDA prefill chunks
-synchronize before host KV transaction commit. Those waits are semantically
-different from greedy/logit/target-logprob host-result waits and from
-prepared-state transition synchronization.
-
-The first experiment varies only the already-owned scheduler prefill quantum:
-
-- 32 tokens;
-- 64 tokens;
-- 128 tokens.
-
-It holds model, backend, tactics, token budget, prompt, temperature, prefix
-cache, and observation mode constant.
-
-The experiment measures:
-
-- TTFT;
-- prefill time/rate;
-- outputless prefill synchronization count;
-- outputless host-wait duration;
-- greedy-result wait;
-- H2D token enqueue count/bytes/duration;
-- backend prefill-call count/duration;
-- GPU telemetry.
-
-Synchronization spans are treated as nested host waits that include outstanding
-GPU work. They are not labeled as GPU-kernel or transfer duration.
-
-Qualification/census authority:
-
-`scripts/qualify-adaptive-prompt6a-prefill-boundaries.sh`
-
-Initial census-script source:
-
-`5d2cb7f20113e161151a22844e540a225ae42cac`
-
-First WolfCat attempt from handoff
-`db16e9a5876bfac142c5f959dfe0a38c7cad8356` passed CPU preflight and CUDA
-server build, then falsified the harness before quantum comparison because the
-script treated one bounded `GET /timeline` view as if it contained all six
-long measured requests.
+`ffa9f1e33d85ee276a8d189e9523b3a88bf84186`
 
 Evidence:
 
-`/home/emerson/Downloads/AIR-0.11-Prompt6A-Prefill-20260930-012327`
+`/home/emerson/Downloads/AIR-0.11-Prompt6A-Prefill-20260930-033303`
 
-Root cause:
+Final result:
 
-`InferenceService::execution_timeline()` returns the most recent 256 spans by
-default. `dropped_spans == 0` describes ring-buffer eviction, not endpoint
-view completeness.
+`PROMPT6A_PREFILL_BOUNDARY_CENSUS=PASS`
 
-The repaired harness captures/correlates timeline and graph evidence
-immediately after every measured request and also proves observed prefill chunk
-work units respect the requested quantum.
+Measured long-prefill results:
 
-Repaired harness source:
+- q32: TTFT `68544.017730 ms`, prefill `68541.987813 ms`,
+  `18.225 tok/s`, 39 outputless waits;
+- q64: TTFT `+0.493%` vs q32, throughput `-0.505%`, 19 waits;
+- q128: TTFT `+5.103%` vs q32, throughput `-4.755%`, 9 waits.
 
-`e9c13e4f5f097be1d7af3c50c0e60cd8e9bd93d0`
+Total outputless host-wait duration decreased at larger quantums while total
+prefill/TTFT did not improve.
 
-No AIR runtime behavior changed.
+Decision:
+
+- fewer outputless synchronization boundaries did not improve this workload;
+- synchronization spans mostly reflect outstanding GPU work rather than
+  synchronization-call overhead;
+- do not remove/coarsen the synchronization boundary from this evidence;
+- q32 remains the current default and the best tested quantum;
+- no scheduler policy change is authorized from 6A.
+
+The first 6A harness failure is retained separately as an endpoint-view
+truncation measurement defect. It did not change AIR runtime behavior.
+
+### Prompt 6B current
+
+Prompt 6B is CURRENT / LIVE WOLFCAT CENSUS PENDING.
+
+6B moves one layer down from scheduling boundaries to already-qualified physical
+prefill implementation choice on the actual Qwen2.5-1.5B model.
+
+Candidates:
+
+- `baseline`;
+- `batch-reuse8`;
+- `dense-f32-cublas`.
+
+Held constant:
+
+- q32 prefill quantum;
+- CUDA device 0;
+- one active request;
+- token budget 256;
+- prefix cache disabled;
+- baseline prefill attention;
+- baseline decode block/output;
+- deterministic temperature-zero generation;
+- no adaptive manifest.
+
+6B uses one warmup/preparation request plus four hot measured requests per
+session and a 3x3 balanced tactic order.
+
+Required evidence includes:
+
+- deterministic generated-text equality across tactics;
+- exact selected tactic;
+- steady-state TTFT/prefill/throughput;
+- warmup plan-preparation time/bytes;
+- hot preparation time;
+- prepared-artifact residency;
+- total device residency;
+- GPU telemetry and competing-compute-process inventory.
+
+Authority:
+
+`scripts/qualify-adaptive-prompt6b-prefill-tactics.sh`
+
+Initial 6B harness source:
+
+`dd8d4ff10caac7433954915274ddc4326d355e5e`
+
+No tactic is promoted merely for being fastest. Preparation/residency economics
+remain part of the decision.
 
 ## Immediate next action
 
-Pull the repaired branch and rerun on WolfCat-Studio:
-
-```text
-bash scripts/qualify-adaptive-prompt6a-prefill-boundaries.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
-
-No quantum is promoted from this single-request experiment alone.
-
-If a candidate produces a repeatable improvement, the next slice must test
-concurrency/fairness, TTFT distribution, cancellation, and native
-multi-sequence prefill before any scheduling policy changes.
+Run the 6B WolfCat census after the final branch preflight is green.
 
 ## Current architectural hypothesis
 
