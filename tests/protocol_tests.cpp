@@ -1,4 +1,5 @@
 #include "../src/server/protocol.hpp"
+#include <memory>
 
 #include <iostream>
 #include <string>
@@ -201,6 +202,66 @@ int main() {
           timeline_body.find("\"start_ns\":10") != std::string::npos &&
           timeline_body.find("\"end_ns\":20") != std::string::npos,
           "execution timeline serialization preserves typed clock and span semantics");
+
+    air::BackendCapabilities graph_capabilities;
+    graph_capabilities.backend = air::BackendKind::reference;
+    graph_capabilities.kv_storage = air::KvStorageKind::paged;
+
+    air::ExecutionPlan graph_plan;
+    graph_plan.backend = air::BackendKind::reference;
+    graph_plan.strategy_id = "protocol-graph";
+    graph_plan.scheduling.prefill_quantum_tokens = 2U;
+    graph_plan.kv.page_tokens = 2U;
+
+    air::PhysicalInvocation invocation;
+    invocation.kind = air::PhysicalInvocationKind::prefill_single;
+    invocation.participants.push_back(
+        air::PhysicalInvocationParticipant{
+            2U, air::PhysicalOutputMode::logits, 0U});
+    invocation.topology_fingerprint = "hardware-topology:protocol";
+    invocation.hardware_resource_id = "cpu0";
+    auto graph = air::derive_execution_graph(
+        graph_plan, graph_capabilities, invocation);
+    check(graph.is_ok(), "protocol fixture derives an ExecutionGraph");
+    if (graph) {
+        air::ExecutionGraphTimelineSnapshot graph_timeline;
+        graph_timeline.level = air::ExecutionObservationLevel::detailed;
+        graph_timeline.capacity = 8U;
+        graph_timeline.topology_status = "ready";
+        graph_timeline.topology_fingerprint =
+            invocation.topology_fingerprint;
+
+        air::ExecutionGraphObservation graph_observation;
+        graph_observation.observation_sequence = 3U;
+        graph_observation.graph =
+            std::make_shared<const air::ExecutionGraph>(
+                std::move(graph).value());
+        graph_observation.participants.push_back({11U, 12U});
+        graph_observation.start_ns = 30U;
+        graph_observation.end_ns = 40U;
+        graph_observation.backend_success = true;
+        graph_observation.evidence_status =
+            air::ExecutionGraphEvidenceStatus::concordant;
+        graph_timeline.observations.push_back(
+            std::move(graph_observation));
+
+        const auto graph_body =
+            air::server::execution_graph_timeline_json(
+                graph_timeline);
+        check(graph_body.find("\"topology_status\":\"ready\"") !=
+                  std::string::npos &&
+              graph_body.find("\"evidence_status\":\"concordant\"") !=
+                  std::string::npos &&
+              graph_body.find("\"identity\":\"execution-graph:r0:") !=
+                  std::string::npos &&
+              graph_body.find("\"invocation\":\"prefill-single\"") !=
+                  std::string::npos &&
+              graph_body.find("\"hardware_resource_id\":\"cpu0\"") !=
+                  std::string::npos &&
+              graph_body.find("\"request_id\":11") !=
+                  std::string::npos,
+              "execution graph endpoint serializes planned graph and evidence correlation as separate structured data");
+    }
 
     if (failures != 0) {
         std::cerr << failures << " protocol test(s) failed\n";
