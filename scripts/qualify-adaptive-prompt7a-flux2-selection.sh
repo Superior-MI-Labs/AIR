@@ -42,14 +42,24 @@ done
     echo "host=$(hostname)"
     echo "model_root=$MODEL_ROOT"
     echo "comfy_root=$COMFY_ROOT"
+    echo "diffusion_source=https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8"
+    echo "encoder_source=https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b"
+    echo "vae_source=https://huggingface.co/Comfy-Org/flux2-dev"
+    echo "comfy_workflow_source=https://github.com/Comfy-Org/workflow_templates"
+    echo "bfl_reference_source=https://github.com/black-forest-labs/flux2"
 } > "$OUT/identity.txt"
 
 echo "=== LOCAL ARTIFACT HASHES ==="
 sha256sum "$DIFFUSION" "$ENCODER" "$VAE" | tee "$OUT/artifact-sha256.txt"
 
-ACTUAL_DIFFUSION_SHA256="$(sha256sum "$DIFFUSION" | awk '{print $1}')"
-ACTUAL_ENCODER_SHA256="$(sha256sum "$ENCODER" | awk '{print $1}')"
-ACTUAL_VAE_SHA256="$(sha256sum "$VAE" | awk '{print $1}')"
+ACTUAL_DIFFUSION_SHA256="$(awk -v p="$DIFFUSION" '$2 == p {print $1}' "$OUT/artifact-sha256.txt")"
+ACTUAL_ENCODER_SHA256="$(awk -v p="$ENCODER" '$2 == p {print $1}' "$OUT/artifact-sha256.txt")"
+ACTUAL_VAE_SHA256="$(awk -v p="$VAE" '$2 == p {print $1}' "$OUT/artifact-sha256.txt")"
+
+[[ -n "$ACTUAL_DIFFUSION_SHA256" && -n "$ACTUAL_ENCODER_SHA256" && -n "$ACTUAL_VAE_SHA256" ]] || {
+    echo "ERROR: failed to recover one or more retained artifact hashes." >&2
+    exit 4
+}
 
 [[ "$ACTUAL_DIFFUSION_SHA256" == "$EXPECTED_DIFFUSION_SHA256" ]] || {
     echo "ERROR: FLUX.2 diffusion SHA256 mismatch." >&2
