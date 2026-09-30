@@ -276,9 +276,7 @@ full detailed-vs-normal delta to graph derivation from this experiment alone.
 Prompt 5 does not make ExecutionGraph executable. The existing production path
 remains authoritative.
 
-## Prompt 6 current
-
-Prompt 6 is CURRENT.
+## Prompt 6 qualified record
 
 ### Prompt 6A closed / falsified optimization hypothesis
 
@@ -419,35 +417,32 @@ are authorized in Prompt 7.
 
 ## Immediate next action
 
-Rerun the FLUX.2 Klein 4B Stage 7A selection preflight after the VAE source
-identity correction.
+Prompt 7A is CLOSED / QUALIFIED.
 
-The first run proved:
+Selection evidence:
 
-- diffusion artifact identity PASS;
-- text-encoder artifact identity PASS;
-- local VAE is not corrupt; it exactly matches the published
-  `Comfy-Org/vae-text-encorder-for-flux-klein-4b` VAE.
+`~/Downloads/AIR-0.11-Prompt7A-FLUX2-Selection-20260930-143502`
 
-The previous gate incorrectly expected the distinct
-`Comfy-Org/flux2-dev` VAE used by the current stock ComfyUI template.
+Run the dedicated Prompt 7B external oracle gate after exact-head preflight.
 
-Run:
+The gate uses:
 
-```text
-bash scripts/qualify-adaptive-prompt7a-flux2-selection.sh \
-  ~/Models/Media/Image/FLUX.2-Klein-4B \
-  ~/Projects/AI-Runtimes/ComfyUI
-```
+- pinned ComfyUI source/runtime;
+- the exact Stage 7A model artifacts;
+- native nodes only;
+- the native distilled FLUX.2 Klein structure;
+- 1024 x 1024;
+- four Flux2 scheduler steps;
+- Euler;
+- CFG 1;
+- fixed seed `432262096973490`;
+- two forced executions with cache disabled;
+- same-machine pixel-hash reproducibility;
+- continuous GPU/RAM telemetry;
+- retained output/history/server/resource evidence.
 
-Expected marker:
-
-`PROMPT7A_FLUX2_SELECTION_PREFLIGHT=PASS`
-
-A PASS freezes the exact local package and runtime identity.
-
-Stage 7B must still execute the oracle and validate the local published
-Klein-support VAE in practice before AIR core image semantics are derived.
+Do not modify AIR core image types or add an image runtime before the external
+oracle passes and Stages 7C-7H derive the evidence-backed gap map.
 
 ## Current architectural hypothesis
 
