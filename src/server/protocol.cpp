@@ -691,4 +691,165 @@ std::string execution_timeline_json(
     return json::serialize(root);
 }
 
+std::string execution_graph_timeline_json(
+    const ExecutionGraphTimelineSnapshot& timeline) {
+    json::object root;
+    root["schema_version"] = timeline.schema_version;
+    root["level"] = json::value(std::string(to_string(timeline.level)));
+    root["capacity"] = timeline.capacity;
+    root["evicted_graphs"] = timeline.evicted_graphs;
+    root["dropped_graphs"] = timeline.dropped_graphs;
+    root["derivation_failures"] = timeline.derivation_failures;
+    root["topology_status"] = json::value(timeline.topology_status);
+    root["topology_fingerprint"] =
+        json::value(timeline.topology_fingerprint);
+    root["last_derivation_error"] =
+        json::value(timeline.last_derivation_error);
+
+    json::array observations;
+    for (const auto& observation : timeline.observations) {
+        json::object value;
+        value["schema_version"] = observation.schema_version;
+        value["observation_sequence"] =
+            observation.observation_sequence;
+        value["start_ns"] = observation.start_ns;
+        value["end_ns"] = observation.end_ns;
+        value["backend_success"] = observation.backend_success;
+        value["evidence_status"] = json::value(
+            std::string(to_string(observation.evidence_status)));
+        value["evidence_truncated"] =
+            observation.evidence_truncated;
+        value["planned_transfer_regions"] =
+            observation.planned_transfer_regions;
+        value["matched_transfer_regions"] =
+            observation.matched_transfer_regions;
+        value["observed_transfer_spans"] =
+            observation.observed_transfer_spans;
+        value["unexpected_transfer_spans"] =
+            observation.unexpected_transfer_spans;
+        value["planned_synchronization_regions"] =
+            observation.planned_synchronization_regions;
+        value["matched_synchronization_regions"] =
+            observation.matched_synchronization_regions;
+        value["observed_synchronization_spans"] =
+            observation.observed_synchronization_spans;
+        value["unexpected_synchronization_spans"] =
+            observation.unexpected_synchronization_spans;
+
+        json::array correlations;
+        for (const auto& participant : observation.participants) {
+            json::object correlation;
+            correlation["request_id"] = participant.request_id;
+            correlation["sequence_id"] = participant.sequence_id;
+            correlations.push_back(std::move(correlation));
+        }
+        value["participants"] = std::move(correlations);
+
+        if (observation.graph) {
+            const auto& graph = *observation.graph;
+            json::object graph_value;
+            graph_value["schema_version"] = graph.schema_version();
+            graph_value["identity"] = json::value(graph.identity());
+            graph_value["backend"] =
+                json::value(std::string(to_string(graph.backend())));
+            graph_value["invocation"] = json::value(
+                std::string(to_string(graph.invocation().kind)));
+            graph_value["topology_fingerprint"] = json::value(
+                graph.invocation().topology_fingerprint);
+            graph_value["hardware_resource_id"] = json::value(
+                graph.invocation().hardware_resource_id);
+            graph_value["state_storage"] = json::value(
+                std::string(to_string(graph.state_storage())));
+            if (graph.state_page_tokens()) {
+                graph_value["state_page_tokens"] =
+                    *graph.state_page_tokens();
+            }
+
+            json::array invocation_participants;
+            for (const auto& participant :
+                 graph.invocation().participants) {
+                json::object item;
+                item["work_units"] = participant.work_units;
+                item["output"] = json::value(
+                    std::string(to_string(participant.output)));
+                item["target_count"] = participant.target_count;
+                invocation_participants.push_back(std::move(item));
+            }
+            graph_value["participants"] =
+                std::move(invocation_participants);
+
+            json::array nodes;
+            for (const auto& node : graph.nodes()) {
+                json::object node_value;
+                node_value["id"] = node.id;
+                node_value["kind"] = json::value(
+                    std::string(to_string(node.kind)));
+                node_value["hardware_resource_id"] =
+                    json::value(node.hardware_resource_id);
+                node_value["participant_count"] =
+                    node.participant_count;
+                node_value["work_units"] = node.work_units;
+                if (node.compute) {
+                    node_value["compute"] = json::value(
+                        std::string(to_string(*node.compute)));
+                }
+                if (node.transfer_direction) {
+                    node_value["transfer_direction"] = json::value(
+                        std::string(to_string(
+                            *node.transfer_direction)));
+                }
+                if (node.payload) {
+                    node_value["payload"] = json::value(
+                        std::string(to_string(*node.payload)));
+                }
+                if (node.synchronization) {
+                    node_value["synchronization"] = json::value(
+                        std::string(to_string(
+                            *node.synchronization)));
+                }
+
+                json::array dependencies;
+                for (const auto dependency : node.dependencies) {
+                    dependencies.push_back(dependency);
+                }
+                node_value["dependencies"] =
+                    std::move(dependencies);
+
+                json::array implementations;
+                for (const auto& implementation :
+                     node.implementations) {
+                    json::object binding;
+                    binding["site"] = json::value(
+                        std::string(to_string(
+                            implementation.site)));
+                    if (implementation.linear) {
+                        binding["family"] =
+                            json::value(std::string("linear"));
+                        binding["implementation"] = json::value(
+                            std::string(to_string(
+                                *implementation.linear)));
+                    } else if (implementation.attention) {
+                        binding["family"] =
+                            json::value(std::string("attention"));
+                        binding["implementation"] = json::value(
+                            std::string(to_string(
+                                *implementation.attention)));
+                    }
+                    implementations.push_back(
+                        std::move(binding));
+                }
+                node_value["implementations"] =
+                    std::move(implementations);
+                nodes.push_back(std::move(node_value));
+            }
+            graph_value["nodes"] = std::move(nodes);
+            value["graph"] = std::move(graph_value);
+        }
+
+        observations.push_back(std::move(value));
+    }
+    root["observations"] = std::move(observations);
+    return json::serialize(root);
+}
+
 } // namespace air::server
