@@ -91,7 +91,11 @@ stop_server() {
 
 request_json() {
     local port="$1"
-    curl -fsS         -H 'Content-Type: application/json'         -d '{"prompt":"AIR observes execution evidence.","max_tokens":24,"temperature":0.0}'         "http://127.0.0.1:$port/generate"
+    local max_tokens="$2"
+    curl -fsS --max-time 120 \
+        -H 'Content-Type: application/json' \
+        -d "{\"prompt\":\"AIR observes execution evidence.\",\"max_tokens\":$max_tokens,\"temperature\":0.0}" \
+        "http://127.0.0.1:$port/generate"
 }
 
 echo "=== ADAPTIVE PREFLIGHT ==="
@@ -119,7 +123,7 @@ SERVER_PID=$!
 wait_health "$REF_PORT" "$OUT/reference-normal.log"
 
 STAGE="reference-normal-request"
-request_json "$REF_PORT" > "$OUT/reference-normal-response.json"
+request_json "$REF_PORT" 2 > "$OUT/reference-normal-response.json"
 curl -fsS "http://127.0.0.1:$REF_PORT/timeline"     > "$OUT/reference-normal-timeline.json"
 stop_server
 
@@ -131,7 +135,7 @@ SERVER_PID=$!
 wait_health "$CUDA_OFF_PORT" "$OUT/cuda-off.log"
 
 STAGE="cuda-off-request"
-request_json "$CUDA_OFF_PORT" > "$OUT/cuda-off-response.json"
+request_json "$CUDA_OFF_PORT" 24 > "$OUT/cuda-off-response.json"
 curl -fsS "http://127.0.0.1:$CUDA_OFF_PORT/timeline"     > "$OUT/cuda-off-timeline.json"
 stop_server
 
@@ -143,7 +147,7 @@ SERVER_PID=$!
 wait_health "$CUDA_NORMAL_PORT" "$OUT/cuda-normal.log"
 
 STAGE="cuda-normal-request"
-request_json "$CUDA_NORMAL_PORT" > "$OUT/cuda-normal-response.json"
+request_json "$CUDA_NORMAL_PORT" 24 > "$OUT/cuda-normal-response.json"
 curl -fsS "http://127.0.0.1:$CUDA_NORMAL_PORT/timeline"     > "$OUT/cuda-normal-timeline.json"
 stop_server
 
@@ -155,7 +159,7 @@ SERVER_PID=$!
 wait_health "$CUDA_DETAILED_PORT" "$OUT/cuda-detailed.log"
 
 STAGE="cuda-detailed-request"
-request_json "$CUDA_DETAILED_PORT" > "$OUT/cuda-detailed-response.json"
+request_json "$CUDA_DETAILED_PORT" 24 > "$OUT/cuda-detailed-response.json"
 curl -fsS "http://127.0.0.1:$CUDA_DETAILED_PORT/timeline"     > "$OUT/cuda-detailed-timeline.json"
 
 echo
