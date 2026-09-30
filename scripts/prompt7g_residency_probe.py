@@ -320,6 +320,12 @@ def serve_mode(argv: list[str]) -> int:
 
     writer = EventWriter(args.event_log.resolve())
 
+    # ComfyUI main.py enables argument parsing before importing cli_args.
+    # Mirror that exact initialization order here so importing model_management
+    # for observation cannot cache default/empty CLI arguments.
+    import comfy.options
+    comfy.options.enable_args_parsing()
+
     import comfy.model_management as mm
     import comfy.model_patcher as model_patcher_module
 
