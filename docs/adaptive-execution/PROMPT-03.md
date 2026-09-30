@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 3
 
-Status: IN PROGRESS
+Status: IMPLEMENTED / LIVE WOLFCAT QUALIFICATION PENDING
 Title: Typed execution observation and physical timeline
 
 ## Prompt objective
@@ -187,6 +187,67 @@ Before any Prompt 3 code is handed to WolfCat:
 1. failure-retrospective checklist review;
 2. backend/stub/link audit;
 3. `scripts/preflight-adaptive.sh` PASS locally or in CI.
+
+## Implementation state
+
+Slices 3A through 3D are implemented for live qualification.
+
+Implemented:
+
+- bounded typed `ExecutionSpan` history owned by the existing service/evidence
+  authority;
+- `off`, `normal`, and `detailed` observation levels;
+- service-scope queue, prefill, decode, batch, and request-total spans;
+- explicit monotonic `steady_clock` offsets with a separate Unix-time
+  presentation anchor;
+- non-intrusive observation: allocation/recording failure increments
+  `dropped_spans` instead of failing inference;
+- explicit `ExecutionCorrelation` bound to each active `SequenceState`;
+- correlation preserved through create, prefix restore, Decision branch
+  restore, and adaptive same-backend restore;
+- CUDA KV-cache correlation propagation;
+- detailed CUDA host observations for evidence-supported transfer enqueue and
+  explicit stream synchronization boundaries;
+- CUDA checkpoint/fork state deliberately clears request correlation and
+  requires rebinding when restored;
+- read-only `GET /timeline`;
+- server controls:
+  `--execution-observation off|normal|detailed` and
+  `--execution-span-capacity N`;
+- CPU contract/serialization tests;
+- adaptive CPU preflight PASS at
+  `8a103810da93a074606c85738d6633b9b655e6d3`;
+- `scripts/qualify-adaptive-prompt3.sh`.
+
+Important scope truth:
+
+The current CUDA backend observations measure **host-side CUDA API enqueue
+duration and explicit synchronization wait duration**. They are not presented
+as CUDA kernel/device execution duration.
+
+Prompt 3 intentionally does not introduce CUDA-event kernel timing yet.
+Doing so would require an explicit overhead study because extra event recording
+or synchronization could perturb the execution being measured.
+
+## Live qualification plan
+
+The Prompt 3 qualifier:
+
+1. runs the adaptive CPU preflight;
+2. reruns Prompt 2 as nonregression;
+3. proves a Reference service timeline;
+4. proves CUDA `off` emits no spans;
+5. proves CUDA `normal` emits service spans only;
+6. proves CUDA `detailed` emits request-correlated backend transfer and
+   synchronization spans;
+7. requires zero dropped observations in the qualification runs;
+8. measures observer overhead using mirrored mode order
+   `off, normal, detailed, detailed, normal, off`;
+9. uses 12 measured requests per mode after per-session warmup;
+10. records the measured overhead without inventing a pass threshold before
+    seeing WolfCat evidence.
+
+The overhead result must be reviewed before Prompt 3 closes.
 
 ## Prompt 3 exit gate
 
