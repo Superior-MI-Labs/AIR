@@ -479,3 +479,59 @@ Expected marker:
 A PASS freezes the candidate identity but does not yet qualify the external
 image oracle. Stage 7B still requires a fixed workflow/seed/configuration and
 retained output/resource evidence.
+
+
+## Stage 7A first selection-preflight failure
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7A-FLUX2-Selection-20260930-141104`
+
+AIR source:
+
+`fe0215da2970a699d944cda960c93747fd16387c`
+
+Observed:
+
+- FLUX.2 Klein 4B FP8 diffusion SHA-256 matched;
+- Qwen3-4B FP4 Flux2 text encoder SHA-256 matched;
+- local `flux2-vae.safetensors` SHA-256 was
+  `868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3`;
+- gate expected
+  `d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5`;
+- gate stopped before safetensors census / ComfyUI support / visibility checks.
+
+Classification:
+
+SOURCE-IDENTITY ASSUMPTION FAILURE, not corrupt local model evidence.
+
+Public source verification established two different published
+`flux2-vae.safetensors` artifacts:
+
+1. `Comfy-Org/flux2-dev`
+   - SHA-256:
+     `d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5`;
+   - current stock ComfyUI FLUX.2 Klein text-to-image workflow links this VAE.
+
+2. `Comfy-Org/vae-text-encorder-for-flux-klein-4b`
+   - SHA-256:
+     `868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3`;
+   - repository metadata explicitly identifies
+     `black-forest-labs/FLUX.2-klein-4B` as its base model.
+
+The local WolfCat VAE exactly matches #2.
+
+Corrective policy:
+
+- do not overwrite or redownload the local VAE merely to match the stock
+  workflow template;
+- freeze the local published Klein-support VAE as part of the provisional
+  oracle package;
+- retain the stock-template VAE identity as an explicit workflow difference;
+- require Stage 7B external oracle execution to validate that exact local VAE
+  in the selected workflow;
+- if Stage 7B fails specifically at VAE compatibility, retain the failure and
+  then test the stock-template VAE as a controlled alternative.
+
+The Stage 7A selection gate now expects the local published Klein-support VAE
+identity and records both VAE source identities.
