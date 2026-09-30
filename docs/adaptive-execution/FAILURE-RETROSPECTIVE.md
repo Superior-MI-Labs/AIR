@@ -213,6 +213,45 @@ Permanent controls:
 The correlation wrapper now has a dedicated core-only
 `air-observation-contract-tests` target.
 
+### Failure H - performance experiment confounded mode with session position
+
+Observed:
+
+The first Prompt 3 observer-overhead experiment reported approximately 9.59%
+normal overhead and 10.93% detailed overhead.
+
+A balanced follow-up measured only 0.234% normal overhead and 0.545% detailed
+overhead.
+
+Root cause:
+
+The original mirrored ordering reduced simple drift but did not balance every
+observation mode across every ordinal session position. Both normal sessions
+occupied middle positions, leaving session order / thermal / power-state effects
+partially confounded with observation mode.
+
+Why it escaped initial review:
+
+The experiment was reviewed for symmetry, but not with the stronger criterion
+that every treatment must occupy every position equally when position can affect
+hardware state.
+
+Permanent controls:
+
+- performance experiments comparing runtime modes must counterbalance or
+  randomize treatment order when machine state can drift;
+- for small deterministic experiments, prefer a balanced Latin-square design;
+- record relevant thermal/clock/power/environment evidence where practical;
+- distinguish structural/correctness qualification from causal performance
+  conclusions;
+- do not optimize runtime code from a single confounded benchmark result;
+- retain contradicted measurements as negative evidence rather than deleting
+  them.
+
+Prompt 3 also validated the new pre-handoff script review: a heredoc/pipeline
+redirection bug in the 3E harness was caught and repaired before the user ran
+the script.
+
 ## Mandatory pre-publish review
 
 Before asking a user to pull/run a new adaptive-execution code update:
