@@ -84,6 +84,64 @@ Requirements:
 - `validate_execution_plan()` delegates legality to this authority;
 - existing 0.10/0.11 plan fields and tactic enums remain source-compatible.
 
+## 4A implementation result
+
+Slice 4A is implemented and CPU-preflight qualified.
+
+Implementation:
+
+- `QualifiedOperationSite` contains exactly five currently qualified
+  Qwen execution sites:
+  - prefill transformer-block linear;
+  - decode transformer-block linear;
+  - decode output projection;
+  - prefill attention;
+  - decode attention;
+- `OperationImplementationFamily` distinguishes linear from attention
+  implementation families;
+- family classification rejects unknown operation-site values explicitly;
+- `linear_implementations()` and `attention_implementations()` are the
+  single typed legality queries over `BackendCapabilities`;
+- implementation-family mismatches fail explicitly;
+- `validate_execution_plan()` delegates tactic legality to the operation-site
+  queries instead of directly knowing the five capability-vector fields;
+- source tensor/model names do not participate in legality queries;
+- public 0.10 tactic/plan fields remain source-compatible.
+
+Contract coverage:
+
+- exact site identity;
+- site-to-family mapping;
+- prefill/decode separation;
+- output-projection isolation;
+- implementation-family mismatch rejection;
+- invalid-site rejection;
+- existing plan-validation behavior.
+
+Adaptive CPU preflight PASS:
+
+`c77ba68eb85d9208c59197fab1d46ad3fabf6510`
+
+A real prepared-CUDA capability contract was then added. The final pre-handoff
+head, including qualifier hardening, passed adaptive CPU preflight at:
+
+`d70bc2e891351aeae6899c6d8227ae066f2dc405`
+
+## 4B decision - no new metadata registry
+
+The census found that preparation/residency knowledge already has an owning
+layer:
+
+- `CudaPreparedModel` owns plan-preparation admission/accounting;
+- `CudaExecutor` owns tactic preparation, trimming, and preparation-byte
+  estimation;
+- manifest evidence owns measured preparation/eviction cost.
+
+Prompt 4 will not duplicate those facts into an operation metadata registry.
+
+If the second architecture later proves shared implementation metadata is
+required, it must be derived from those authorities rather than copied.
+
 ## 4B - implementation metadata
 
 After 4A is qualified, determine whether the physical tactic identities need
