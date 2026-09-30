@@ -219,137 +219,90 @@ Final implementation/qualifier CPU preflight PASS:
 
 `d70bc2e891351aeae6899c6d8227ae066f2dc405`
 
-## Prompt 5 current
+## Prompt 5 qualified baseline
 
-Prompt 5 is the ExecutionGraph R0 program.
+Prompt 5 is CLOSED / QUALIFIED.
 
-Slice 5A census/architecture is COMPLETE.
+Final repaired handoff source:
 
-Source inspection showed that a whole-request graph derived only from
-`ExecutionPlan` would encode false precision because physical shape still
-depends on live scheduler grouping, prefix/state hits, output mode, and
-cancellation.
+`9363e85a2cfaea28fe79f592b6544d85e6b2b137`
 
-R0 therefore uses the smallest truthful seam:
-
-```text
-existing planner/scheduler/grouping decisions
-        ->
-physical invocation is concrete
-        ->
-derive immutable ExecutionGraph
-        ->
-existing PreparedModel / SequenceState execution
-```
-
-The graph is derived physical data. It does not become an executor, scheduler,
-planner, state owner, semantic graph, or hardware authority.
-
-Schema comparison and characterization requirements are recorded in:
-`docs/adaptive-execution/PROMPT-05.md`
-
-Slice 5B is CLOSED / QUALIFIED.
-
-Qualified AIR handoff source:
-
-`d154bf02225ba4b424c5b3734bfcb3d4845b6092`
-
-WolfCat evidence:
+5B evidence:
 
 `/home/emerson/Downloads/AIR-0.11-Prompt5B-20260929-225827`
 
-Qualified results:
+5C correctness/evidence:
 
-- adaptive CPU preflight PASS;
-- CPU 13/13 CTests PASS;
-- CUDA 13/13 CTests PASS;
-- ExecutionGraph R0 characterization PASS;
-- existing CUDA operation-site legality PASS;
-- Reference/CUDA semantic-binding parity PASS;
-- renamed-source CUDA execution/tactic independence PASS;
-- real Qwen2.5 CUDA generation PASS;
-- `PROMPT5B_EXECUTION_GRAPH=PASS`;
-- qualifier exit code 0.
+`/home/emerson/Downloads/AIR-0.11-Prompt5C-20260930-010310`
 
-5B establishes a qualified immutable physical-invocation graph without moving
-execution authority.
+5C balanced overhead:
 
-Slice 5C implementation is COMPLETE / LIVE EVIDENCE PENDING.
+`/home/emerson/Downloads/AIR-0.11-Prompt5C-Overhead-20260930-010442`
 
-Initial implementation/qualification source:
+Qualified Prompt 5 facts:
 
-`37feee09d6585245587a1ae055e1e47bdf618377`
+- CPU/CUDA 13/13 CTests PASS;
+- immutable ExecutionGraph R0 characterization PASS;
+- current Qwen physical invocation seams are represented without a second
+  executor;
+- canonical topology-scoped placement is retained;
+- real single CUDA graph/evidence observations are concordant;
+- native CUDA batch shared-correlation gaps remain explicit rather than
+  fabricated;
+- normal/off modes remain graph-free;
+- real detailed Qwen generation produced four graph observations and nine
+  backend spans;
+- `PROMPT5C_GRAPH_EVIDENCE=PASS`;
+- balanced timing remeasurement PASS.
 
-First WolfCat live attempt from handoff
-`b92dd505e9ca3dbcaac6ba04606483f8043e5589` falsified the CUDA qualification
-fixture before graph/evidence validation. CPU 13/13 passed; CUDA 12/13 passed;
-the CUDA contract reported that the configured cohort did not exercise native
-decode batching. Evidence:
-`/home/emerson/Downloads/AIR-0.11-Prompt5C-20260929-234809`.
+5C timing result:
 
-Root cause: the fixture used default baseline decode tactics while production
-native decode batching intentionally requires at least one non-baseline decode
-linear implementation. Runtime behavior was preserved.
+- off: `1414.460855 ms`;
+- normal: `1390.620811 ms`;
+- detailed: `1410.377428 ms`;
+- normal vs off: `-1.685%`;
+- detailed vs off: `-0.289%`;
+- detailed vs normal: `+1.421%`.
 
-The repaired fixture selects qualified `dense-f32-cublas` decode-block work
-through the existing public `ExecutionConfig` contract and separates prefill
-and decode batch diagnostics.
+Interpretation remains conservative. Detailed graph observation showed a small
+positive differential versus normal, but the same balanced run measured normal
+faster than off and detailed slightly faster than off. Do not attribute the
+full detailed-vs-normal delta to graph derivation from this experiment alone.
 
-Fixture fix source:
+Prompt 5 does not make ExecutionGraph executable. The existing production path
+remains authoritative.
 
-`10fb4c65387fa6327ceb605d33746557aa87ae38`
+## Prompt 6 current
 
-Failure-retention documentation head:
+Prompt 6 is CURRENT.
 
-`b956f7d3bfd906aa6a6816b329e6281c1d853c4b`
+Prompt 6 is the Schedule Compiler + Bottleneck Optimization program.
 
-Adaptive CPU preflight passed again at the repaired handoff with 13/13 CTests
-and `ADAPTIVE_PREFLIGHT=PASS`.
+The first slice is census/evidence only.
 
-5C now derives ExecutionGraph only in detailed observation mode at the exact
-already-concrete production invocation seams:
+Do not begin with a preferred optimization such as CUDA Graph capture, extra
+streams, pinned memory, prefetching, or fusion.
 
-- single prefill;
-- native prefill batch;
-- single generation decode;
-- native greedy decode batch;
-- decision target-logprob decode.
+First determine which current physical delays are actually material on
+WolfCat-Studio and which layer owns each one.
 
-The existing backend call remains the only execution path.
+Initial questions:
 
-`GET /execution-graphs` exposes planned graph structure plus correlation and a
-derived evidence status while `GET /timeline` remains the separate Prompt 3
-observed-evidence authority.
+1. Where is CPU time spent while CUDA work is in flight?
+2. Which current `cudaStreamSynchronize` boundaries represent required
+   dependencies versus conservative host waits?
+3. Which H2D/D2H transfers are latency-critical, repeated, or potentially
+   stageable?
+4. Which allocations/preparations recur on hot paths?
+5. Which physical operations have enough stable repetition to make CUDA Graph
+   capture plausible?
+6. Which waits/transfers can be overlapped without changing sequence-state
+   transaction semantics?
+7. Which candidate optimization can be tested through the one existing
+   scheduler/runtime authority rather than adding a parallel scheduler?
 
-Normal/off modes remain graph-free.
-
-Known negative evidence is preserved: current shared native-batch input
-movement is not fully correlated by the Prompt 3 sink, so CUDA batch
-characterization expects `incomplete` evidence while single CUDA invocations
-must be `concordant`.
-
-GitHub Actions adaptive preflight passed at
-`37feee09d6585245587a1ae055e1e47bdf618377` with 13/13 CTests and
-`ADAPTIVE_PREFLIGHT=PASS`.
-
-## Immediate next action
-
-Pull the repaired branch and rerun the WolfCat correctness gate first:
-
-```text
-bash scripts/qualify-adaptive-prompt5c.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
-
-Run the balanced overhead gate only after correctness passes:
-
-```text
-bash scripts/requalify-adaptive-prompt5c-overhead.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
-
-Do not close 5C, repair the known native-batch evidence gap, or begin the next
-Prompt 5 slice until both results are reviewed.
+The first Prompt 6 artifact must be a bottleneck/evidence map tied to existing
+source owners and measured WolfCat data.
 
 ## Current architectural hypothesis
 
