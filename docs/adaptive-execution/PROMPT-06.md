@@ -927,3 +927,82 @@ plan rates.
 
 The final preparation and round-trip break-even calculations likewise use the
 new 6C exact-product-plan rates.
+
+
+## 6C exact-plan run: hot-state validation assertion was too strict
+
+WolfCat exact-product-plan evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245`
+
+Source:
+
+`eab1249800063933b3138453d8fcb673078050c2`
+
+The run successfully completed:
+
+- CPU adaptive preflight 13/13 PASS;
+- bounded four-job CUDA build PASS;
+- CUDA 13/13 PASS;
+- strict 1.5B product-profile verification for reuse8/dense widths 1/8/64;
+- four balanced exact-plan medium measurement rounds;
+- five cold dense preparation measurements;
+- three exact-plan small reuse8 measurement rounds;
+- schema-v10 manifest construction from exact-plan evidence;
+- five dense -> reuse8 eviction measurements;
+- hot-dense product probe;
+- measured-eviction product probe;
+- three-cycle oscillation product probe;
+- explicit prepared-memory rejection product probe;
+- minimum-VRAM product probe.
+
+Measured exact-plan results before final validation:
+
+- reuse8 prefill: 82.055 tok/s;
+- dense prefill: 349.599 tok/s;
+- dense/reuse8 throughput ratio: approximately 4.26x;
+- dense prepared artifact: 4.881 GiB;
+- dense cold preparation: 44.319 ms;
+- dense eviction mean: 2.718 ms;
+- dense eviction 95% confidence half-width: 0.486 ms.
+
+Derived from those exact product-plan measurements:
+
+- saved prefill time: approximately 9.327 ms/token;
+- cold preparation-only break-even: approximately 4.752 prefill tokens;
+- preparation + measured eviction break-even: approximately 5.043 prefill
+  tokens.
+
+The run stopped only during final evidence validation with:
+
+`RuntimeError: hot dense request unexpectedly re-prepared artifact`
+
+Root cause is a qualification-harness assertion error, not evidence of an
+actual dense rebuild.
+
+AIR's service intentionally calls `trim_plan_artifacts()` and
+`prepare_plan()` on every idle request admission and measures their elapsed
+wall time. CUDA dense preparation is idempotent:
+
+- `estimate_linear_tactic_preparation_bytes(dense-f32-cublas)` returns zero
+  when the dense artifact is already resident;
+- `prepare_dense_f32_tensors()` immediately returns success when the dense
+  arena already exists.
+
+Therefore a hot request may legitimately report a small positive
+`plan_preparation_ms` and/or `plan_eviction_ms` for no-op state checks.
+Exact equality to 0.0 ms is not a valid residency invariant.
+
+Correct hot-state invariants are:
+
+- selected strategy remains `dense-medium`;
+- planner reports `strategy_prepared_state_hot=true`;
+- prepared artifact is resident before the second request;
+- second request forecasts `plan_preparation_bytes=0`;
+- the same prepared artifact remains resident after the request;
+- idempotent trim/prepare check time remains cheaper than cold materialization.
+
+The 6C validator has been corrected to use these state/resource invariants.
+The original exact-plan evidence directory is retained as valid measurement
+evidence with a failed validation assertion; it is not classified as a runtime
+or strategy failure.
