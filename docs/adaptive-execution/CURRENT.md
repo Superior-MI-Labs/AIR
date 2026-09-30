@@ -248,19 +248,40 @@ planner, state owner, semantic graph, or hardware authority.
 Schema comparison and characterization requirements are recorded in:
 `docs/adaptive-execution/PROMPT-05.md`
 
-Slice 5B is CURRENT.
+Slice 5B implementation is COMPLETE / LIVE WOLFCAT QUALIFICATION PENDING.
+
+Implementation source:
+
+`257673c4e4206698fe0c6f1c979694b5761a7474`
+
+5B now provides an immutable, topology-scoped physical invocation graph with:
+
+- pure derivation from already-concrete invocation data;
+- deterministic structural identity;
+- Prompt 4 implementation bindings;
+- coarse compute/transfer/synchronization regions;
+- stable inspection serialization;
+- characterization tests;
+- no production graph dispatch or execution-path ownership changes.
+
+GitHub Actions adaptive CPU preflight passed at the implementation/qualifier
+head with 13/13 CTests and `ADAPTIVE_PREFLIGHT=PASS`.
+
+Live qualification authority:
+
+`scripts/qualify-adaptive-prompt5b.sh`
 
 ## Immediate next action
 
-Implement only the additive 5B schema/projection slice:
+Run on WolfCat-Studio:
 
-- immutable ExecutionGraph R0 types;
-- pure graph derivation from already-concrete physical invocation data;
-- deterministic identity;
-- serialization/inspection;
-- characterization tests.
+```text
+bash scripts/qualify-adaptive-prompt5b.sh \
+  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+```
 
-Do not dispatch graph nodes or change production execution behavior in 5B.
+Do not begin the next Prompt 5 slice or make execution graph-driven until this
+live CUDA/nonregression gate passes.
 
 ## Current architectural hypothesis
 
