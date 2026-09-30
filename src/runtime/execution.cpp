@@ -484,6 +484,7 @@ Result<ExecutionGraph> derive_execution_graph(
     bool any_logits = false;
     bool any_target = false;
     std::uint64_t checked_total_work = 0U;
+    std::uint64_t checked_total_targets = 0U;
     for (const auto& participant : invocation.participants) {
         if (participant.work_units == 0U) {
             return Status::invalid_argument(
@@ -497,6 +498,12 @@ Result<ExecutionGraph> derive_execution_graph(
                 return Status::invalid_argument(
                     "target-logprob physical output requires at least one target");
             }
+            if (participant.target_count >
+                std::numeric_limits<std::uint64_t>::max() - checked_total_targets) {
+                return Status::invalid_argument(
+                    "physical invocation target-count total overflows");
+            }
+            checked_total_targets += participant.target_count;
             any_target = true;
         } else if (participant.target_count != 0U) {
             return Status::invalid_argument(
@@ -623,20 +630,24 @@ Result<ExecutionGraph> derive_execution_graph(
             auto targets = make_node(ExecutionGraphNodeKind::transfer_region);
             targets.transfer_direction = ExecutionTransferDirection::host_to_device;
             targets.payload = ExecutionPayloadKind::target_tokens;
+            targets.work_units = checked_total_targets;
             append_node(std::move(targets));
 
             auto reduction = make_node(ExecutionGraphNodeKind::compute_region);
             reduction.compute = ExecutionComputeRegionKind::target_logprob_reduction;
+            reduction.work_units = checked_total_targets;
             append_node(std::move(reduction));
 
             auto results = make_node(ExecutionGraphNodeKind::transfer_region);
             results.transfer_direction = ExecutionTransferDirection::device_to_host;
             results.payload = ExecutionPayloadKind::target_logprob_results;
+            results.work_units = checked_total_targets;
             append_node(std::move(results));
 
             auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
             wait.synchronization =
                 ExecutionSynchronizationKind::backend_stream_wait;
+            wait.work_units = 0U;
             append_node(std::move(wait));
         } else if (any_greedy) {
             std::uint32_t greedy_participants = 0U;
@@ -669,6 +680,9 @@ Result<ExecutionGraph> derive_execution_graph(
             auto logits = make_node(ExecutionGraphNodeKind::transfer_region);
             logits.transfer_direction = ExecutionTransferDirection::device_to_host;
             logits.payload = ExecutionPayloadKind::full_logits;
+            // Exact bytes depend on model vocabulary geometry, which is not
+            // owned by this R0 invocation descriptor. Do not invent a count.
+            logits.work_units = 0U;
             append_node(std::move(logits));
 
             auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
