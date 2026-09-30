@@ -840,6 +840,8 @@ void test_execution_graph_projection() {
     no_resource.hardware_resource_id.clear();
     check(!air::derive_execution_graph(cuda_plan, cuda, no_resource),
           "ExecutionGraph cannot invent missing hardware placement identity");
+
+    std::cout << "ExecutionGraph R0 characterization passed\n";
 }
 
 
