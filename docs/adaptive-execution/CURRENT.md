@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
 Updated: 2026-09-29
-Status: WAVE 0 CURRENT / PROMPT 3 OVERHEAD FALSIFICATION CURRENT
+Status: PROMPT 4 CURRENT
 
 ## Frozen baseline
 
@@ -138,98 +138,46 @@ passed on the branch.
 
 After that, open Prompt 3: typed execution observation and physical timeline.
 
-## Prompt 3 current
+## Prompt 3 qualified baseline
 
-Prompt 3 authority:
+Prompt 3 is CLOSED / QUALIFIED.
 
-`docs/adaptive-execution/PROMPT-03.md`
-
-Implementation is complete through the live qualification harness.
-
-Current implementation includes:
-
-- typed bounded service execution spans;
-- `off|normal|detailed` observation levels;
-- explicit request/sequence correlation through backend sequence ownership;
-- request correlation rebinding across prefix restore, Decision branches, and
-  adaptive same-backend restore;
-- CUDA detailed host observations for H2D/D2H enqueue operations and explicit
-  stream waits;
-- non-intrusive dropped-span accounting;
-- read-only `GET /timeline`;
-- configurable observation level/capacity;
-- Prompt 3 live qualification with observer-overhead measurement.
-
-Scope guardrail:
-
-CUDA transfer observations currently describe host-side asynchronous enqueue
-duration. Synchronization observations describe host wait duration. Neither is
-called pure GPU kernel duration.
-
-Pre-publish gate:
-
-Adaptive CPU preflight PASS at
-`8a103810da93a074606c85738d6633b9b655e6d3`.
-
-## Immediate next action
-
-Run on WolfCat-Studio:
-
-```text
-bash scripts/qualify-adaptive-prompt3.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
-
-Do not close Prompt 3 merely because the structural timeline checks pass.
-Review `observer-overhead.json` and determine whether normal/detailed
-observation overhead is acceptable before advancing to Prompt 4.
-
-## Prompt 3 live result
-
-Prompt 3 structural/correctness qualification is PASS.
-
-Evidence:
+Structural evidence:
 `/home/emerson/Downloads/AIR-0.11-Prompt3-20260929-202022`
 
-Observed:
+Overhead falsification:
+`/home/emerson/Downloads/AIR-0.11-Prompt3-Overhead-20260929-204558`
+
+Qualified facts:
 
 - 13/13 CTests PASS;
 - Prompt 2 nonregression PASS;
-- Reference timeline PASS;
-- CUDA off/normal/detailed timeline PASS;
+- Reference and CUDA off/normal/detailed timelines PASS;
 - detailed CUDA backend spans: 49;
 - transfer spans: 25;
 - synchronization spans: 24;
-- zero dropped spans.
+- zero dropped spans;
+- balanced normal overhead: +0.234% vs off;
+- balanced detailed overhead: +0.545% vs off;
+- detailed vs normal: +0.310%.
 
-The first observer-overhead experiment reported:
+The earlier ~9-11% result is retained as materially confounded evidence.
 
-- normal vs off median: +9.5886%;
-- detailed vs off median: +10.9288%;
-- detailed vs normal: approximately +1.2230%.
+Decision:
 
-Prompt 3 remains open because this is too large to accept for default
-observation and the first experimental ordering does not sufficiently
-disentangle recorder cost from session-position/thermal effects.
+- normal observation is acceptable as the default for AIR 0.11;
+- detailed remains an explicit diagnostic/research level;
+- no observer optimization is justified by current evidence.
 
-## Prompt 3E current
+## Prompt 4 current
 
-Run the dedicated overhead falsification:
+Prompt 4 now opens the semantic-operation / physical-implementation boundary.
 
-```text
-bash scripts/requalify-adaptive-prompt3-overhead.sh \
-  ~/Models/AIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
-```
+Do not invent a universal operation IR.
 
-The 3E experiment uses a 3x3 balanced Latin order so off, normal, and detailed
-each occupy each ordinal session position once. It records GPU environment
-telemetry and compares medians of per-session medians.
-
-The exact 3E script passed adaptive CPU preflight at:
-
-`561bf34c1c3f66b85d2b4548684dfa5ca80e05b1`
-
-Do not begin Prompt 4 until this result is reviewed.
+The first action is census/characterization of existing execution tactics and
+where semantic meaning is currently coupled to backend-specific implementation
+choices.
 
 ## Current architectural hypothesis
 
