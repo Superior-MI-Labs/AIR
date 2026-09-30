@@ -316,24 +316,39 @@ Qualification/census authority:
 
 `scripts/qualify-adaptive-prompt6a-prefill-boundaries.sh`
 
-Implementation/census-script head:
+Initial census-script source:
 
 `5d2cb7f20113e161151a22844e540a225ae42cac`
 
-GitHub Actions adaptive preflight run:
+First WolfCat attempt from handoff
+`db16e9a5876bfac142c5f959dfe0a38c7cad8356` passed CPU preflight and CUDA
+server build, then falsified the harness before quantum comparison because the
+script treated one bounded `GET /timeline` view as if it contained all six
+long measured requests.
 
-`36672482563`
+Evidence:
 
-Result:
+`/home/emerson/Downloads/AIR-0.11-Prompt6A-Prefill-20260930-012327`
 
-- shell syntax gate PASS;
-- Release CPU build PASS;
-- 13/13 CTests PASS;
-- `ADAPTIVE_PREFLIGHT=PASS`.
+Root cause:
+
+`InferenceService::execution_timeline()` returns the most recent 256 spans by
+default. `dropped_spans == 0` describes ring-buffer eviction, not endpoint
+view completeness.
+
+The repaired harness captures/correlates timeline and graph evidence
+immediately after every measured request and also proves observed prefill chunk
+work units respect the requested quantum.
+
+Repaired harness source:
+
+`e9c13e4f5f097be1d7af3c50c0e60cd8e9bd93d0`
+
+No AIR runtime behavior changed.
 
 ## Immediate next action
 
-Run on WolfCat-Studio:
+Pull the repaired branch and rerun on WolfCat-Studio:
 
 ```text
 bash scripts/qualify-adaptive-prompt6a-prefill-boundaries.sh \
