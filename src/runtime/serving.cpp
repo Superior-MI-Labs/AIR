@@ -1290,6 +1290,29 @@ struct InferenceService::Impl : ExecutionObservationSink {
         const auto previous = candidate[item.decision_token_position - 1U];
         const auto target = candidate[item.decision_token_position];
         const std::array<TokenId, 1> targets{target};
+
+        std::optional<PendingExecutionGraphObservation> graph_observation;
+        if (const auto* prepared = prepared_for(item.plan.backend)) {
+            PhysicalInvocation graph_invocation;
+            graph_invocation.kind = PhysicalInvocationKind::decode_single;
+            graph_invocation.participants.push_back(
+                PhysicalInvocationParticipant{
+                    1U,
+                    PhysicalOutputMode::target_logprobs,
+                    1U,
+                });
+            graph_observation = begin_execution_graph_observation(
+                item.plan,
+                prepared->capabilities(),
+                std::move(graph_invocation),
+                {{item.request_id, item.sequence_id}});
+        } else if (
+            config.execution_observation_level ==
+            ExecutionObservationLevel::detailed) {
+            record_execution_graph_derivation_failure(
+                "decision decode prepared backend is unavailable");
+        }
+
         const auto compute_start = Clock::now();
         auto logprob =
             item.session->decode_target_logprobs(previous, targets);
@@ -1303,6 +1326,13 @@ struct InferenceService::Impl : ExecutionObservationSink {
             compute_end,
             1U,
             static_cast<bool>(logprob));
+        if (graph_observation) {
+            finish_execution_graph_observation(
+                std::move(*graph_observation),
+                compute_start,
+                compute_end,
+                static_cast<bool>(logprob));
+        }
         if (!logprob) {
             fail_item(item, logprob.status());
             return true;
@@ -1466,6 +1496,33 @@ struct InferenceService::Impl : ExecutionObservationSink {
                 static_cast<std::ptrdiff_t>(item.prompt_position),
             chunk);
 
+        PhysicalOutputMode graph_output = PhysicalOutputMode::logits;
+        std::uint32_t graph_target_count = 0U;
+        if (item.is_decision() && final_prompt_chunk) {
+            graph_output = PhysicalOutputMode::target_logprobs;
+            graph_target_count = static_cast<std::uint32_t>(
+                item.decision_candidate_tokens.size());
+        } else if (device_greedy) {
+            graph_output = PhysicalOutputMode::greedy;
+        } else if ((!final_prompt_chunk || !output_token_needed) &&
+                   !need_intermediate_logits) {
+            graph_output = PhysicalOutputMode::discard;
+        }
+
+        PhysicalInvocation graph_invocation;
+        graph_invocation.kind = PhysicalInvocationKind::prefill_single;
+        graph_invocation.participants.push_back(
+            PhysicalInvocationParticipant{
+                static_cast<std::uint64_t>(chunk),
+                graph_output,
+                graph_target_count,
+            });
+        auto graph_observation = begin_execution_graph_observation(
+            item.plan,
+            capabilities,
+            std::move(graph_invocation),
+            {{item.request_id, item.sequence_id}});
+
         const auto compute_start = Clock::now();
         Status execution_status = Status::ok();
         std::optional<TokenId> selected;
@@ -1512,6 +1569,13 @@ struct InferenceService::Impl : ExecutionObservationSink {
             compute_end,
             static_cast<std::uint64_t>(chunk),
             static_cast<bool>(execution_status));
+        if (graph_observation) {
+            finish_execution_graph_observation(
+                std::move(*graph_observation),
+                compute_start,
+                compute_end,
+                static_cast<bool>(execution_status));
+        }
         if (!execution_status) {
             fail_item(item, execution_status);
             return true;
@@ -1604,9 +1668,39 @@ struct InferenceService::Impl : ExecutionObservationSink {
         }
 
         std::uint64_t batch_work_units = 0U;
-        for (const auto count : token_counts) {
+        PhysicalInvocation graph_invocation;
+        graph_invocation.kind =
+            PhysicalInvocationKind::prefill_native_batch;
+        std::vector<ExecutionGraphParticipantCorrelation>
+            graph_participants;
+        graph_participants.reserve(items.size());
+        for (std::size_t i = 0; i < token_counts.size(); ++i) {
+            const auto count = token_counts[i];
             batch_work_units += count;
+            PhysicalOutputMode output = PhysicalOutputMode::discard;
+            if (batch[i].output ==
+                runtime_detail::PrefillBatchOutput::greedy) {
+                output = PhysicalOutputMode::greedy;
+            } else if (
+                batch[i].output ==
+                runtime_detail::PrefillBatchOutput::logits) {
+                output = PhysicalOutputMode::logits;
+            }
+            graph_invocation.participants.push_back(
+                PhysicalInvocationParticipant{
+                    static_cast<std::uint64_t>(count),
+                    output,
+                    0U,
+                });
+            graph_participants.push_back(
+                {items[i]->request_id, items[i]->sequence_id});
         }
+        auto graph_observation = begin_execution_graph_observation(
+            first.plan,
+            prepared->capabilities(),
+            std::move(graph_invocation),
+            std::move(graph_participants));
+
         const auto compute_start = Clock::now();
         auto executed = prepared->prefill_batch(batch);
         const auto compute_end = Clock::now();
@@ -1622,6 +1716,13 @@ struct InferenceService::Impl : ExecutionObservationSink {
             static_cast<std::uint32_t>(items.size()),
             batch_work_units,
             static_cast<bool>(executed));
+        if (graph_observation) {
+            finish_execution_graph_observation(
+                std::move(*graph_observation),
+                compute_start,
+                compute_end,
+                static_cast<bool>(executed));
+        }
         if (!executed) {
             if (executed.status().code() == ErrorCode::unsupported) {
                 return false;
@@ -1713,6 +1814,23 @@ struct InferenceService::Impl : ExecutionObservationSink {
         const auto previous = item.generated.back();
         const bool device_greedy = prepared->capabilities().device_greedy_selection &&
             item.request.generation.sampling.temperature <= 0.0;
+
+        PhysicalInvocation graph_invocation;
+        graph_invocation.kind = PhysicalInvocationKind::decode_single;
+        graph_invocation.participants.push_back(
+            PhysicalInvocationParticipant{
+                1U,
+                device_greedy
+                    ? PhysicalOutputMode::greedy
+                    : PhysicalOutputMode::logits,
+                0U,
+            });
+        auto graph_observation = begin_execution_graph_observation(
+            item.plan,
+            prepared->capabilities(),
+            std::move(graph_invocation),
+            {{item.request_id, item.sequence_id}});
+
         const auto compute_start = Clock::now();
         if (device_greedy) {
             auto token = item.session->decode_greedy(previous);
@@ -1726,6 +1844,13 @@ struct InferenceService::Impl : ExecutionObservationSink {
                 compute_end,
                 1U,
                 static_cast<bool>(token));
+            if (graph_observation) {
+                finish_execution_graph_observation(
+                    std::move(*graph_observation),
+                    compute_start,
+                    compute_end,
+                    static_cast<bool>(token));
+            }
             if (!token) {
                 fail_item(item, token.status());
                 return true;
@@ -1751,6 +1876,13 @@ struct InferenceService::Impl : ExecutionObservationSink {
             compute_end,
             1U,
             static_cast<bool>(logits));
+        if (graph_observation) {
+            finish_execution_graph_observation(
+                std::move(*graph_observation),
+                compute_start,
+                compute_end,
+                static_cast<bool>(logits));
+        }
         if (!logits) {
             fail_item(item, logits.status());
             return true;
@@ -1786,6 +1918,28 @@ struct InferenceService::Impl : ExecutionObservationSink {
             batch.push_back(runtime_detail::GreedyDecodeBatchItem{item->session.get(), item->generated.back()});
         }
 
+        PhysicalInvocation graph_invocation;
+        graph_invocation.kind =
+            PhysicalInvocationKind::decode_native_greedy_batch;
+        std::vector<ExecutionGraphParticipantCorrelation>
+            graph_participants;
+        graph_participants.reserve(items.size());
+        for (const auto* item : items) {
+            graph_invocation.participants.push_back(
+                PhysicalInvocationParticipant{
+                    1U,
+                    PhysicalOutputMode::greedy,
+                    0U,
+                });
+            graph_participants.push_back(
+                {item->request_id, item->sequence_id});
+        }
+        auto graph_observation = begin_execution_graph_observation(
+            first.plan,
+            prepared->capabilities(),
+            std::move(graph_invocation),
+            std::move(graph_participants));
+
         const auto compute_start = Clock::now();
         auto selected = prepared->decode_greedy_batch(batch);
         const auto compute_end = Clock::now();
@@ -1801,6 +1955,13 @@ struct InferenceService::Impl : ExecutionObservationSink {
             static_cast<std::uint32_t>(items.size()),
             static_cast<std::uint64_t>(items.size()),
             static_cast<bool>(selected));
+        if (graph_observation) {
+            finish_execution_graph_observation(
+                std::move(*graph_observation),
+                compute_start,
+                compute_end,
+                static_cast<bool>(selected));
+        }
         if (!selected) {
             for (auto* item : items) fail_item(*item, selected.status());
             return true;
