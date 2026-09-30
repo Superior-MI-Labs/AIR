@@ -420,6 +420,92 @@ void test_attention_tactic_parsing() {
     check(!bad, "attention tactic parser rejects unknown tactics");
 }
 
+void test_qualified_operation_site_capabilities() {
+    using Site = air::QualifiedOperationSite;
+    using Family = air::OperationImplementationFamily;
+
+    check(std::string(air::to_string(Site::prefill_transformer_block_linear)) ==
+              "prefill-transformer-block-linear",
+          "qualified operation site has stable identity");
+    check(air::implementation_family(Site::prefill_transformer_block_linear) ==
+              Family::linear &&
+          air::implementation_family(Site::decode_transformer_block_linear) ==
+              Family::linear &&
+          air::implementation_family(Site::decode_output_projection) ==
+              Family::linear,
+          "linear operation sites report linear implementation family");
+    check(air::implementation_family(Site::prefill_attention) ==
+              Family::attention &&
+          air::implementation_family(Site::decode_attention) ==
+              Family::attention,
+          "attention operation sites report attention implementation family");
+
+    air::BackendCapabilities capabilities;
+    capabilities.prefill_block_quantized_linear = {
+        air::QuantizedLinearExecutionKind::baseline,
+        air::QuantizedLinearExecutionKind::batch_reuse4,
+    };
+    capabilities.decode_block_quantized_linear = {
+        air::QuantizedLinearExecutionKind::batch_reuse8,
+    };
+    capabilities.decode_output_quantized_linear = {
+        air::QuantizedLinearExecutionKind::baseline,
+    };
+    capabilities.prefill_attention = {
+        air::AttentionExecutionKind::online_softmax,
+    };
+    capabilities.decode_attention = {
+        air::AttentionExecutionKind::baseline,
+    };
+
+    auto prefill_linear =
+        air::linear_implementations(
+            capabilities, Site::prefill_transformer_block_linear);
+    check(prefill_linear && prefill_linear.value().size() == 2U &&
+              prefill_linear.value()[0] ==
+                  air::QuantizedLinearExecutionKind::baseline &&
+              prefill_linear.value()[1] ==
+                  air::QuantizedLinearExecutionKind::batch_reuse4,
+          "prefill block-linear site exposes exactly its legal implementations");
+
+    auto decode_linear =
+        air::linear_implementations(
+            capabilities, Site::decode_transformer_block_linear);
+    check(decode_linear && decode_linear.value().size() == 1U &&
+              decode_linear.value().front() ==
+                  air::QuantizedLinearExecutionKind::batch_reuse8,
+          "decode block-linear site does not borrow prefill implementations");
+
+    auto output_linear =
+        air::linear_implementations(
+            capabilities, Site::decode_output_projection);
+    check(output_linear && output_linear.value().size() == 1U &&
+              output_linear.value().front() ==
+                  air::QuantizedLinearExecutionKind::baseline,
+          "decode output projection retains its independent implementation set");
+
+    auto prefill_attention =
+        air::attention_implementations(capabilities, Site::prefill_attention);
+    check(prefill_attention && prefill_attention.value().size() == 1U &&
+              prefill_attention.value().front() ==
+                  air::AttentionExecutionKind::online_softmax,
+          "prefill attention exposes exactly its legal implementations");
+
+    auto decode_attention =
+        air::attention_implementations(capabilities, Site::decode_attention);
+    check(decode_attention && decode_attention.value().size() == 1U &&
+              decode_attention.value().front() ==
+                  air::AttentionExecutionKind::baseline,
+          "decode attention remains independently scoped");
+
+    check(!air::linear_implementations(
+               capabilities, Site::prefill_attention),
+          "attention site rejects a linear implementation-family query");
+    check(!air::attention_implementations(
+               capabilities, Site::decode_output_projection),
+          "linear site rejects an attention implementation-family query");
+}
+
 void test_execution_plan_capability_validation() {
     air::BackendCapabilities reference;
     reference.backend = air::BackendKind::reference;
@@ -579,6 +665,7 @@ int main() {
     test_static_planner_boundary();
     test_quantized_linear_tactic_parsing();
     test_attention_tactic_parsing();
+    test_qualified_operation_site_capabilities();
     test_execution_plan_capability_validation();
     test_shared_percentile_semantics();
     test_manifest_roundtrip_and_planner();
