@@ -814,12 +814,28 @@ def main():
         raise RuntimeError("hot-dense scenario selected wrong strategies")
     if int(hot["steps"][0]["after"]["current_prepared_artifact_bytes"]) != dense_bytes:
         raise RuntimeError("dense artifact not resident after first hot-dense request")
-    if float(hot["steps"][1]["metrics"]["plan_preparation_ms"]) != 0.0:
-        raise RuntimeError("hot dense request unexpectedly re-prepared artifact")
-    if float(hot["steps"][1]["metrics"]["plan_eviction_ms"]) != 0.0:
-        raise RuntimeError("hot dense request unexpectedly evicted artifact")
-    if int(hot["steps"][1]["after"]["current_prepared_artifact_bytes"]) != dense_bytes:
+
+    hot_second = hot["steps"][1]
+    if not bool(hot_second["metrics"]["strategy_prepared_state_hot"]):
+        raise RuntimeError("planner did not classify second dense request as prepared-state hot")
+    if int(hot_second["before"]["current_prepared_artifact_bytes"]) != dense_bytes:
+        raise RuntimeError("dense artifact was not resident before second hot request")
+    if int(hot_second["metrics"]["plan_preparation_bytes"]) != 0:
+        raise RuntimeError("second hot dense request forecast new preparation bytes")
+    if int(hot_second["after"]["current_prepared_artifact_bytes"]) != dense_bytes:
         raise RuntimeError("hot dense artifact was not retained")
+
+    # plan_preparation_ms and plan_eviction_ms intentionally include the
+    # wall-clock cost of idempotent prepare/trim checks. They are allowed to be
+    # small positive values even when no bytes are materialized or evicted.
+    hot_check_ms = (
+        float(hot_second["metrics"]["plan_preparation_ms"])
+        + float(hot_second["metrics"]["plan_eviction_ms"])
+    )
+    if hot_check_ms >= float(dense["prep"]["mean"]):
+        raise RuntimeError(
+            "hot dense idempotent transition checks were not cheaper than cold preparation"
+        )
 
     final_ev = load(root / "product" / "final-eviction.json")
     if [x["metrics"]["strategy_id"] for x in final_ev["steps"]] != [
@@ -924,6 +940,15 @@ def main():
         "minimum_vram_strategy": minimum_run["strategy_id"],
         "hot_dense_second_preparation_ms": float(
             hot["steps"][1]["metrics"]["plan_preparation_ms"]
+        ),
+        "hot_dense_second_eviction_check_ms": float(
+            hot["steps"][1]["metrics"]["plan_eviction_ms"]
+        ),
+        "hot_dense_second_preparation_bytes": int(
+            hot["steps"][1]["metrics"]["plan_preparation_bytes"]
+        ),
+        "hot_dense_second_prepared_state_hot": bool(
+            hot["steps"][1]["metrics"]["strategy_prepared_state_hot"]
         ),
         "final_product_eviction_ms": float(
             final_ev["steps"][1]["metrics"]["plan_eviction_ms"]
