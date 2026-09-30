@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -53,6 +54,27 @@ enum class AttentionExecutionKind {
 [[nodiscard]] Result<AttentionExecutionKind> attention_execution_kind_from_string(
     std::string_view value);
 
+// QualifiedOperationSite is intentionally limited to operation sites that are
+// already selectable in the qualified AIR Qwen execution path. It is not a
+// universal neural-operation catalog.
+enum class QualifiedOperationSite {
+    prefill_transformer_block_linear = 0,
+    decode_transformer_block_linear,
+    decode_output_projection,
+    prefill_attention,
+    decode_attention,
+};
+
+enum class OperationImplementationFamily {
+    linear = 0,
+    attention,
+};
+
+[[nodiscard]] const char* to_string(QualifiedOperationSite site) noexcept;
+[[nodiscard]] const char* to_string(OperationImplementationFamily family) noexcept;
+[[nodiscard]] OperationImplementationFamily implementation_family(
+    QualifiedOperationSite site) noexcept;
+
 struct BackendCapabilities {
     BackendKind backend{BackendKind::reference};
     PrefillExecutionKind prefill_execution{PrefillExecutionKind::serial};
@@ -75,6 +97,16 @@ struct BackendCapabilities {
     std::vector<AttentionExecutionKind> prefill_attention{AttentionExecutionKind::baseline};
     std::vector<AttentionExecutionKind> decode_attention{AttentionExecutionKind::baseline};
 };
+
+[[nodiscard]] Result<std::span<const QuantizedLinearExecutionKind>>
+linear_implementations(
+    const BackendCapabilities& capabilities,
+    QualifiedOperationSite site);
+
+[[nodiscard]] Result<std::span<const AttentionExecutionKind>>
+attention_implementations(
+    const BackendCapabilities& capabilities,
+    QualifiedOperationSite site);
 
 struct RequestProfile {
     std::uint64_t prompt_tokens{0};
