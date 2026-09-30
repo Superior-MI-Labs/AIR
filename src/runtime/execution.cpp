@@ -380,6 +380,8 @@ namespace {
     out << "schema=" << graph.schema_version() << '\n';
     out << "backend=" << to_string(graph.backend()) << '\n';
     out << "invocation=" << to_string(graph.invocation().kind) << '\n';
+    out << "topology=" << graph.invocation().topology_fingerprint.size()
+        << ':' << graph.invocation().topology_fingerprint << '\n';
     out << "resource=" << graph.invocation().hardware_resource_id.size()
         << ':' << graph.invocation().hardware_resource_id << '\n';
     out << "state-storage=" << to_string(graph.state_storage()) << '\n';
@@ -465,6 +467,10 @@ Result<ExecutionGraph> derive_execution_graph(
 
     if (!valid_invocation_kind(invocation.kind)) {
         return Status::invalid_argument("physical invocation kind is unknown");
+    }
+    if (invocation.topology_fingerprint.empty()) {
+        return Status::invalid_argument(
+            "physical invocation requires an existing hardware topology fingerprint");
     }
     if (invocation.hardware_resource_id.empty()) {
         return Status::invalid_argument(
