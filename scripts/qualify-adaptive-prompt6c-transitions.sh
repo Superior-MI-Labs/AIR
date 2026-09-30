@@ -88,7 +88,6 @@ STAGE="cuda-configure"
 cmake -S "$ROOT" -B "$BUILD" \
     -DCMAKE_BUILD_TYPE=Release \
     -DAIR_ENABLE_CUDA=ON \
-    -DAIR_BUILD_RESEARCH=ON \
     > "$OUT/configure.log" 2>&1
 
 STAGE="cuda-build"
