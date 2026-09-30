@@ -2,6 +2,7 @@
 
 #include "air/format.hpp"
 #include "air/manifest.hpp"
+#include "air/machine.hpp"
 #include "air/runtime.hpp"
 #include "air/tokenizer.hpp"
 
@@ -32,6 +33,17 @@
 #include <utility>
 
 namespace air {
+
+const char* to_string(ExecutionGraphEvidenceStatus status) noexcept {
+    switch (status) {
+    case ExecutionGraphEvidenceStatus::not_evaluated: return "not-evaluated";
+    case ExecutionGraphEvidenceStatus::concordant: return "concordant";
+    case ExecutionGraphEvidenceStatus::incomplete: return "incomplete";
+    case ExecutionGraphEvidenceStatus::contradictory: return "contradictory";
+    }
+    return "unknown";
+}
+
 namespace {
 
 using Clock = std::chrono::steady_clock;
@@ -272,6 +284,18 @@ struct InferenceService::Impl : ExecutionObservationSink {
     std::uint64_t evicted_execution_spans{0};
     std::atomic<std::uint64_t> dropped_execution_spans{0};
 
+    // Prompt 5C: graph observation is detailed-mode evidence only. Topology is
+    // discovered through the existing machine authority once and referenced by
+    // graph derivation; it is not rediscovered or owned by ExecutionGraph.
+    std::optional<HardwareTopology> execution_graph_topology;
+    std::string execution_graph_topology_status{"disabled"};
+    std::deque<ExecutionGraphObservation> execution_graph_observations;
+    std::uint64_t next_execution_graph_observation{1};
+    std::uint64_t evicted_execution_graph_observations{0};
+    std::atomic<std::uint64_t> dropped_execution_graph_observations{0};
+    std::uint64_t execution_graph_derivation_failures{0};
+    std::string last_execution_graph_derivation_error;
+
     std::filesystem::path event_log_path;
     std::ofstream event_log;
 
@@ -428,6 +452,293 @@ struct InferenceService::Impl : ExecutionObservationSink {
 
     [[nodiscard]] const runtime_detail::PreparedModel* prepared_for(BackendKind backend_kind) const noexcept {
         return backend_kind == BackendKind::cuda ? cuda.get() : reference.get();
+    }
+
+    struct PendingExecutionGraphObservation {
+        std::shared_ptr<const ExecutionGraph> graph;
+        std::vector<ExecutionGraphParticipantCorrelation> participants;
+        std::uint64_t first_span_sequence{0};
+        std::uint64_t evicted_spans_before{0};
+    };
+
+    void record_execution_graph_derivation_failure(std::string message) noexcept {
+        try {
+            std::lock_guard lock(mutex);
+            ++execution_graph_derivation_failures;
+            last_execution_graph_derivation_error = std::move(message);
+        } catch (...) {
+            dropped_execution_graph_observations.fetch_add(
+                1U, std::memory_order_relaxed);
+        }
+    }
+
+    [[nodiscard]] Result<std::string> execution_graph_resource_id(
+        BackendKind backend_kind) const {
+        if (!execution_graph_topology) {
+            return Status::invalid_state(
+                "execution graph topology is unavailable: " +
+                execution_graph_topology_status);
+        }
+
+        const HardwareNode* selected = nullptr;
+        for (const auto& node : execution_graph_topology->nodes) {
+            bool match = false;
+            if (backend_kind == BackendKind::reference) {
+                match = node.kind == HardwareNodeKind::cpu &&
+                    node.backend == "cpu";
+            } else if (backend_kind == BackendKind::cuda) {
+                match = node.kind == HardwareNodeKind::accelerator &&
+                    node.backend == "cuda" &&
+                    node.ordinal == cuda_device;
+            }
+            if (!match) continue;
+            if (selected) {
+                return Status::invalid_state(
+                    "execution graph placement is ambiguous in machine topology");
+            }
+            selected = &node;
+        }
+        if (!selected) {
+            return Status::invalid_state(
+                "execution graph placement is absent from machine topology");
+        }
+        return selected->id;
+    }
+
+    [[nodiscard]] std::optional<PendingExecutionGraphObservation>
+    begin_execution_graph_observation(
+        const ExecutionPlan& plan,
+        const BackendCapabilities& capabilities,
+        PhysicalInvocation invocation,
+        std::vector<ExecutionGraphParticipantCorrelation> participants) noexcept {
+        if (config.execution_observation_level !=
+            ExecutionObservationLevel::detailed) {
+            return std::nullopt;
+        }
+
+        try {
+            if (!execution_graph_topology) {
+                record_execution_graph_derivation_failure(
+                    "machine topology unavailable: " +
+                    execution_graph_topology_status);
+                return std::nullopt;
+            }
+            auto resource = execution_graph_resource_id(plan.backend);
+            if (!resource) {
+                record_execution_graph_derivation_failure(
+                    resource.status().message());
+                return std::nullopt;
+            }
+
+            invocation.topology_fingerprint =
+                execution_graph_topology->fingerprint;
+            invocation.hardware_resource_id = std::move(resource).value();
+            auto derived =
+                derive_execution_graph(plan, capabilities, std::move(invocation));
+            if (!derived) {
+                record_execution_graph_derivation_failure(
+                    derived.status().message());
+                return std::nullopt;
+            }
+
+            PendingExecutionGraphObservation pending;
+            pending.graph = std::make_shared<const ExecutionGraph>(
+                std::move(derived).value());
+            pending.participants = std::move(participants);
+            {
+                std::lock_guard lock(mutex);
+                pending.first_span_sequence = next_execution_span;
+                pending.evicted_spans_before = evicted_execution_spans;
+            }
+            return pending;
+        } catch (const std::exception& error) {
+            record_execution_graph_derivation_failure(error.what());
+        } catch (...) {
+            record_execution_graph_derivation_failure(
+                "unknown execution graph derivation failure");
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] static bool graph_participant_matches(
+        const std::vector<ExecutionGraphParticipantCorrelation>& participants,
+        const ExecutionSpan& span) noexcept {
+        return std::any_of(
+            participants.begin(), participants.end(),
+            [&](const auto& participant) {
+                return participant.request_id == span.request_id &&
+                    participant.sequence_id == span.sequence_id;
+            });
+    }
+
+    [[nodiscard]] static bool graph_transfer_supports_phase(
+        const ExecutionGraph& graph, std::string_view phase) noexcept {
+        for (const auto& node : graph.nodes()) {
+            if (node.kind != ExecutionGraphNodeKind::transfer_region ||
+                !node.payload) {
+                continue;
+            }
+            switch (*node.payload) {
+            case ExecutionPayloadKind::input_tokens:
+                if (phase == "h2d-prefill-token-enqueue") return true;
+                break;
+            case ExecutionPayloadKind::full_logits:
+                if (phase == "d2h-logits-enqueue") return true;
+                break;
+            case ExecutionPayloadKind::greedy_result:
+                if (phase == "d2h-greedy-result-enqueue") return true;
+                break;
+            case ExecutionPayloadKind::target_tokens:
+                if (phase == "h2d-target-token-enqueue") return true;
+                break;
+            case ExecutionPayloadKind::target_logprob_results:
+                if (phase == "d2h-target-logprobs-enqueue" ||
+                    phase == "d2h-target-logprob-flag-enqueue") {
+                    return true;
+                }
+                break;
+            }
+        }
+        return false;
+    }
+
+    [[nodiscard]] static bool graph_transfer_node_has_evidence(
+        const ExecutionGraphNode& node,
+        std::span<const ExecutionSpan> spans) noexcept {
+        if (node.kind != ExecutionGraphNodeKind::transfer_region ||
+            !node.payload) {
+            return false;
+        }
+        return std::any_of(spans.begin(), spans.end(), [&](const auto& span) {
+            if (span.category != ExecutionSpanCategory::transfer) return false;
+            switch (*node.payload) {
+            case ExecutionPayloadKind::input_tokens:
+                return span.phase == "h2d-prefill-token-enqueue";
+            case ExecutionPayloadKind::full_logits:
+                return span.phase == "d2h-logits-enqueue";
+            case ExecutionPayloadKind::greedy_result:
+                return span.phase == "d2h-greedy-result-enqueue";
+            case ExecutionPayloadKind::target_tokens:
+                return span.phase == "h2d-target-token-enqueue";
+            case ExecutionPayloadKind::target_logprob_results:
+                return span.phase == "d2h-target-logprobs-enqueue" ||
+                    span.phase == "d2h-target-logprob-flag-enqueue";
+            }
+            return false;
+        });
+    }
+
+    void finish_execution_graph_observation(
+        PendingExecutionGraphObservation pending,
+        Clock::time_point start,
+        Clock::time_point end,
+        bool backend_success) noexcept {
+        if (!pending.graph) return;
+
+        try {
+            ExecutionGraphObservation observation;
+            observation.graph = std::move(pending.graph);
+            observation.participants = std::move(pending.participants);
+            observation.start_ns = observation_ns(start);
+            observation.end_ns = observation_ns(end);
+            observation.backend_success = backend_success;
+
+            std::lock_guard lock(mutex);
+            observation.evidence_truncated =
+                evicted_execution_spans != pending.evicted_spans_before;
+
+            std::vector<ExecutionSpan> backend_spans;
+            for (const auto& span : execution_spans) {
+                if (span.observation_sequence < pending.first_span_sequence ||
+                    span.scope != ExecutionSpanScope::backend ||
+                    span.backend != to_string(observation.graph->backend()) ||
+                    !graph_participant_matches(observation.participants, span)) {
+                    continue;
+                }
+                backend_spans.push_back(span);
+            }
+
+            for (const auto& node : observation.graph->nodes()) {
+                if (node.kind == ExecutionGraphNodeKind::transfer_region) {
+                    ++observation.planned_transfer_regions;
+                    if (graph_transfer_node_has_evidence(node, backend_spans)) {
+                        ++observation.matched_transfer_regions;
+                    }
+                } else if (
+                    node.kind ==
+                    ExecutionGraphNodeKind::synchronization_region) {
+                    ++observation.planned_synchronization_regions;
+                    const bool matched = std::any_of(
+                        backend_spans.begin(), backend_spans.end(),
+                        [](const auto& span) {
+                            return span.category ==
+                                    ExecutionSpanCategory::synchronization &&
+                                span.phase.rfind("cuda-stream-wait-", 0) == 0;
+                        });
+                    if (matched) {
+                        ++observation.matched_synchronization_regions;
+                    }
+                }
+            }
+
+            for (const auto& span : backend_spans) {
+                if (span.category == ExecutionSpanCategory::transfer) {
+                    ++observation.observed_transfer_spans;
+                    if (!graph_transfer_supports_phase(
+                            *observation.graph, span.phase)) {
+                        ++observation.unexpected_transfer_spans;
+                    }
+                } else if (
+                    span.category ==
+                    ExecutionSpanCategory::synchronization) {
+                    ++observation.observed_synchronization_spans;
+                    const bool graph_has_sync = std::any_of(
+                        observation.graph->nodes().begin(),
+                        observation.graph->nodes().end(),
+                        [](const auto& node) {
+                            return node.kind ==
+                                ExecutionGraphNodeKind::synchronization_region;
+                        });
+                    if (!graph_has_sync ||
+                        span.phase.rfind("cuda-stream-wait-", 0) != 0) {
+                        ++observation.unexpected_synchronization_spans;
+                    }
+                }
+            }
+
+            if (!backend_success) {
+                observation.evidence_status =
+                    ExecutionGraphEvidenceStatus::not_evaluated;
+            } else if (
+                observation.unexpected_transfer_spans != 0U ||
+                observation.unexpected_synchronization_spans != 0U) {
+                observation.evidence_status =
+                    ExecutionGraphEvidenceStatus::contradictory;
+            } else if (
+                observation.evidence_truncated ||
+                observation.matched_transfer_regions !=
+                    observation.planned_transfer_regions ||
+                observation.matched_synchronization_regions !=
+                    observation.planned_synchronization_regions) {
+                observation.evidence_status =
+                    ExecutionGraphEvidenceStatus::incomplete;
+            } else {
+                observation.evidence_status =
+                    ExecutionGraphEvidenceStatus::concordant;
+            }
+
+            observation.observation_sequence =
+                next_execution_graph_observation++;
+            execution_graph_observations.push_back(std::move(observation));
+            while (execution_graph_observations.size() >
+                   config.execution_span_capacity) {
+                execution_graph_observations.pop_front();
+                ++evicted_execution_graph_observations;
+            }
+        } catch (...) {
+            dropped_execution_graph_observations.fetch_add(
+                1U, std::memory_order_relaxed);
+        }
     }
 
     void apply_plan_defaults(ExecutionPlan& plan) const {
@@ -2320,6 +2631,18 @@ Result<std::unique_ptr<InferenceService>> InferenceService::create(
     impl->tokenizer = std::move(tokenizer).value();
     impl->requested_backend = backend;
     impl->cuda_device = cuda_device;
+    if (scheduler.execution_observation_level ==
+        ExecutionObservationLevel::detailed) {
+        auto topology = discover_machine_topology();
+        if (topology) {
+            impl->execution_graph_topology =
+                std::move(topology).value();
+            impl->execution_graph_topology_status = "ready";
+        } else {
+            impl->execution_graph_topology_status =
+                "unavailable:" + topology.status().message();
+        }
+    }
     impl->event_log_path = std::move(event_log_path);
     if (!impl->event_log_path.empty()) {
         impl->event_log.open(impl->event_log_path, std::ios::app);
@@ -2821,6 +3144,33 @@ ExecutionTimelineSnapshot InferenceService::execution_timeline(
     out.spans = std::vector<ExecutionSpan>(
         impl_->execution_spans.end() - static_cast<std::ptrdiff_t>(count),
         impl_->execution_spans.end());
+    return out;
+}
+
+ExecutionGraphTimelineSnapshot InferenceService::execution_graph_timeline(
+    std::size_t limit) const {
+    std::lock_guard lock(impl_->mutex);
+    ExecutionGraphTimelineSnapshot out;
+    out.level = impl_->config.execution_observation_level;
+    out.capacity = impl_->config.execution_span_capacity;
+    out.evicted_graphs = impl_->evicted_execution_graph_observations;
+    out.dropped_graphs =
+        impl_->dropped_execution_graph_observations.load(
+            std::memory_order_relaxed);
+    out.derivation_failures = impl_->execution_graph_derivation_failures;
+    out.topology_status = impl_->execution_graph_topology_status;
+    if (impl_->execution_graph_topology) {
+        out.topology_fingerprint =
+            impl_->execution_graph_topology->fingerprint;
+    }
+    out.last_derivation_error =
+        impl_->last_execution_graph_derivation_error;
+    const auto count =
+        std::min(limit, impl_->execution_graph_observations.size());
+    out.observations = std::vector<ExecutionGraphObservation>(
+        impl_->execution_graph_observations.end() -
+            static_cast<std::ptrdiff_t>(count),
+        impl_->execution_graph_observations.end());
     return out;
 }
 
