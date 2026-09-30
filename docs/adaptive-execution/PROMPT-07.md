@@ -394,3 +394,88 @@ Full artifact checksums are deferred until Stage 7A narrows to one candidate.
 Expected marker:
 
 `PROMPT7A_IMAGE_CANDIDATE_CENSUS=PASS`
+
+
+## Stage 7A provisional selection
+
+Provisional oracle candidate:
+
+`FLUX.2 Klein 4B` distilled FP8 text-to-image workflow.
+
+Local candidate components:
+
+- diffusion:
+  `~/Models/Media/Image/FLUX.2-Klein-4B/flux-2-klein-4b-fp8.safetensors`;
+- text encoder:
+  `~/Models/Media/Image/FLUX.2-Klein-4B/split_files/text_encoders/qwen_3_4b_fp4_flux2.safetensors`;
+- VAE:
+  `~/Models/Media/Image/FLUX.2-Klein-4B/split_files/vae/flux2-vae.safetensors`.
+
+Selection rationale:
+
+1. official Black Forest Labs reference implementation exists;
+2. native ComfyUI Flux2 support is present in the pinned local ComfyUI commit;
+3. official/native workflow structure exposes:
+   - text conditioning;
+   - explicit latent value;
+   - explicit scheduler/sigma sequence;
+   - stochastic noise/seed;
+   - repeated sampler region;
+   - separate VAE decode;
+4. the local package is materially smaller than Qwen-Image-2.1 and is a lower
+   risk first oracle on the 16 GiB WolfCat GPU;
+5. it remains structurally different enough from autoregressive Qwen2 to force
+   image/latent/iteration/resource questions;
+6. the locally installed FP4 Qwen3-4B text encoder is a Comfy-Org published
+   artifact, not an unknown user conversion.
+
+Deferred candidate:
+
+`Qwen-Image-2.1`.
+
+Reason for deferral:
+
+- retain as a later, higher-pressure residency/offload discriminator;
+- its installed components total roughly 17 GiB on disk, with an ~8.7 GiB text
+  encoder and ~6.8 GiB diffusion model, making it a more complex first oracle;
+- Prompt 7 selection optimizes for reproducibility and architectural
+  discrimination, not maximum memory pressure.
+
+This is provisional until local artifact identity and exact pinned-runtime
+support pass the Stage 7A selection preflight.
+
+### Stage 7A FLUX.2 selection preflight
+
+Authority:
+
+`scripts/qualify-adaptive-prompt7a-flux2-selection.sh`
+
+The gate is read-only.
+
+It:
+
+- verifies SHA-256 identity for the local diffusion/text-encoder/VAE artifacts;
+- inspects safetensors headers/tensor structure without loading weights;
+- freezes the pinned ComfyUI Git identity;
+- requires native `EmptyFlux2LatentImage` and `Flux2Scheduler` support;
+- verifies ComfyUI imports from the actual ComfyUI working directory;
+- reports whether each selected component is already visible through standard
+  local ComfyUI model directories;
+- records machine state and checksums the evidence bundle.
+
+Expected published artifact identities:
+
+- diffusion FP8:
+  `97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6`;
+- Qwen3-4B FP4 Flux2 text encoder:
+  `3eab03a77adb0ee5304a4e677d5c10ac22f9049c1d7c894adca4f8bb39206ca8`;
+- Flux2 VAE:
+  `d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5`.
+
+Expected marker:
+
+`PROMPT7A_FLUX2_SELECTION_PREFLIGHT=PASS`
+
+A PASS freezes the candidate identity but does not yet qualify the external
+image oracle. Stage 7B still requires a fixed workflow/seed/configuration and
+retained output/resource evidence.
