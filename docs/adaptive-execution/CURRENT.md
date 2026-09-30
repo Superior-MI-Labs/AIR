@@ -419,7 +419,20 @@ are authorized in Prompt 7.
 
 ## Immediate next action
 
-Run the read-only FLUX.2 Klein 4B Stage 7A selection preflight:
+Rerun the FLUX.2 Klein 4B Stage 7A selection preflight after the VAE source
+identity correction.
+
+The first run proved:
+
+- diffusion artifact identity PASS;
+- text-encoder artifact identity PASS;
+- local VAE is not corrupt; it exactly matches the published
+  `Comfy-Org/vae-text-encorder-for-flux-klein-4b` VAE.
+
+The previous gate incorrectly expected the distinct
+`Comfy-Org/flux2-dev` VAE used by the current stock ComfyUI template.
+
+Run:
 
 ```text
 bash scripts/qualify-adaptive-prompt7a-flux2-selection.sh \
@@ -431,23 +444,10 @@ Expected marker:
 
 `PROMPT7A_FLUX2_SELECTION_PREFLIGHT=PASS`
 
-The preflight freezes exact local artifact identity, safetensors structure,
-pinned ComfyUI runtime/native Flux2 support, and current model visibility.
+A PASS freezes the exact local package and runtime identity.
 
-FLUX.2 Klein 4B is the provisional first oracle candidate.
-
-Qwen-Image-2.1 is retained for later higher-pressure residency/offload
-falsification rather than used as the first external oracle.
-
-After a PASS:
-
-1. stage the selected FLUX components for ComfyUI only if visibility evidence
-   shows they are not already available;
-2. freeze a minimal text-to-image workflow;
-3. use a fixed seed/configuration;
-4. capture the first external oracle output, timing, VRAM/RAM, and component
-   residency evidence;
-5. do not modify AIR core execution types yet.
+Stage 7B must still execute the oracle and validate the local published
+Klein-support VAE in practice before AIR core image semantics are derived.
 
 ## Current architectural hypothesis
 
