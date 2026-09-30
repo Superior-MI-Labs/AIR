@@ -165,7 +165,7 @@ def benchmark_perf(reports, profile, *, cold_reports=None):
             raise RuntimeError(f"dense cold preparation bytes changed: {prep_bytes}")
 
     return {
-        "samples": sum(len(x.get("runs", [])) for x in reports),
+        "samples": len(reports),
         "ttft": stats(x["summary"]["p50_ttft_ms"] for x in reports),
         "total": stats(x["summary"]["p50_total_ms"] for x in reports),
         "prefill": stats(x["summary"]["mean_prefill_tokens_per_second"] for x in reports),
