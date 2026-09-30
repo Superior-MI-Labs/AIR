@@ -223,34 +223,44 @@ Final implementation/qualifier CPU preflight PASS:
 
 Prompt 5 is the ExecutionGraph R0 program.
 
-The first step is a source/ownership census, not a graph executor.
+Slice 5A census/architecture is COMPLETE.
 
-Prompt 5 must prove that AIR can represent the physical execution already
-performed by the qualified Qwen path as deterministic derived data without
-creating a second runtime, planner, scheduler, state owner, or semantic graph.
+Source inspection showed that a whole-request graph derived only from
+`ExecutionPlan` would encode false precision because physical shape still
+depends on live scheduler grouping, prefix/state hits, output mode, and
+cancellation.
 
-Preferred implementation strategy:
+R0 therefore uses the smallest truthful seam:
 
 ```text
-current semantic/runtime authorities
+existing planner/scheduler/grouping decisions
         ->
-derive immutable physical ExecutionGraph
+physical invocation is concrete
         ->
-validate graph against actual qualified execution
+derive immutable ExecutionGraph
+        ->
+existing PreparedModel / SequenceState execution
 ```
 
-Do not make production execution graph-driven until the derived representation
-has been characterized and falsified against the existing path.
+The graph is derived physical data. It does not become an executor, scheduler,
+planner, state owner, semantic graph, or hardware authority.
 
-See:
+Schema comparison and characterization requirements are recorded in:
 `docs/adaptive-execution/PROMPT-05.md`
+
+Slice 5B is CURRENT.
 
 ## Immediate next action
 
-Perform the Prompt 5 execution-path census defined in `PROMPT-05.md`.
+Implement only the additive 5B schema/projection slice:
 
-Do not add graph execution, schedule optimization, or generalized semantic IR
-during the census slice.
+- immutable ExecutionGraph R0 types;
+- pure graph derivation from already-concrete physical invocation data;
+- deterministic identity;
+- serialization/inspection;
+- characterization tests.
+
+Do not dispatch graph nodes or change production execution behavior in 5B.
 
 ## Current architectural hypothesis
 
