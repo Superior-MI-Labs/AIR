@@ -733,3 +733,56 @@ Corrective action:
 
 The 6C transition experiment remains pending until the corrected head passes
 preflight and is rerun on WolfCat.
+
+
+## 6C second live attempt: Reference oracle gate blocked
+
+The bounded-build WolfCat retry at source
+`e22ca070debfa8b0705bfe62b3a3335970292035` resolved the terminal/resource
+pressure problem and reached the actual 6C numerical gate.
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-090736`
+
+Observed result:
+
+- no competing GPU compute process;
+- adaptive CPU preflight 13/13 PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`;
+- CUDA build with four jobs PASS;
+- host memory remained stable with approximately 20 GiB available before and
+  after the CUDA build;
+- CUDA 13/13 CTests PASS;
+- first strict numerical command returned exit code 9 before CUDA prefill
+  comparison completed.
+
+In `air-verify`, exit code 9 means:
+
+`ReferenceExecutor::prefill(...)` returned an error.
+
+Therefore the failure is not yet evidence against `batch-reuse8`,
+`dense-f32-cublas`, or the Strategy Lab transition model.
+
+The Reference oracle itself must first be shown capable of evaluating the exact
+Qwen2.5-1.5B verification case.
+
+Corrective qualification behavior:
+
+- run a baseline-CUDA width-1 oracle sanity case before alternate-tactic gates;
+- surface the child verifier log tail directly in the parent 6C terminal output
+  on failure;
+- do not mark alternate tactics strict-qualified until the Reference oracle
+  prerequisite passes.
+
+Current diagnostic source:
+
+`28ef1cfb5371329a503e2534cafd64c40f87e9e0`
+
+The existing failed run contains the exact Reference status in:
+
+`strict/reuse8-p1.txt`
+
+inside the evidence directory above.
+
+6C remains CURRENT. No transition-economics measurement has started yet.
