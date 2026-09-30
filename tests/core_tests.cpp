@@ -612,6 +612,7 @@ void test_execution_graph_projection() {
     reference_prefill.participants = {
         air::PhysicalInvocationParticipant{8U, OutputMode::logits, 0U},
     };
+    reference_prefill.topology_fingerprint = "hardware-topology:test-reference";
     reference_prefill.hardware_resource_id = "cpu:0";
 
     auto reference_graph =
@@ -671,6 +672,7 @@ void test_execution_graph_projection() {
     cuda_prefill.participants = {
         air::PhysicalInvocationParticipant{16U, OutputMode::logits, 0U},
     };
+    cuda_prefill.topology_fingerprint = "hardware-topology:test-cuda";
     cuda_prefill.hardware_resource_id = "accelerator:0";
 
     auto graph_a = air::derive_execution_graph(cuda_plan, cuda, cuda_prefill);
@@ -694,6 +696,7 @@ void test_execution_graph_projection() {
               "CUDA logits prefill exposes input transfer, output transfer, and stream wait");
         const auto serialized = air::serialize_execution_graph(graph_a.value());
         check(serialized.find("identity=execution-graph:r0:") != std::string::npos &&
+              serialized.find("topology=27:hardware-topology:test-cuda") != std::string::npos &&
               serialized.find("resource=13:accelerator:0") != std::string::npos,
               "ExecutionGraph inspection serialization includes stable identity and placement");
     }
@@ -769,6 +772,7 @@ void test_execution_graph_projection() {
         air::PhysicalInvocationParticipant{8U, OutputMode::discard, 0U},
         air::PhysicalInvocationParticipant{8U, OutputMode::greedy, 0U},
     };
+    native_prefill.topology_fingerprint = "hardware-topology:test-cuda";
     native_prefill.hardware_resource_id = "accelerator:0";
     auto native_prefill_graph =
         air::derive_execution_graph(cuda_plan, cuda, native_prefill);
@@ -783,6 +787,7 @@ void test_execution_graph_projection() {
         air::PhysicalInvocationParticipant{1U, OutputMode::greedy, 0U},
         air::PhysicalInvocationParticipant{1U, OutputMode::greedy, 0U},
     };
+    decode_batch.topology_fingerprint = "hardware-topology:test-cuda";
     decode_batch.hardware_resource_id = "accelerator:0";
     auto decode_batch_graph =
         air::derive_execution_graph(cuda_plan, cuda, decode_batch);
@@ -808,6 +813,11 @@ void test_execution_graph_projection() {
     bad_targets.participants.front().target_count = 1U;
     check(!air::derive_execution_graph(cuda_plan, cuda, bad_targets),
           "target counts cannot leak into non-target-logprob output");
+
+    auto no_topology = cuda_prefill;
+    no_topology.topology_fingerprint.clear();
+    check(!air::derive_execution_graph(cuda_plan, cuda, no_topology),
+          "ExecutionGraph cannot interpret placement without topology identity");
 
     auto no_resource = cuda_prefill;
     no_resource.hardware_resource_id.clear();
