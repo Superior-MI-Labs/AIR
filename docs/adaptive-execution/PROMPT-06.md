@@ -786,3 +786,56 @@ The existing failed run contains the exact Reference status in:
 inside the evidence directory above.
 
 6C remains CURRENT. No transition-economics measurement has started yet.
+
+
+## 6C verifier diagnosis corrected - profile mismatch, not Reference failure
+
+Manual inspection of the retained second-attempt verifier log established that
+the earlier exit-code interpretation was incomplete.
+
+The failed command produced a complete verification report:
+
+- decision 0 Reference/CUDA top-1: 16/16;
+- decision 1 Reference/CUDA top-1: 17/17;
+- finite outputs: PASS;
+- max absolute errors: 0.00301743 and 0.00104904;
+- requested absolute tolerance: 0.001;
+- final tolerance gate: FAIL.
+
+A manually rerun all-baseline CUDA profile produced the exact same two
+Reference/CUDA errors and top-1 results.
+
+Therefore:
+
+- Reference prefill did not fail;
+- reuse8 did not introduce the observed error;
+- `air-verify` exit code 9 is overloaded: it is also the final
+  correctness-gate failure return code;
+- the current 6C isolated 6B profile has a baseline numerical floor above the
+  frozen 0.001 strict threshold.
+
+Do not relax the 0.001 threshold.
+
+Historical Strategy Lab / Prompt-15 qualification intentionally used an
+operation-scoped product profile rather than the 6B isolation profile:
+
+- prefill block: candidate reuse8 or dense;
+- prefill attention: online-softmax;
+- decode block: corresponding reuse8 or dense candidate;
+- decode output: reuse8;
+- decode attention: baseline.
+
+Prompt-15 explicitly retained the 0.001 absolute gate when testing numerical
+generalization.
+
+6C must therefore distinguish:
+
+1. isolated 6B performance evidence, which remains valid for identifying the
+   prefill block bottleneck; and
+2. exact product-plan evidence suitable for Strategy Lab
+   `strict_qualified` state.
+
+Next diagnostic: rerun the current 1.5B verifier on the already-built binaries
+using the product execution profiles at widths 1, 8, and 64. If they retain the
+frozen 0.001 qualification, 6C must measure performance/transition evidence for
+those exact plans rather than relabeling the baseline-attention 6B measurements.
