@@ -427,18 +427,29 @@ void test_qualified_operation_site_capabilities() {
     check(std::string(air::to_string(Site::prefill_transformer_block_linear)) ==
               "prefill-transformer-block-linear",
           "qualified operation site has stable identity");
-    check(air::implementation_family(Site::prefill_transformer_block_linear) ==
-              Family::linear &&
-          air::implementation_family(Site::decode_transformer_block_linear) ==
-              Family::linear &&
-          air::implementation_family(Site::decode_output_projection) ==
-              Family::linear,
+    auto prefill_linear_family =
+        air::implementation_family(Site::prefill_transformer_block_linear);
+    auto decode_linear_family =
+        air::implementation_family(Site::decode_transformer_block_linear);
+    auto output_linear_family =
+        air::implementation_family(Site::decode_output_projection);
+    check(prefill_linear_family && prefill_linear_family.value() == Family::linear &&
+          decode_linear_family && decode_linear_family.value() == Family::linear &&
+          output_linear_family && output_linear_family.value() == Family::linear,
           "linear operation sites report linear implementation family");
-    check(air::implementation_family(Site::prefill_attention) ==
-              Family::attention &&
-          air::implementation_family(Site::decode_attention) ==
-              Family::attention,
+    auto prefill_attention_family =
+        air::implementation_family(Site::prefill_attention);
+    auto decode_attention_family =
+        air::implementation_family(Site::decode_attention);
+    check(prefill_attention_family &&
+              prefill_attention_family.value() == Family::attention &&
+          decode_attention_family &&
+              decode_attention_family.value() == Family::attention,
           "attention operation sites report attention implementation family");
+
+    check(!air::implementation_family(
+              static_cast<Site>(999)),
+          "unknown operation site rejects implementation-family classification");
 
     air::BackendCapabilities capabilities;
     capabilities.prefill_block_quantized_linear = {
