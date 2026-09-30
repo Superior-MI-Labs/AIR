@@ -469,7 +469,10 @@ Expected published artifact identities:
   `97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6`;
 - Qwen3-4B FP4 Flux2 text encoder:
   `3eab03a77adb0ee5304a4e677d5c10ac22f9049c1d7c894adca4f8bb39206ca8`;
-- Flux2 VAE:
+- selected local Klein-support Flux2 VAE:
+  `868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3`;
+- current stock-template `Comfy-Org/flux2-dev` VAE is retained as a
+  documented alternative:
   `d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5`.
 
 Expected marker:
@@ -535,3 +538,112 @@ Corrective policy:
 
 The Stage 7A selection gate now expects the local published Klein-support VAE
 identity and records both VAE source identities.
+
+
+## Stage 7A final qualification
+
+Status: CLOSED / QUALIFIED.
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7A-FLUX2-Selection-20260930-143502`
+
+Final marker:
+
+`PROMPT7A_FLUX2_SELECTION_PREFLIGHT=PASS`
+
+Qualified facts:
+
+- FLUX.2 Klein 4B FP8 diffusion identity:
+  `97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6`;
+- Qwen3-4B FP4 Flux2 text encoder identity:
+  `3eab03a77adb0ee5304a4e677d5c10ac22f9049c1d7c894adca4f8bb39206ca8`;
+- selected published Klein-support VAE identity:
+  `868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3`;
+- safetensors component census PASS;
+- pinned ComfyUI:
+  `986c4d154ef8c288382ac87d956b52a2b640c8b3`;
+- native `EmptyFlux2LatentImage` and `Flux2Scheduler` support present;
+- ComfyUI source-tree imports PASS;
+- Torch `2.11.0+cu130`, CUDA `13.0`;
+- RTX 3080 Laptop GPU visible with 16 GiB class device memory;
+- selected diffusion/text-encoder/VAE files are all visible to ComfyUI.
+
+The selected oracle package is now frozen.
+
+Prompt 7B is CURRENT.
+
+## Stage 7B external oracle implementation
+
+Authorities:
+
+- `scripts/prompt7b_flux2_oracle.py`;
+- `scripts/qualify-adaptive-prompt7b-flux2-oracle.sh`.
+
+The oracle mirrors the native ComfyUI distilled FLUX.2 Klein structure:
+
+```text
+frozen prompt
+    -> Qwen3-4B Flux2 text encode
+    -> positive conditioning
+    -> zeroed negative conditioning
+
+fixed seed -> RandomNoise
+
+1024x1024
+    -> EmptyFlux2LatentImage (128 latent channels)
+
+4 steps + 1024x1024
+    -> Flux2Scheduler
+Euler sampler
+CFG=1
+
+model + conditioning + noise + sigmas + latent
+    -> SamplerCustomAdvanced
+    -> final latent
+    -> selected local Flux2 VAE
+    -> 1024x1024 RGB image
+```
+
+Frozen oracle parameters:
+
+- resolution: 1024 x 1024;
+- steps: 4;
+- sampler: Euler;
+- CFG: 1;
+- seed: `432262096973490`;
+- batch: 1;
+- custom nodes: disabled;
+- ComfyUI result cache: disabled;
+- PyTorch deterministic flag: enabled.
+
+The driver executes the identical graph twice in one dedicated pinned ComfyUI
+process.
+
+The comparison contract is:
+
+`bit-identical RGB pixels across two forced re-executions on the same pinned runtime/hardware`
+
+The file-level PNG hash is also retained but pixel identity is the required
+same-machine oracle reproducibility gate because container metadata need not be
+the semantic image identity.
+
+The wrapper additionally requires:
+
+- clean AIR and ComfyUI worktrees;
+- clean GPU compute baseline;
+- dedicated localhost port;
+- ComfyUI-visible model paths resolve to the same underlying canonical model
+  files rather than independent duplicate copies;
+- qualified Stage 7A evidence is provided;
+- GPU/RAM telemetry is retained during execution;
+- server resource/load/offload events are retained;
+- dedicated oracle process is terminated and no compute process remains.
+
+Expected marker:
+
+`PROMPT7B_FLUX2_EXTERNAL_ORACLE=PASS`
+
+A PASS freezes the external image oracle. It still does not authorize AIR core
+image execution changes. Stages 7C-7H must derive the component/state/semantic
+gap map first.
