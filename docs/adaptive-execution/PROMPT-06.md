@@ -216,3 +216,73 @@ trials, retaining raw responses, timelines, GPU telemetry, summary JSON, and
 checksums.
 
 6A closes only after the WolfCat evidence is reviewed.
+
+
+## 6A first live attempt - endpoint-view truncation falsified the harness
+
+The first WolfCat 6A census attempt failed before comparing quantums.
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6A-Prefill-20260930-012327`
+
+Source:
+
+`db16e9a5876bfac142c5f959dfe0a38c7cad8356`
+
+Observed result:
+
+- clean expected AIR head;
+- adaptive CPU preflight PASS;
+- CPU 13/13 CTests PASS;
+- fresh CUDA server build PASS;
+- census failed with:
+  `RuntimeError: long prompt did not exercise outputless prefill synchronization`;
+- final gate:
+  `PROMPT6A_PREFILL_BOUNDARY_CENSUS=FAIL`;
+- failed stage:
+  `balanced-prefill-census`;
+- exit code 1.
+
+Root cause is the qualification harness, not a demonstrated absence of the
+CUDA synchronization path.
+
+The harness executed six long measured requests, then fetched `GET /timeline`
+only once. The service observation ring had not dropped spans, but
+`InferenceService::execution_timeline()` intentionally returns only the most
+recent 256 spans by default.
+
+Therefore:
+
+`dropped_spans == 0`
+
+means the service ring did not evict evidence. It does not mean one
+`GET /timeline` response contains every span from all six long requests.
+
+The harness then filtered that bounded endpoint view for each of the six
+request IDs. Older measured requests could legitimately have zero matching
+spans in the returned view, which the harness incorrectly interpreted as the
+runtime failing to execute outputless prefill synchronization.
+
+The CUDA source path remains:
+
+`SequenceState::prefill_discard -> CudaExecutor::prefill_discard ->
+prefill_impl(FinalOutput::discard) ->
+synchronize_outputless_prefill -> commit_kv`.
+
+Repair:
+
+- fetch `/timeline` immediately after every measured request;
+- correlate that newest bounded view to the just-completed request;
+- fetch/correlate `/execution-graphs` per request as well;
+- require current-request prefill backend-call evidence;
+- require current-request outputless synchronization evidence;
+- assert the maximum observed prefill backend-call work units do not exceed
+  the configured 32/64/128 quantum;
+- retain per-request raw endpoint snapshots.
+
+Repaired harness source:
+
+`e9c13e4f5f097be1d7af3c50c0e60cd8e9bd93d0`
+
+No runtime, scheduler, CUDA, KV, or synchronization behavior changed.
