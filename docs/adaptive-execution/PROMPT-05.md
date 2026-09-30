@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 5
 
-Status: 5B CLOSED / QUALIFIED; 5C CURRENT
+Status: 5B CLOSED / QUALIFIED; 5C IMPLEMENTED / LIVE QUALIFICATION PENDING
 Title: ExecutionGraph R0 - derived physical execution representation
 
 ## Qualified baseline
@@ -723,3 +723,215 @@ The first implementation step is source census of the exact single-prefill,
 native-prefill-batch, single-decode, and native-decode-batch call seams plus
 the existing observation correlation surface. No code movement is authorized
 until those owners are re-verified against current source.
+
+
+## 5C implementation result
+
+5C read-only invocation integration is implemented.
+
+Implementation and qualification-script source head:
+
+`37feee09d6585245587a1ae055e1e47bdf618377`
+
+### Exact integration seams
+
+ExecutionGraph derivation now occurs only after the current production path has
+already made the physical invocation concrete and immediately before the
+existing backend call at:
+
+- single-sequence prefill;
+- native multi-sequence prefill;
+- single-sequence generation decode;
+- native greedy decode batch;
+- decision target-logprob decode.
+
+The graph does not form batches, select a backend, select tactics, restore
+state, dispatch nodes, or change the existing backend call.
+
+### Observation level
+
+5C graph derivation is enabled only when:
+
+`execution-observation=detailed`
+
+Normal and off observation levels do not discover graph topology, derive
+graphs, or retain graph observations.
+
+This preserves the qualified AIR 0.11 normal-observation default until detailed
+graph overhead has been measured.
+
+### Topology ownership
+
+Detailed mode obtains one structural topology snapshot from the existing
+`discover_machine_topology()` authority.
+
+Discovery occurs only after the existing backend/model preparation path has
+completed, so graph observation cannot change backend preparation ordering.
+
+Placement is resolved from that canonical topology:
+
+- Reference uses the canonical CPU resource;
+- CUDA uses the accelerator whose backend is `cuda` and whose ordinal equals
+  the already-selected CUDA device.
+
+ExecutionGraph does not rediscover or own topology.
+
+### Planned versus observed truth
+
+5C keeps two separate surfaces:
+
+```text
+GET /execution-graphs
+    = intended derived physical invocation structure
+      + correlation metadata
+      + evidence-concordance result
+
+GET /timeline
+    = Prompt 3 execution spans actually observed
+```
+
+Observed spans never mutate the graph.
+
+Graph evidence status is one of:
+
+- `not-evaluated`: backend execution did not complete successfully;
+- `concordant`: every coarse planned transfer/synchronization region has
+  supporting observed evidence and no unsupported observed region appeared;
+- `incomplete`: planned structure is not fully supported by retained
+  correlated observation evidence;
+- `contradictory`: observed transfer/synchronization evidence is incompatible
+  with the planned coarse graph.
+
+Graph derivation/evidence failure remains observational and non-fatal to
+inference.
+
+### Current negative evidence retained intentionally
+
+Current CUDA shared native-batch input movement is not fully correlated through
+Prompt 3's per-sequence observation sink.
+
+Therefore the current characterization requires:
+
+- single CUDA prefill/decode graph evidence to be `concordant`;
+- native CUDA prefill/decode batch graph evidence to remain `incomplete`
+  where shared token-transfer evidence cannot yet be associated with the
+  invocation;
+- no unsupported observed transfer/synchronization evidence.
+
+This is a qualified evidence gap, not a reason to fabricate correlation.
+
+### Bounded retention
+
+Graph observations are bounded by the existing detailed execution-observation
+capacity. Allocation/derivation failures increment explicit dropped/failure
+counters instead of changing inference behavior.
+
+### Characterization
+
+CPU/reference tests prove:
+
+- off mode derives no graphs;
+- normal mode derives no graphs;
+- detailed Reference graph observation uses canonical topology;
+- detailed Reference graphs remain concordant without CUDA transfer/sync
+  artifacts;
+- correlation metadata remains outside structural graph identity;
+- structured graph/evidence JSON is serialized independently of Prompt 3
+  timeline JSON.
+
+The real CUDA contract additionally exercises an atomic production cohort and
+requires:
+
+- current native prefill batching;
+- current native greedy decode batching;
+- concordant single-invocation graph evidence;
+- preserved `incomplete` batch evidence for the known shared-correlation gap.
+
+Expected CUDA contract marker:
+
+`CUDA ExecutionGraph planned/observed concordance characterization passed`
+
+### CPU preflight
+
+GitHub Actions adaptive preflight passed at the complete 5C source/qualification
+head.
+
+Source:
+
+`37feee09d6585245587a1ae055e1e47bdf618377`
+
+Workflow run:
+
+`36663922514`
+
+Results:
+
+- shell syntax gate PASS;
+- Release CPU build PASS;
+- 13/13 CTests PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`.
+
+## 5C live qualification
+
+Correctness/evidence authority:
+
+`scripts/qualify-adaptive-prompt5c.sh`
+
+This gate requires:
+
+- CPU preflight;
+- fresh CUDA Release build;
+- CUDA 13/13 CTests;
+- Prompt 5B graph characterization nonregression;
+- real CUDA single/native-batch graph evidence characterization;
+- real Qwen2.5 detailed-mode generation;
+- structured `/execution-graphs` validation against canonical `/machine`;
+- independent graph-node-to-`/timeline` transfer/synchronization checks;
+- zero graph derivation failures;
+- zero contradictory single-invocation evidence;
+- normal-mode graph nonintrusion;
+- clean worktree and checksummed evidence.
+
+Expected final marker:
+
+`PROMPT5C_GRAPH_EVIDENCE=PASS`
+
+## 5C timing evidence
+
+Timing must use the same method that qualified Prompt 3.
+
+Authority:
+
+`scripts/requalify-adaptive-prompt5c-overhead.sh`
+
+This is intentionally a thin wrapper over
+`scripts/requalify-adaptive-prompt3-overhead.sh`.
+
+It therefore retains the same:
+
+- 3x3 balanced Latin ordering;
+- off/normal/detailed modes;
+- warmups;
+- six measured samples per session;
+- three sessions per mode;
+- median-of-session-medians analysis;
+- GPU telemetry;
+- clean-worktree and checksum evidence.
+
+The 5C interpretation must compare current detailed-vs-normal overhead with the
+qualified Prompt 3 evidence without claiming that any difference has a single
+cause.
+
+Expected final marker:
+
+`PROMPT5C_OVERHEAD_REMEASURE=PASS`
+
+## 5C stop condition
+
+Do not close 5C until both live evidence gates have been run and reviewed.
+
+Do not repair the known native-batch observation gap inside 5C merely to make
+the evidence green. If live evidence reproduces it, preserve it as the input to
+the next architecture decision.
+
+Do not begin graph-driven execution in the next slice.
