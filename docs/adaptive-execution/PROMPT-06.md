@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 6
 
-Status: 6A CURRENT / BOTTLENECK CENSUS
+Status: 6A CLOSED / FALSIFIED; 6B CURRENT
 Title: Schedule compiler and bottleneck optimization
 
 ## Qualified baseline
@@ -286,3 +286,157 @@ Repaired harness source:
 `e9c13e4f5f097be1d7af3c50c0e60cd8e9bd93d0`
 
 No runtime, scheduler, CUDA, KV, or synchronization behavior changed.
+
+
+## 6A final WolfCat result
+
+6A is CLOSED / FALSIFIED as an optimization hypothesis.
+
+Qualified repaired handoff source:
+
+`ffa9f1e33d85ee276a8d189e9523b3a88bf84186`
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6A-Prefill-20260930-033303`
+
+Final gate:
+
+`PROMPT6A_PREFILL_BOUNDARY_CENSUS=PASS`
+
+Qualifier exit code:
+
+`0`
+
+Measured median-of-session-median results:
+
+| Quantum | TTFT ms | Prefill ms | Prefill tok/s | Outputless syncs | Outputless wait ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 32 | 68544.017730 | 68541.987813 | 18.225 | 39 | 68363.997034 |
+| 64 | 68881.810411 | 68880.641073 | 18.133 | 19 | 67007.221377 |
+| 128 | 72041.696652 | 72040.924007 | 17.359 | 9 | 66227.781749 |
+
+Relative to q32:
+
+- q64 TTFT: `+0.493%`;
+- q64 prefill: `+0.494%`;
+- q64 prefill throughput: `-0.505%`;
+- q64 outputless wait: `-1.985%`;
+- q128 TTFT: `+5.103%`;
+- q128 prefill: `+5.105%`;
+- q128 prefill throughput: `-4.755%`;
+- q128 outputless wait: `-3.125%`.
+
+### 6A interpretation
+
+The source-grounded hypothesis was falsified.
+
+Increasing prefill quantum did exactly what the mechanism predicted with respect
+to synchronization frequency:
+
+- q32: 39 outputless waits;
+- q64: 19;
+- q128: 9.
+
+Total measured outputless host-wait duration also decreased as quantum grew.
+
+But end-to-end prefill and TTFT did not improve.
+
+q64 was approximately neutral/slightly worse and q128 was materially worse.
+
+Therefore:
+
+- synchronization boundary count is not the dominant optimization lever for
+  this workload;
+- the duration of the synchronization spans mostly reflects outstanding GPU
+  work, not synchronization-call overhead itself;
+- reducing the count of waits does not imply reducing the amount of GPU work;
+- simply removing or coarsening those synchronization boundaries is not
+  justified;
+- q32 remains the current default and the best of the tested quanta on this
+  long single-request workload.
+
+No scheduler policy change is authorized from 6A.
+
+Because no larger-quantum candidate improved the single-request baseline, the
+planned concurrency/fairness promotion test is unnecessary for this hypothesis.
+
+## 6B current - prefill physical implementation census on Qwen2.5-1.5B
+
+6A moves the bottleneck search one layer down.
+
+Prompt 4 already qualified multiple legal physical implementations for the
+prefill transformer-block linear operation.
+
+Older Strategy Lab evidence identified `batch-reuse8` and
+`dense-f32-cublas` as meaningful Pareto candidates, but that evidence was tied
+to an earlier measured workload/model scale.
+
+6B re-measures the current production implementation choices on the exact
+Qwen2.5-1.5B model and WolfCat machine used by the Adaptive Execution program.
+
+### 6B controlled candidates
+
+Compare:
+
+- `baseline`;
+- `batch-reuse8`;
+- `dense-f32-cublas`.
+
+Hold constant:
+
+- q32 prefill quantum;
+- CUDA device 0;
+- one active request;
+- token budget 256;
+- prefix cache disabled;
+- baseline prefill attention;
+- baseline decode block;
+- baseline decode output;
+- temperature zero;
+- identical prompt and generated-token count;
+- no adaptive manifest.
+
+### 6B required evidence
+
+For every candidate retain:
+
+- exact selected prefill tactic from `/runtime`;
+- deterministic generated text equality;
+- prompt/generated token counts;
+- steady-state TTFT;
+- steady-state prefill time;
+- prefill tokens/sec;
+- request total time;
+- warmup plan-preparation time;
+- warmup plan-preparation bytes;
+- hot measured-request plan-preparation time;
+- current prepared-artifact bytes;
+- current total device bytes;
+- GPU temperature/power/clocks/utilization;
+- raw responses/runtime snapshots;
+- evidence checksums.
+
+The first request in each session is a warmup/preparation request and is not part
+of the steady-state timing distribution.
+
+### 6B interpretation
+
+A faster tactic is not automatically a product winner.
+
+If `dense-f32-cublas` wins steady-state but requires substantial prepared
+memory or transition time, the result belongs to Strategy Lab economics rather
+than a universal default.
+
+If `batch-reuse8` wins with low additional residency, that may be a stronger
+general candidate.
+
+If baseline remains fastest on the current 1.5B workload, retain the negative
+result rather than carrying forward the older 0.5B conclusion.
+
+No tactic is promoted until semantic output equality and live CUDA legality are
+preserved.
+
+## 6B live evidence authority
+
+`scripts/qualify-adaptive-prompt6b-prefill-tactics.sh`
