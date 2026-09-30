@@ -340,6 +340,7 @@ def serve_mode(argv: list[str]) -> int:
             return
         install_probe(mm, mp, writer)
         probe_installed = True
+        builtins.__import__ = original_import
 
     def observing_import(name, globals=None, locals=None, fromlist=(), level=0):
         module = original_import(name, globals, locals, fromlist, level)
@@ -359,7 +360,6 @@ def serve_mode(argv: list[str]) -> int:
         runpy.run_path(str(main_py), run_name="__main__")
     finally:
         builtins.__import__ = original_import
-        maybe_install_probe()
 
     if not probe_installed:
         raise RuntimeError("Prompt 7G observer never saw ComfyUI model-management modules")
