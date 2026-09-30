@@ -1,6 +1,6 @@
 # AIR 0.11 Strategy - Prompt 3
 
-Status: IMPLEMENTED / LIVE WOLFCAT QUALIFICATION PENDING
+Status: CLOSED / QUALIFIED
 Title: Typed execution observation and physical timeline
 
 ## Prompt objective
@@ -356,6 +356,55 @@ Decision rule after 3E:
   recorder before making normal the default;
 - detailed may remain research-only even if its overhead is higher, but its
   cost must be documented.
+
+## Final Prompt 3E overhead falsification
+
+Prompt 3E qualified on WolfCat-Studio.
+
+Evidence directory:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt3-Overhead-20260929-204558`
+
+Balanced 3x3 result:
+
+```text
+off median of session medians:      1486.142155 ms
+normal median of session medians:   1489.623484 ms
+detailed median of session medians: 1494.234779 ms
+
+normal vs off:    +0.234%
+detailed vs off:  +0.545%
+detailed vs normal:+0.310%
+```
+
+Final gate:
+
+```text
+PROMPT3_OVERHEAD_FALSIFICATION=PASS
+PROMPT3_OVERHEAD_REMEASURE=PASS
+qualifier_rc=0
+```
+
+Interpretation:
+
+The first apparent ~9-11% observation penalty is classified as materially
+confounded by session-position/environment effects rather than accepted as
+recorder cost.
+
+The stronger balanced experiment makes each mode occupy each ordinal position
+once and collapses the apparent cost to well below 1% on the qualified
+development machine.
+
+Release decision:
+
+- `normal` observation is acceptable as the default for AIR 0.11;
+- `detailed` remains appropriate for research/diagnostic use and is also low
+  overhead in the qualified experiment;
+- the first experiment is retained as negative evidence and as proof that
+  performance experiments must actively control session order/environment;
+- no recorder optimization is justified from current evidence.
+
+Prompt 3 is CLOSED / QUALIFIED.
 
 ## Prompt 3 exit gate
 
