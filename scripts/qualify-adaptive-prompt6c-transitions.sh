@@ -17,6 +17,7 @@ fi
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$HOME/Downloads/AIR-0.11-Prompt6C-Transitions-$STAMP"
 BUILD="$OUT/build-cuda"
+BUILD_JOBS="${AIR_P6C_BUILD_JOBS:-4}"
 STAGE="initialization"
 
 mkdir -p "$OUT"
@@ -66,6 +67,7 @@ fi
     echo "model=$MODEL"
     echo "model_sha256=$(sha256sum "$MODEL" | awk '{print $1}')"
     echo "prompt6b_evidence=$P6B"
+    echo "build_jobs=$BUILD_JOBS"
 } > "$OUT/identity.txt"
 
 if command -v nvidia-smi >/dev/null; then
@@ -78,6 +80,7 @@ fi
 
 echo "=== ADAPTIVE CPU PREFLIGHT ==="
 STAGE="cpu-preflight"
+AIR_BUILD_JOBS="$BUILD_JOBS" \
 AIR_PREFLIGHT_OUT="$OUT/preflight-build" \
     bash "$ROOT/scripts/preflight-adaptive.sh" \
     2>&1 | tee "$OUT/preflight-terminal.txt"
@@ -91,8 +94,11 @@ cmake -S "$ROOT" -B "$BUILD" \
     > "$OUT/configure.log" 2>&1
 
 STAGE="cuda-build"
-cmake --build "$BUILD" -j"$(nproc)" \
+echo "CUDA build jobs: $BUILD_JOBS"
+free -h | tee "$OUT/memory-before-cuda-build.txt"
+cmake --build "$BUILD" -j"$BUILD_JOBS" \
     > "$OUT/build.log" 2>&1
+free -h | tee "$OUT/memory-after-cuda-build.txt"
 
 echo
 echo "=== CUDA CTEST ==="
