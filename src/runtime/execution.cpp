@@ -1,6 +1,9 @@
 #include "air/execution.hpp"
 
 #include <algorithm>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 namespace air {
 
@@ -227,6 +230,501 @@ Status validate_execution_plan(const ExecutionPlan& plan,
             "execution plan requests unsupported decode attention tactic");
     }
     return Status::ok();
+}
+
+const char* to_string(PhysicalInvocationKind kind) noexcept {
+    switch (kind) {
+    case PhysicalInvocationKind::prefill_single: return "prefill-single";
+    case PhysicalInvocationKind::prefill_native_batch: return "prefill-native-batch";
+    case PhysicalInvocationKind::decode_single: return "decode-single";
+    case PhysicalInvocationKind::decode_native_greedy_batch:
+        return "decode-native-greedy-batch";
+    }
+    return "unknown";
+}
+
+const char* to_string(PhysicalOutputMode mode) noexcept {
+    switch (mode) {
+    case PhysicalOutputMode::discard: return "discard";
+    case PhysicalOutputMode::logits: return "logits";
+    case PhysicalOutputMode::greedy: return "greedy";
+    case PhysicalOutputMode::target_logprobs: return "target-logprobs";
+    }
+    return "unknown";
+}
+
+const char* to_string(ExecutionGraphNodeKind kind) noexcept {
+    switch (kind) {
+    case ExecutionGraphNodeKind::compute_region: return "compute-region";
+    case ExecutionGraphNodeKind::transfer_region: return "transfer-region";
+    case ExecutionGraphNodeKind::synchronization_region:
+        return "synchronization-region";
+    }
+    return "unknown";
+}
+
+const char* to_string(ExecutionComputeRegionKind kind) noexcept {
+    switch (kind) {
+    case ExecutionComputeRegionKind::model: return "model";
+    case ExecutionComputeRegionKind::device_greedy_selection:
+        return "device-greedy-selection";
+    case ExecutionComputeRegionKind::target_logprob_reduction:
+        return "target-logprob-reduction";
+    }
+    return "unknown";
+}
+
+const char* to_string(ExecutionTransferDirection direction) noexcept {
+    switch (direction) {
+    case ExecutionTransferDirection::host_to_device: return "host-to-device";
+    case ExecutionTransferDirection::device_to_host: return "device-to-host";
+    }
+    return "unknown";
+}
+
+const char* to_string(ExecutionPayloadKind payload) noexcept {
+    switch (payload) {
+    case ExecutionPayloadKind::input_tokens: return "input-tokens";
+    case ExecutionPayloadKind::full_logits: return "full-logits";
+    case ExecutionPayloadKind::greedy_result: return "greedy-result";
+    case ExecutionPayloadKind::target_tokens: return "target-tokens";
+    case ExecutionPayloadKind::target_logprob_results:
+        return "target-logprob-results";
+    }
+    return "unknown";
+}
+
+const char* to_string(ExecutionSynchronizationKind kind) noexcept {
+    switch (kind) {
+    case ExecutionSynchronizationKind::backend_stream_wait:
+        return "backend-stream-wait";
+    }
+    return "unknown";
+}
+
+namespace {
+
+[[nodiscard]] bool valid_invocation_kind(PhysicalInvocationKind kind) noexcept {
+    switch (kind) {
+    case PhysicalInvocationKind::prefill_single:
+    case PhysicalInvocationKind::prefill_native_batch:
+    case PhysicalInvocationKind::decode_single:
+    case PhysicalInvocationKind::decode_native_greedy_batch:
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool valid_output_mode(PhysicalOutputMode mode) noexcept {
+    switch (mode) {
+    case PhysicalOutputMode::discard:
+    case PhysicalOutputMode::logits:
+    case PhysicalOutputMode::greedy:
+    case PhysicalOutputMode::target_logprobs:
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] std::uint64_t total_work_units(
+    const PhysicalInvocation& invocation) noexcept {
+    std::uint64_t total = 0U;
+    for (const auto& participant : invocation.participants) {
+        if (participant.work_units >
+            std::numeric_limits<std::uint64_t>::max() - total) {
+            return std::numeric_limits<std::uint64_t>::max();
+        }
+        total += participant.work_units;
+    }
+    return total;
+}
+
+[[nodiscard]] ExecutionImplementationBinding linear_binding(
+    QualifiedOperationSite site,
+    QuantizedLinearExecutionKind implementation) {
+    ExecutionImplementationBinding binding;
+    binding.site = site;
+    binding.linear = implementation;
+    return binding;
+}
+
+[[nodiscard]] ExecutionImplementationBinding attention_binding(
+    QualifiedOperationSite site,
+    AttentionExecutionKind implementation) {
+    ExecutionImplementationBinding binding;
+    binding.site = site;
+    binding.attention = implementation;
+    return binding;
+}
+
+[[nodiscard]] std::vector<ExecutionImplementationBinding> model_bindings(
+    const ExecutionPlan& plan,
+    PhysicalInvocationKind kind) {
+    switch (kind) {
+    case PhysicalInvocationKind::prefill_single:
+    case PhysicalInvocationKind::prefill_native_batch:
+        return {
+            linear_binding(
+                QualifiedOperationSite::prefill_transformer_block_linear,
+                plan.linear.prefill_block),
+            attention_binding(
+                QualifiedOperationSite::prefill_attention,
+                plan.attention.prefill),
+        };
+    case PhysicalInvocationKind::decode_single:
+    case PhysicalInvocationKind::decode_native_greedy_batch:
+        return {
+            linear_binding(
+                QualifiedOperationSite::decode_transformer_block_linear,
+                plan.linear.decode_block),
+            linear_binding(
+                QualifiedOperationSite::decode_output_projection,
+                plan.linear.decode_output),
+            attention_binding(
+                QualifiedOperationSite::decode_attention,
+                plan.attention.decode),
+        };
+    }
+    return {};
+}
+
+[[nodiscard]] std::string canonical_graph_body(const ExecutionGraph& graph) {
+    std::ostringstream out;
+    out << "schema=" << graph.schema_version() << '\n';
+    out << "backend=" << to_string(graph.backend()) << '\n';
+    out << "invocation=" << to_string(graph.invocation().kind) << '\n';
+    out << "resource=" << graph.invocation().hardware_resource_id.size()
+        << ':' << graph.invocation().hardware_resource_id << '\n';
+    out << "state-storage=" << to_string(graph.state_storage()) << '\n';
+    out << "state-page-tokens=";
+    if (graph.state_page_tokens()) out << *graph.state_page_tokens();
+    else out << "none";
+    out << '\n';
+
+    out << "participants=" << graph.invocation().participants.size() << '\n';
+    for (std::size_t i = 0; i < graph.invocation().participants.size(); ++i) {
+        const auto& participant = graph.invocation().participants[i];
+        out << "participant=" << i
+            << "|work=" << participant.work_units
+            << "|output=" << to_string(participant.output)
+            << "|targets=" << participant.target_count << '\n';
+    }
+
+    out << "nodes=" << graph.nodes().size() << '\n';
+    for (const auto& node : graph.nodes()) {
+        out << "node=" << node.id
+            << "|kind=" << to_string(node.kind)
+            << "|resource=" << node.hardware_resource_id.size()
+            << ':' << node.hardware_resource_id
+            << "|participants=" << node.participant_count
+            << "|work=" << node.work_units
+            << "|compute=";
+        if (node.compute) out << to_string(*node.compute);
+        else out << "none";
+        out << "|direction=";
+        if (node.transfer_direction) out << to_string(*node.transfer_direction);
+        else out << "none";
+        out << "|payload=";
+        if (node.payload) out << to_string(*node.payload);
+        else out << "none";
+        out << "|sync=";
+        if (node.synchronization) out << to_string(*node.synchronization);
+        else out << "none";
+
+        out << "|deps=";
+        for (std::size_t i = 0; i < node.dependencies.size(); ++i) {
+            if (i != 0U) out << ',';
+            out << node.dependencies[i];
+        }
+
+        out << "|impl=";
+        for (std::size_t i = 0; i < node.implementations.size(); ++i) {
+            if (i != 0U) out << ',';
+            const auto& implementation = node.implementations[i];
+            out << to_string(implementation.site) << ':';
+            if (implementation.linear) {
+                out << "linear=" << to_string(*implementation.linear);
+            } else if (implementation.attention) {
+                out << "attention=" << to_string(*implementation.attention);
+            } else {
+                out << "none";
+            }
+        }
+        out << '\n';
+    }
+    return out.str();
+}
+
+[[nodiscard]] std::string graph_identity(std::string_view canonical) {
+    std::uint64_t value = 14695981039346656037ULL;
+    for (const unsigned char byte : canonical) {
+        value ^= static_cast<std::uint64_t>(byte);
+        value *= 1099511628211ULL;
+    }
+    std::ostringstream out;
+    out << "execution-graph:r0:"
+        << std::hex << std::setfill('0') << std::setw(16) << value;
+    return out.str();
+}
+
+} // namespace
+
+Result<ExecutionGraph> derive_execution_graph(
+    const ExecutionPlan& plan,
+    const BackendCapabilities& capabilities,
+    PhysicalInvocation invocation) {
+    const auto plan_status = validate_execution_plan(plan, capabilities);
+    if (!plan_status) return plan_status;
+
+    if (!valid_invocation_kind(invocation.kind)) {
+        return Status::invalid_argument("physical invocation kind is unknown");
+    }
+    if (invocation.hardware_resource_id.empty()) {
+        return Status::invalid_argument(
+            "physical invocation requires an existing hardware resource identity");
+    }
+    if (invocation.participants.empty()) {
+        return Status::invalid_argument(
+            "physical invocation requires at least one participant");
+    }
+    if (invocation.participants.size() >
+        static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+        return Status::invalid_argument("physical invocation participant count is too large");
+    }
+
+    bool any_greedy = false;
+    bool any_discard = false;
+    bool any_logits = false;
+    bool any_target = false;
+    std::uint64_t checked_total_work = 0U;
+    for (const auto& participant : invocation.participants) {
+        if (participant.work_units == 0U) {
+            return Status::invalid_argument(
+                "physical invocation participant work must be non-zero");
+        }
+        if (!valid_output_mode(participant.output)) {
+            return Status::invalid_argument("physical invocation output mode is unknown");
+        }
+        if (participant.output == PhysicalOutputMode::target_logprobs) {
+            if (participant.target_count == 0U) {
+                return Status::invalid_argument(
+                    "target-logprob physical output requires at least one target");
+            }
+            any_target = true;
+        } else if (participant.target_count != 0U) {
+            return Status::invalid_argument(
+                "target count is only valid for target-logprob physical output");
+        }
+        any_greedy = any_greedy || participant.output == PhysicalOutputMode::greedy;
+        any_discard = any_discard || participant.output == PhysicalOutputMode::discard;
+        any_logits = any_logits || participant.output == PhysicalOutputMode::logits;
+
+        if (participant.work_units >
+            std::numeric_limits<std::uint64_t>::max() - checked_total_work) {
+            return Status::invalid_argument("physical invocation work-unit total overflows");
+        }
+        checked_total_work += participant.work_units;
+    }
+
+    const auto participant_count =
+        static_cast<std::uint32_t>(invocation.participants.size());
+    const bool is_prefill =
+        invocation.kind == PhysicalInvocationKind::prefill_single ||
+        invocation.kind == PhysicalInvocationKind::prefill_native_batch;
+    const bool is_batch =
+        invocation.kind == PhysicalInvocationKind::prefill_native_batch ||
+        invocation.kind == PhysicalInvocationKind::decode_native_greedy_batch;
+
+    switch (invocation.kind) {
+    case PhysicalInvocationKind::prefill_single:
+        if (participant_count != 1U) {
+            return Status::invalid_argument(
+                "single prefill physical invocation requires one participant");
+        }
+        break;
+    case PhysicalInvocationKind::prefill_native_batch:
+        if (participant_count < 2U) {
+            return Status::invalid_argument(
+                "native prefill batch requires at least two participants");
+        }
+        if (capabilities.prefill_execution != PrefillExecutionKind::native_batch) {
+            return Status::unsupported(
+                "prepared backend does not expose native prefill batching");
+        }
+        if (participant_count > capabilities.max_prefill_batch_width) {
+            return Status::unsupported(
+                "native prefill batch exceeds prepared backend width");
+        }
+        if (any_logits || any_target) {
+            return Status::unsupported(
+                "current native prefill batch supports only discard/greedy outputs");
+        }
+        break;
+    case PhysicalInvocationKind::decode_single:
+        if (participant_count != 1U) {
+            return Status::invalid_argument(
+                "single decode physical invocation requires one participant");
+        }
+        if (any_discard) {
+            return Status::unsupported(
+                "current decode physical invocation does not support discard output");
+        }
+        break;
+    case PhysicalInvocationKind::decode_native_greedy_batch:
+        if (participant_count < 2U) {
+            return Status::invalid_argument(
+                "native greedy decode batch requires at least two participants");
+        }
+        if (participant_count > capabilities.max_decode_batch_width) {
+            return Status::unsupported(
+                "native greedy decode batch exceeds prepared backend width");
+        }
+        if (!any_greedy || any_discard || any_logits || any_target) {
+            return Status::invalid_argument(
+                "native greedy decode batch requires greedy output for every participant");
+        }
+        for (const auto& participant : invocation.participants) {
+            if (participant.output != PhysicalOutputMode::greedy) {
+                return Status::invalid_argument(
+                    "native greedy decode batch contains a non-greedy participant");
+            }
+        }
+        break;
+    }
+
+    if (any_greedy && !capabilities.device_greedy_selection) {
+        return Status::unsupported(
+            "prepared backend does not expose device greedy selection");
+    }
+
+    std::vector<ExecutionGraphNode> nodes;
+    nodes.reserve(8U);
+    std::optional<std::uint32_t> tail;
+
+    const auto append_node = [&](ExecutionGraphNode node) mutable {
+        node.id = static_cast<std::uint32_t>(nodes.size());
+        if (tail) node.dependencies.push_back(*tail);
+        nodes.push_back(std::move(node));
+        tail = nodes.back().id;
+        return *tail;
+    };
+
+    const auto make_node = [&](ExecutionGraphNodeKind kind) {
+        ExecutionGraphNode node;
+        node.kind = kind;
+        node.hardware_resource_id = invocation.hardware_resource_id;
+        node.participant_count = participant_count;
+        node.work_units = checked_total_work;
+        return node;
+    };
+
+    // CUDA native token-matrix paths explicitly enqueue input token IDs.
+    // Scalar decode passes the token as scalar launch data and has no equivalent
+    // H2D token-array enqueue boundary.
+    if (capabilities.backend == BackendKind::cuda &&
+        (is_prefill || invocation.kind ==
+            PhysicalInvocationKind::decode_native_greedy_batch)) {
+        auto input = make_node(ExecutionGraphNodeKind::transfer_region);
+        input.transfer_direction = ExecutionTransferDirection::host_to_device;
+        input.payload = ExecutionPayloadKind::input_tokens;
+        append_node(std::move(input));
+    }
+
+    auto model = make_node(ExecutionGraphNodeKind::compute_region);
+    model.compute = ExecutionComputeRegionKind::model;
+    model.implementations = model_bindings(plan, invocation.kind);
+    append_node(std::move(model));
+
+    if (capabilities.backend == BackendKind::cuda) {
+        if (any_target) {
+            auto targets = make_node(ExecutionGraphNodeKind::transfer_region);
+            targets.transfer_direction = ExecutionTransferDirection::host_to_device;
+            targets.payload = ExecutionPayloadKind::target_tokens;
+            append_node(std::move(targets));
+
+            auto reduction = make_node(ExecutionGraphNodeKind::compute_region);
+            reduction.compute = ExecutionComputeRegionKind::target_logprob_reduction;
+            append_node(std::move(reduction));
+
+            auto results = make_node(ExecutionGraphNodeKind::transfer_region);
+            results.transfer_direction = ExecutionTransferDirection::device_to_host;
+            results.payload = ExecutionPayloadKind::target_logprob_results;
+            append_node(std::move(results));
+
+            auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
+            wait.synchronization =
+                ExecutionSynchronizationKind::backend_stream_wait;
+            append_node(std::move(wait));
+        } else if (any_greedy) {
+            std::uint32_t greedy_participants = 0U;
+            for (const auto& participant : invocation.participants) {
+                if (participant.output == PhysicalOutputMode::greedy) {
+                    ++greedy_participants;
+                }
+            }
+
+            auto selection = make_node(ExecutionGraphNodeKind::compute_region);
+            selection.compute = ExecutionComputeRegionKind::device_greedy_selection;
+            selection.participant_count = greedy_participants;
+            selection.work_units = greedy_participants;
+            append_node(std::move(selection));
+
+            auto result = make_node(ExecutionGraphNodeKind::transfer_region);
+            result.transfer_direction = ExecutionTransferDirection::device_to_host;
+            result.payload = ExecutionPayloadKind::greedy_result;
+            result.participant_count = greedy_participants;
+            result.work_units = greedy_participants;
+            append_node(std::move(result));
+
+            auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
+            wait.synchronization =
+                ExecutionSynchronizationKind::backend_stream_wait;
+            wait.participant_count = greedy_participants;
+            wait.work_units = 0U;
+            append_node(std::move(wait));
+        } else if (any_logits) {
+            auto logits = make_node(ExecutionGraphNodeKind::transfer_region);
+            logits.transfer_direction = ExecutionTransferDirection::device_to_host;
+            logits.payload = ExecutionPayloadKind::full_logits;
+            append_node(std::move(logits));
+
+            auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
+            wait.synchronization =
+                ExecutionSynchronizationKind::backend_stream_wait;
+            wait.work_units = 0U;
+            append_node(std::move(wait));
+        } else if (any_discard) {
+            auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
+            wait.synchronization =
+                ExecutionSynchronizationKind::backend_stream_wait;
+            wait.work_units = 0U;
+            append_node(std::move(wait));
+        }
+    }
+
+    ExecutionGraph structural(
+        "",
+        plan.backend,
+        invocation,
+        capabilities.kv_storage,
+        plan.kv.page_tokens,
+        std::move(nodes));
+    const auto canonical = canonical_graph_body(structural);
+    return ExecutionGraph(
+        graph_identity(canonical),
+        plan.backend,
+        std::move(invocation),
+        capabilities.kv_storage,
+        plan.kv.page_tokens,
+        std::vector<ExecutionGraphNode>(
+            structural.nodes().begin(), structural.nodes().end()));
+}
+
+std::string serialize_execution_graph(const ExecutionGraph& graph) {
+    std::ostringstream out;
+    out << "identity=" << graph.identity() << '\n';
+    out << canonical_graph_body(graph);
+    return out.str();
 }
 
 } // namespace air
