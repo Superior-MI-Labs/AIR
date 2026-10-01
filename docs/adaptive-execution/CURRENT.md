@@ -501,6 +501,10 @@ The analyzer now distinguishes:
 - released before the forced-free boundary;
 - still resident after forced free, which remains a failure.
 
+For early release it also brackets the last registry snapshot where the
+component was present and the first where it was absent. That bracket is
+chronology evidence, not an eviction-duration claim.
+
 Immediate next action:
 
 Re-analyze the retained `20261001-164618` evidence with the corrected analyzer.
