@@ -57,7 +57,7 @@ std::uint32_t active_workload_instances(
         profile);
 }
 
-Status validate_workload_request_profile(
+Status validate_execution_workload_profile(
     const ExecutionWorkloadProfile& profile) noexcept {
     if (const auto* iterative = std::get_if<IterativeRequestProfile>(&profile)) {
         if (iterative->iteration_count == 0U) {
