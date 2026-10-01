@@ -957,3 +957,41 @@ Qualification order:
 4. explicit `air-cuda-contract-tests` identified-resource transition marker.
 
 Only then may Stage 8B migrate `RuntimeSnapshot` and planner hot-state logic.
+
+
+## Stage 8B slice 2 CPU preflight and WolfCat handoff
+
+Slice-2 implementation source:
+
+`604ebbd6bb35e2df1ef6b9845ba6d2b294cf2926`
+
+Adaptive CPU preflight:
+
+`36931183589` -> SUCCESS.
+
+The remaining qualification is physical CUDA evidence.
+
+Canonical qualifier:
+
+`scripts/qualify-adaptive-prompt8b-resources.sh`
+
+The qualifier requires:
+
+- clean AIR worktree;
+- active adaptive-execution branch;
+- clean GPU compute baseline;
+- adaptive CPU preflight;
+- fresh Release CUDA build;
+- full CUDA CTest;
+- explicit prepared-resource residency transition marker;
+- existing CUDA operation-site and renamed-source nonregression markers;
+- real Qwen CUDA generation;
+- no remaining GPU compute process;
+- clean source worktree;
+- retained evidence checksums.
+
+Expected final marker:
+
+`PROMPT8B_PREPARED_RESOURCE_RESIDENCY=PASS`
+
+Stage 8B slice 2 remains OPEN until WolfCat produces that marker.

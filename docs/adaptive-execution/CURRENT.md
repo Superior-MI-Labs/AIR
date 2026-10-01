@@ -523,11 +523,24 @@ existing prepare/trim authority, while identity remains stable.
 The aggregate compatibility byte view remains a projection of those same
 executor counters and is not independently writable.
 
+Slice-2 implementation source:
+
+`604ebbd6bb35e2df1ef6b9845ba6d2b294cf2926`
+
+Adaptive CPU preflight `36931183589`: SUCCESS.
+
+Canonical WolfCat qualifier:
+
+`scripts/qualify-adaptive-prompt8b-resources.sh`
+
 Immediate next action:
 
-- exact-head Adaptive CPU preflight;
-- WolfCat CUDA CTest and the new identified-resource transition contract;
-- if both pass, migrate `RuntimeSnapshot` and Strategy Lab hot-state logic
+- run the Prompt 8B prepared-resource qualifier on WolfCat with the qualified
+  Qwen2.5 1.5B model;
+- require full CUDA CTest, identified dense-resource
+  nonresident -> resident -> nonresident evidence, and real-Qwen CUDA
+  nonregression;
+- if it passes, migrate `RuntimeSnapshot` and Strategy Lab hot-state logic
   from anonymous byte comparison to identified residency.
 
 ## Current architectural hypothesis
