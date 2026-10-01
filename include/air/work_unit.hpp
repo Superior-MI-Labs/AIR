@@ -23,6 +23,6 @@ enum class WorkUnitKind {
 // span). Every non-zero count must be interpretable and therefore typed.
 [[nodiscard]] Status validate_work_measure(
     std::optional<WorkUnitKind> kind,
-    std::uint64_t count) noexcept;
+    std::uint64_t count);
 
 } // namespace air
