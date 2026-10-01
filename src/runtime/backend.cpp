@@ -509,7 +509,54 @@ public:
         return stats.resident_model_bytes + stats.workspace_bytes + stats.kv_pool_allocated_bytes;
     }
 
+    [[nodiscard]] std::vector<PreparedResourceResidency>
+    prepared_resources() const override {
+        const auto stats = executor_->stats();
+        std::vector<PreparedResourceResidency> resources;
+
+        const auto supports = [&](QuantizedLinearExecutionKind tactic) {
+            const auto has = [&](const auto& values) {
+                return std::find(values.begin(), values.end(), tactic) != values.end();
+            };
+            return has(capabilities_.prefill_block_quantized_linear) ||
+                   has(capabilities_.decode_block_quantized_linear) ||
+                   has(capabilities_.decode_output_quantized_linear);
+        };
+
+        const auto dense_bytes =
+            stats.prepared_linear_bytes >= stats.q5q8_dp4a_hybrid_prepared_bytes
+                ? stats.prepared_linear_bytes -
+                      stats.q5q8_dp4a_hybrid_prepared_bytes
+                : 0U;
+
+        if (supports(QuantizedLinearExecutionKind::dense_f32_cublas) ||
+            dense_bytes != 0U) {
+            resources.push_back(PreparedResourceResidency{
+                std::string(cuda_dense_f32_cublas_resource_id),
+                dense_bytes == 0U
+                    ? PreparedResourceResidencyState::nonresident
+                    : PreparedResourceResidencyState::resident,
+                dense_bytes,
+            });
+        }
+
+        if (supports(QuantizedLinearExecutionKind::q5q8_dp4a_hybrid) ||
+            stats.q5q8_dp4a_hybrid_prepared_bytes != 0U) {
+            resources.push_back(PreparedResourceResidency{
+                std::string(cuda_q5q8_dp4a_hybrid_resource_id),
+                stats.q5q8_dp4a_hybrid_prepared_bytes == 0U
+                    ? PreparedResourceResidencyState::nonresident
+                    : PreparedResourceResidencyState::resident,
+                stats.q5q8_dp4a_hybrid_prepared_bytes,
+            });
+        }
+
+        return resources;
+    }
+
     [[nodiscard]] std::uint64_t prepared_artifact_device_bytes() const noexcept override {
+        // Compatibility view over the same executor-owned counters used by
+        // prepared_resources(). No independent aggregate state is stored.
         return executor_->stats().prepared_linear_bytes;
     }
 

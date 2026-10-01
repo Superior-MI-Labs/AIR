@@ -507,17 +507,28 @@ First falsified assumption:
 is not a valid general hot-state test once more than one prepared resource can
 exist. Equal bytes from the wrong resource must not satisfy a requirement.
 
-Slice 1 introduces a pure resource identity/residency contract and current Qwen
-prepared-tactic requirement projection. It does not yet migrate
-`RuntimeSnapshot`, manifests, backend state reporting, or planner policy.
+Stage 8B slice 1 qualified source:
+
+`5b544b0a7c39ef0923abbe9a95b59db180d6f5e1`
+
+Adaptive CPU preflight `36930733784`: SUCCESS.
+
+Stage 8B slice 2 is CURRENT.
+
+`PreparedModel` now exposes identified prepared-resource residency from the
+existing backend-owned counters. CUDA's dense-FP32 optional prepared state is
+required to transition from nonresident -> resident -> nonresident under the
+existing prepare/trim authority, while identity remains stable.
+
+The aggregate compatibility byte view remains a projection of those same
+executor counters and is not independently writable.
 
 Immediate next action:
 
-- qualify the Stage 8B slice-1 resource contract on CPU;
-- then expose backend-owned Qwen prepared resources by identity;
-- only after backend residency identity is qualified, migrate
-  `RuntimeSnapshot` and Strategy Lab away from anonymous aggregate hot-state
-  comparison.
+- exact-head Adaptive CPU preflight;
+- WolfCat CUDA CTest and the new identified-resource transition contract;
+- if both pass, migrate `RuntimeSnapshot` and Strategy Lab hot-state logic
+  from anonymous byte comparison to identified residency.
 
 ## Current architectural hypothesis
 

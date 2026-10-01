@@ -1,5 +1,6 @@
 #include "air/cuda.hpp"
 #include "air/reference.hpp"
+#include "air/resource.hpp"
 #include "air/serving.hpp"
 #include "air/storage.hpp"
 #include "cuda/cuda_executor_factory.hpp"
@@ -745,6 +746,134 @@ int verify_cuda_execution_graph_observation() {
     return 0;
 }
 
+int verify_cuda_prepared_resource_identity() {
+    auto prepared =
+        air::runtime_detail::prepare_cuda_model(tiny_qwen2(), 0);
+    if (!prepared) {
+        std::cerr << "CUDA prepared-resource fixture failed: "
+                  << prepared.status().message() << '\n';
+        return 1;
+    }
+
+    const auto find_resource = [](
+        const std::vector<air::PreparedResourceResidency>& resources,
+        std::string_view id)
+        -> const air::PreparedResourceResidency* {
+        const auto found = std::find_if(
+            resources.begin(), resources.end(),
+            [&](const air::PreparedResourceResidency& resource) {
+                return resource.resource_id == id;
+            });
+        return found == resources.end() ? nullptr : &*found;
+    };
+
+    auto cold = prepared.value()->prepared_resources();
+    const auto cold_status =
+        air::validate_prepared_resource_residencies(cold);
+    if (!cold_status) {
+        std::cerr << "initial prepared-resource state invalid: "
+                  << cold_status.message() << '\n';
+        return 1;
+    }
+    const auto* dense_cold = find_resource(
+        cold, air::cuda_dense_f32_cublas_resource_id);
+    if (!dense_cold ||
+        dense_cold->state !=
+            air::PreparedResourceResidencyState::nonresident ||
+        dense_cold->device_bytes != 0U) {
+        std::cerr << "dense prepared resource did not begin nonresident\n";
+        return 1;
+    }
+
+    air::ExecutionPlan dense_plan;
+    dense_plan.backend = air::BackendKind::cuda;
+    dense_plan.strategy_id = "resource-contract-dense";
+    dense_plan.kv.page_tokens = 2U;
+    dense_plan.linear.prefill_block =
+        air::QuantizedLinearExecutionKind::dense_f32_cublas;
+
+    const auto requirements =
+        air::prepared_resource_requirements(dense_plan);
+    if (requirements.size() != 1U ||
+        requirements.front().resource_id !=
+            air::cuda_dense_f32_cublas_resource_id) {
+        std::cerr << "dense plan did not project exact prepared-resource identity\n";
+        return 1;
+    }
+
+    const auto prepare_status =
+        prepared.value()->prepare_plan(dense_plan);
+    if (!prepare_status) {
+        std::cerr << "dense prepared-resource materialization failed: "
+                  << prepare_status.message() << '\n';
+        return 1;
+    }
+
+    auto hot = prepared.value()->prepared_resources();
+    const auto* dense_hot = find_resource(
+        hot, air::cuda_dense_f32_cublas_resource_id);
+    if (!dense_hot ||
+        dense_hot->state !=
+            air::PreparedResourceResidencyState::resident ||
+        dense_hot->device_bytes == 0U) {
+        std::cerr << "dense prepared resource did not become resident\n";
+        return 1;
+    }
+
+    const auto satisfies =
+        air::prepared_resources_satisfy(requirements, hot);
+    if (!satisfies || !satisfies.value()) {
+        std::cerr << "resident dense resource did not satisfy dense plan requirement\n";
+        return 1;
+    }
+
+    const auto derived_bytes =
+        air::resident_prepared_resource_bytes(hot);
+    if (!derived_bytes ||
+        derived_bytes.value() !=
+            prepared.value()->prepared_artifact_device_bytes()) {
+        std::cerr << "identified prepared-resource bytes disagree with compatibility aggregate\n";
+        return 1;
+    }
+
+    air::ExecutionPlan baseline_plan = dense_plan;
+    baseline_plan.strategy_id = "resource-contract-baseline";
+    baseline_plan.linear.prefill_block =
+        air::QuantizedLinearExecutionKind::baseline;
+
+    const auto trim_status =
+        prepared.value()->trim_plan_artifacts(baseline_plan);
+    if (!trim_status) {
+        std::cerr << "dense prepared-resource trim failed: "
+                  << trim_status.message() << '\n';
+        return 1;
+    }
+
+    auto trimmed = prepared.value()->prepared_resources();
+    const auto* dense_trimmed = find_resource(
+        trimmed, air::cuda_dense_f32_cublas_resource_id);
+    if (!dense_trimmed ||
+        dense_trimmed->state !=
+            air::PreparedResourceResidencyState::nonresident ||
+        dense_trimmed->device_bytes != 0U ||
+        prepared.value()->prepared_artifact_device_bytes() != 0U) {
+        std::cerr << "dense prepared resource did not return to nonresident state\n";
+        return 1;
+    }
+
+    const auto after_trim =
+        air::prepared_resources_satisfy(requirements, trimmed);
+    if (!after_trim || after_trim.value()) {
+        std::cerr << "trimmed dense resource remained incorrectly hot\n";
+        return 1;
+    }
+
+    std::cout
+        << "CUDA identified prepared-resource residency transition passed\n";
+    return 0;
+}
+
+
 } // namespace
 
 int main() {
@@ -772,6 +901,10 @@ int main() {
 
     const int capability = verify_cuda_operation_capabilities();
     if (capability != 0) return capability;
+
+    const int prepared_resources =
+        verify_cuda_prepared_resource_identity();
+    if (prepared_resources != 0) return prepared_resources;
 
     const int parity = verify_cuda_reference_parity();
     if (parity != 0) return parity;

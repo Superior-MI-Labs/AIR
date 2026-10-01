@@ -891,3 +891,69 @@ Stage 8B slice 1 exit:
 - current Qwen prepared tactic requirements deduplicate by stable identity;
 - no Qwen numerical/planner/scheduler behavior changes;
 - Adaptive CPU preflight passes.
+
+
+## Stage 8B slice 1 qualification
+
+Qualified source:
+
+`5b544b0a7c39ef0923abbe9a95b59db180d6f5e1`
+
+Adaptive CPU preflight:
+
+`36930733784` -> SUCCESS.
+
+The pure resource identity contract is qualified.
+
+## Stage 8B slice 2 - backend-owned identified residency
+
+Status: CURRENT
+
+Slice 2 connects the qualified resource contract to the existing prepared
+backend authority.
+
+`PreparedModel` now exposes an additive
+`prepared_resources()` observation surface.
+
+Rules:
+
+- the backend remains the resource-state owner;
+- resource records are projections of existing backend state;
+- the compatibility aggregate is not independently stored;
+- reference backend owns no optional prepared resources;
+- CUDA reports current legal/supported optional prepared resources by stable
+  identity;
+- current dense-FP32 bytes are derived from the executor's existing aggregate
+  prepared-linear counter minus the existing DP4A counter;
+- DP4A residency uses its existing dedicated counter;
+- unsupported and absent resources are not fabricated as required plan state.
+
+The live CUDA contract now requires this transition:
+
+```text
+dense resource: nonresident
+        ->
+prepare dense plan
+        ->
+same resource identity: resident with non-zero device bytes
+        ->
+trim to baseline plan
+        ->
+same resource identity: nonresident with zero resident bytes
+```
+
+The identified-residency byte sum must match the legacy aggregate compatibility
+view while that view still exists.
+
+Slice 2 does not change Strategy Lab hot-state policy yet. That migration is
+intentionally deferred until live CUDA proves the backend observation surface
+is truthful.
+
+Qualification order:
+
+1. Adaptive CPU preflight;
+2. fresh WolfCat CUDA build;
+3. full CUDA CTest;
+4. explicit `air-cuda-contract-tests` identified-resource transition marker.
+
+Only then may Stage 8B migrate `RuntimeSnapshot` and planner hot-state logic.

@@ -4,6 +4,7 @@
 #include "air/model.hpp"
 #include "air/observation.hpp"
 #include "air/result.hpp"
+#include "air/resource.hpp"
 #include "air/types.hpp"
 
 #include <cstdint>
@@ -160,6 +161,15 @@ public:
         return Status::unsupported("prepared backend does not provide native multi-sequence decode");
     }
     [[nodiscard]] virtual std::uint64_t resident_device_bytes() const noexcept = 0;
+
+    // Identified backend-global prepared resources are the physical residency
+    // authority introduced by Prompt 8B. The default backend owns none.
+    [[nodiscard]] virtual std::vector<PreparedResourceResidency>
+    prepared_resources() const { return {}; }
+
+    // Temporary compatibility projection for current planner/runtime callers.
+    // Implementations must derive this from the same backend-owned state that
+    // feeds prepared_resources(); it is not a second writable resource truth.
     [[nodiscard]] virtual std::uint64_t prepared_artifact_device_bytes() const noexcept { return 0U; }
 
     // Logical admission reservation for a sequence whose maximum committed
