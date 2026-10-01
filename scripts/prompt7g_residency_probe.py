@@ -518,6 +518,19 @@ def analyze_mode(argv: list[str]) -> int:
             f"registry: {sorted(forced_after_labels)}"
         )
 
+    registry_observations = []
+    for event in end_calls:
+        if "loaded_models_after" not in event:
+            continue
+        registry_observations.append(
+            {
+                "sequence": event.get("sequence"),
+                "monotonic_ns": event.get("monotonic_ns"),
+                "call": event.get("call"),
+                "labels": labels_in_snapshot(event.get("loaded_models_after")),
+            }
+        )
+
     component_summary: dict[str, Any] = {}
     for name, items in by_component.items():
         load_items = [
@@ -552,6 +565,32 @@ def analyze_mode(argv: list[str]) -> int:
                 "unload callback; observer coverage is insufficient"
             )
 
+        last_present = None
+        first_absent_after = None
+        for observation in registry_observations:
+            if name in observation["labels"]:
+                last_present = observation
+                first_absent_after = None
+            elif last_present is not None and first_absent_after is None:
+                first_absent_after = observation
+
+        release_bracket = None
+        if last_present is not None and first_absent_after is not None:
+            release_bracket = {
+                "last_observed_present_sequence": last_present["sequence"],
+                "last_observed_present_call": last_present["call"],
+                "first_observed_absent_sequence": first_absent_after["sequence"],
+                "first_observed_absent_call": first_absent_after["call"],
+                "observation_interval_ms": (
+                    (first_absent_after["monotonic_ns"] - last_present["monotonic_ns"])
+                    / 1_000_000.0
+                ),
+                "interpretation": (
+                    "This brackets registry disappearance between two observer boundaries; "
+                    "it is not an unload-duration measurement."
+                ),
+            }
+
         component_summary[name] = {
             "load_host_call_duration": summarize_durations(
                 [float(e["duration_ms"]) for e in load_items]
@@ -561,6 +600,7 @@ def analyze_mode(argv: list[str]) -> int:
             ),
             "release_classification": release_classification,
             "release_evidence": release_evidence,
+            "release_observation_bracket": release_bracket,
             "present_at_forced_free_begin": name in forced_before_labels,
             "present_at_forced_free_end": name in forced_after_labels,
             "events": [
