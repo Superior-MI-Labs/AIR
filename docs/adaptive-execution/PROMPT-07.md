@@ -1048,3 +1048,42 @@ implementation packet from the qualified Qwen2 + FLUX.2 evidence.
 
 Do not broaden Prompt 7 into deeper ComfyUI reverse engineering unless the
 focused probe falsifies a material resource assumption needed by Prompt 8.
+
+
+## Stage 7G first live attempt: clean-baseline precondition stop
+
+WolfCat attempt:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164359`
+
+AIR source:
+
+`ba1b18a874b616380f7f277ec7c38204053988d4`
+
+Result:
+
+- retained Prompt 7 evidence validation PASS;
+- qualifier stopped before starting ComfyUI or running the FLUX.2 oracle;
+- existing GPU compute process:
+  `/home/emerson/Projects/llama.cpp-tq3/build/bin/llama-server`;
+- observed PID: `993156`;
+- observed device memory: `1424 MiB`;
+- qualifier exit code: `1`.
+
+Classification:
+
+ENVIRONMENT PRECONDITION STOP, not Prompt 7G falsification.
+
+The clean-GPU requirement is intentional. Prompt 7G is measuring residency,
+transition boundaries, and device-memory chronology. Allowing an unrelated
+long-lived model server to retain VRAM would shift available capacity and could
+change DynamicVRAM placement/offload behavior.
+
+No AIR or ComfyUI code change is justified.
+
+Required retry:
+
+- stop or otherwise remove the unrelated GPU compute workload;
+- confirm no compute process remains in the `nvidia-smi
+  --query-compute-apps` baseline;
+- rerun the same Prompt 7G qualifier unchanged.
