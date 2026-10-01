@@ -1020,15 +1020,18 @@ This is pre-publish integration evidence, not a failed WolfCat experiment.
 3. the unchanged oracle retains the qualified RGB pixel identity;
 4. text encoder, Flux2 denoiser, and VAE each appear at existing
    model-management load boundaries;
-5. all three appear at unload/eviction boundaries after the explicit
-   post-oracle free request;
-6. ordered runtime residency snapshots are retained;
-7. external GPU telemetry is retained;
-8. observer claims remain bounded to host-call/runtime-state/device-sample
+5. all three are proven absent from ComfyUI's loaded-model registry after the
+   explicit post-oracle free boundary;
+6. explicit unload host-call timing is retained where ComfyUI exposes an
+   unload callback; components released earlier are classified separately and
+   their exact release timing is not guessed;
+7. ordered runtime residency snapshots are retained;
+8. external GPU telemetry is retained;
+9. observer claims remain bounded to host-call/runtime-state/device-sample
    evidence;
-9. exact lower-level async/per-layer residency is reported as opaque rather
+10. exact lower-level async/per-layer residency is reported as opaque rather
    than inferred;
-10. no AIR core execution type is modified.
+11. no AIR core execution type is modified.
 
 Expected markers:
 
@@ -1087,3 +1090,63 @@ Required retry:
 - confirm no compute process remains in the `nvidia-smi
   --query-compute-apps` baseline;
 - rerun the same Prompt 7G qualifier unchanged.
+
+
+## Stage 7G second live attempt: observer-gate assumption failure
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164618`
+
+AIR source:
+
+`04315f5d744b19780c6df09463c96a0da7d82af2`
+
+Observed:
+
+- clean GPU compute baseline PASS;
+- unchanged qualified FLUX.2 oracle executed twice;
+- run 1: `10.526 s`;
+- run 2: `9.527 s`;
+- both runs retained qualified RGB pixel SHA-256
+  `c3a4278c608408df5019cf15162707e29263dee76e7a0114a6b1dcf2c29e1aa6`;
+- file-level PNG hashes retained the same expected non-semantic difference;
+- forced post-oracle `POST /free` request completed;
+- analysis stopped with:
+  `Prompt 7G observed text-encoder but no unload boundary after /free`;
+- qualifier exit code: `1`.
+
+Classification:
+
+OBSERVER-GATE ASSUMPTION FAILURE, not AIR, FLUX.2, or ComfyUI execution
+falsification.
+
+The original analyzer incorrectly required every qualified component to pass
+through an explicit `LoadedModel.model_unload` or
+`ModelPatcher.partially_unload` callback.
+
+Pinned ComfyUI does not promise that lifecycle contract.
+
+A component may have been loaded and then cease to be represented in
+`current_loaded_models` before the later forced `unload_all_models`
+boundary. Requiring a later explicit callback therefore confuses one runtime
+implementation path with the architectural fact Prompt 7G actually needs.
+
+Corrected evidence rule:
+
+- every required component must have a measured load boundary;
+- the explicit post-oracle `unload_all_models` boundary must be observed;
+- no required component may remain in the runtime loaded-model registry after
+  that boundary;
+- explicit unload duration is measured only where the external runtime exposes
+  an unload callback;
+- if a component was already absent before forced free, classify it as
+  `released-before-forced-free` and do not invent exact release timing.
+
+The retained `20261001-164618` evidence should be re-analyzed first with the
+corrected analyzer.
+
+Do not rerun FLUX.2 merely to satisfy the old callback assumption.
+
+If retained evidence proves terminal nonresidency and all other gates pass,
+the second live run may qualify without another image execution.
