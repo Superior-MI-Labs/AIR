@@ -1,6 +1,6 @@
 # AIR Adaptive Execution Substrate R0 - Prompt 7
 
-Status: CURRENT
+Status: CLOSED / QUALIFIED
 Wave: Image workflow oracle + package/component model
 
 ## Purpose
@@ -1153,3 +1153,156 @@ Do not rerun FLUX.2 merely to satisfy the old callback assumption.
 
 If retained evidence proves terminal nonresidency and all other gates pass,
 the second live run may qualify without another image execution.
+
+
+## Prompt 7G retained-evidence qualification
+
+Qualified evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164618`
+
+Analyzer source:
+
+`907d3b8d3cd0e4db36c6c445ddf55dc924aa4d98`
+
+Final retained-evidence marker:
+
+`PROMPT7G_RETAINED_EVIDENCE_REANALYSIS=PASS`
+
+Qualified observations:
+
+- semantic non-intrusion: PASS;
+- baseline RGB pixel SHA-256:
+  `c3a4278c608408df5019cf15162707e29263dee76e7a0114a6b1dcf2c29e1aa6`;
+- observed RGB pixel SHA-256 under the source-clean observer: identical;
+- required components observed:
+  - text encoder;
+  - Flux2 denoiser;
+  - VAE;
+- transition events: `26`;
+- residency timeline points: `20`;
+- approximately 100 ms GPU telemetry samples: `324`;
+- peak device memory used: `11791 MiB`;
+- minimum free device memory: `4194 MiB`;
+- peak GPU utilization: `100%`;
+- peak power: `110.92 W`;
+- peak temperature: `88 C`.
+
+Observed load-boundary host-call durations:
+
+- text encoder:
+  - count `2`;
+  - min `41.860796 ms`;
+  - mean/median `49.7543985 ms`;
+  - max `57.648001 ms`;
+- Flux2 denoiser:
+  - count `2`;
+  - min `36.084307 ms`;
+  - mean/median `36.6267335 ms`;
+  - max `37.16916 ms`;
+- VAE:
+  - count `2`;
+  - min `23.852319 ms`;
+  - mean/median `24.067968 ms`;
+  - max `24.283617 ms`.
+
+All three components were classified:
+
+`released-before-forced-free`
+
+For every required component:
+
+- `present_at_forced_free_begin=false`;
+- `present_at_forced_free_end=false`.
+
+The retained observer boundaries bracketed the last observed presence and first
+observed absence for all three components between:
+
+- sequence `50`: `model_management.load_models_gpu`;
+- sequence `53`: `model_management.free_memory`;
+- observation interval: `1439.212009 ms`.
+
+This is a residency chronology bound. It is not an unload-duration
+measurement.
+
+No explicit unload callback was exposed for these components in the retained
+run, therefore:
+
+- component load host-call timing is measured;
+- terminal nonresidency is measured;
+- registry disappearance chronology is bounded by measured observer events;
+- unload host-call duration is unknown for this lifecycle path;
+- exact asynchronous GPU transfer completion is not directly measured;
+- exact per-layer DynamicVRAM residency remains external-runtime opaque.
+
+That distinction is now part of the required AIR evidence discipline.
+
+## Prompt 7 final architectural findings
+
+Prompt 7 falsified the assumption that token-generation vocabulary can serve
+as AIR's universal workload vocabulary.
+
+It did not falsify AIR's core ownership model.
+
+The following authorities survived both Qwen2 and FLUX.2 evidence:
+
+- one hardware-topology authority;
+- one dynamic-environment authority;
+- one planning authority;
+- one capacity/admission authority;
+- one execution-graph authority;
+- one runtime authority;
+- one execution-observation/evidence authority;
+- identified resource ownership independent from scheduler policy.
+
+The following current representations are Qwen-specific and require
+workload-typed evolution in Prompt 8:
+
+- `RequestProfile`;
+- token-only workload regions and horizon metrics;
+- KV-specific runtime state as the only persistent execution state;
+- token-specific physical invocation kinds;
+- token-specific execution payload kinds;
+- token-only graph work-unit interpretation;
+- aggregate-only optional prepared-artifact residency;
+- token-centric performance metrics.
+
+The FLUX.2 evidence requires explicit representation of:
+
+- multiple independently meaningful prepared resources/components;
+- semantic conditioning;
+- seeded noise;
+- latent iterative state;
+- a finite sigma schedule / iteration sequence;
+- component-level residency/lifetime;
+- a decode output distinct from token emission;
+- workload-scoped phase/work-unit metrics.
+
+It does not justify:
+
+- a universal tensor IR;
+- a universal semantic operation catalog;
+- an image-specific scheduler authority;
+- an image-specific residency manager;
+- copying ComfyUI DynamicVRAM internals;
+- a Python workflow runtime inside AIR;
+- guessing exact lower-level residency that was not observed.
+
+## Prompt 7 exit decision
+
+Prompt 7 is CLOSED / QUALIFIED.
+
+The requirements/oracle wave has enough evidence to begin Prompt 8.
+
+The remaining unknown:
+
+`Exact per-layer asynchronous DynamicVRAM residency inside ComfyUI`
+
+is retained as an external implementation detail. It does not block Prompt 8
+because AIR must define and measure its own physical resource behavior rather
+than reproduce opaque ComfyUI internals.
+
+The Prompt 8 design must preserve the central rule:
+
+> AIR may aggressively learn how to execute known computation. AIR may not
+> guess what unknown computation means.
