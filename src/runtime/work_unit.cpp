@@ -29,7 +29,7 @@ const char* to_string(WorkUnitKind kind) noexcept {
 
 Status validate_work_measure(
     std::optional<WorkUnitKind> kind,
-    std::uint64_t count) noexcept {
+    std::uint64_t count) {
     if (kind && !valid_work_unit_kind(*kind)) {
         return Status::invalid_argument("work-unit kind is unknown");
     }
