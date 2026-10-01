@@ -1,4 +1,5 @@
 #include "air/workload.hpp"
+#include "air/decision.hpp"
 
 #include <iostream>
 #include <string>
@@ -47,7 +48,7 @@ void test_existing_request_profile_is_preserved_as_autoregressive_contract() {
     }
 
     check(
-        air::validate_workload_request_profile(workload).is_ok(),
+        air::validate_execution_workload_profile(workload).is_ok(),
         "Prompt 8A must not add new validity restrictions to existing RequestProfile");
 }
 
@@ -65,7 +66,7 @@ void test_iterative_profile_has_no_token_shape() {
         air::active_workload_instances(workload) == 1U,
         "iterative active instance count must be inspectable");
     check(
-        air::validate_workload_request_profile(workload).is_ok(),
+        air::validate_execution_workload_profile(workload).is_ok(),
         "qualified four-iteration FLUX.2 request shape must validate");
 
     const auto* iterative =
@@ -82,18 +83,22 @@ void test_invalid_iterative_profiles_fail_without_guessing() {
         air::IterativeRequestProfile{4U, 0U}};
 
     check(
-        !air::validate_workload_request_profile(zero_iterations).is_ok(),
+        !air::validate_execution_workload_profile(zero_iterations).is_ok(),
         "zero-iteration iterative workload must be rejected");
     check(
-        !air::validate_workload_request_profile(zero_instances).is_ok(),
+        !air::validate_execution_workload_profile(zero_instances).is_ok(),
         "zero-instance iterative workload must be rejected");
 }
 
 void test_service_semantics_and_execution_structure_are_separate_axes() {
-    static_assert(!std::is_same_v<air::ExecutionWorkloadKind, air::WorkUnitKind>);
+    static_assert(!std::is_same_v<air::ExecutionWorkloadKind, air::WorkloadKind>);
     check(
-        static_cast<int>(air::ExecutionWorkloadKind::autoregressive_tokens) == 0,
-        "execution workload identity must remain independent of service workload identity");
+        air::to_string(air::WorkloadKind::generation) == std::string("generation"),
+        "existing service semantic workload vocabulary must remain unchanged");
+    check(
+        air::to_string(air::ExecutionWorkloadKind::autoregressive_tokens) ==
+            std::string("autoregressive-tokens"),
+        "execution workload structure must have a distinct inspection identity");
 }
 
 void test_stable_inspection_names() {
