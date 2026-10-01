@@ -8,10 +8,13 @@
 
 namespace air {
 
-// Prompt 8A workload identity is intentionally limited to the two workload
-// structures that have qualified evidence. This is not an extensible semantic
-// registry; Prompt 9 owns unknown-semantics extension behavior.
-enum class WorkloadKind {
+// Prompt 8A execution-structure identity is intentionally limited to the two
+// physical workload shapes that have qualified evidence. This is separate from
+// air::WorkloadKind in decision.hpp, which classifies service semantics such as
+// generation versus bounded decision. Both service semantics can lower to the
+// same autoregressive execution structure. Prompt 9 owns unknown-semantics
+// extension behavior.
+enum class ExecutionExecutionWorkloadKind {
     autoregressive_tokens = 0,
     iterative_state,
 };
@@ -21,7 +24,7 @@ enum class WorkUnitKind {
     iterations,
 };
 
-[[nodiscard]] const char* to_string(WorkloadKind kind) noexcept;
+[[nodiscard]] const char* to_string(ExecutionWorkloadKind kind) noexcept;
 [[nodiscard]] const char* to_string(WorkUnitKind kind) noexcept;
 
 // Existing RequestProfile remains the qualified autoregressive request shape.
@@ -37,28 +40,28 @@ struct IterativeRequestProfile {
     std::uint32_t active_instances{1};
 };
 
-// A discriminated boundary prevents token-only optional fields from becoming a
-// pseudo-universal request schema.
-using WorkloadRequestProfile =
+// A discriminated execution-planning boundary prevents token-only optional
+// fields from becoming a pseudo-universal request schema.
+using ExecutionWorkloadProfile =
     std::variant<AutoregressiveRequestProfile, IterativeRequestProfile>;
 
-[[nodiscard]] WorkloadKind workload_kind(
-    const WorkloadRequestProfile& profile) noexcept;
+[[nodiscard]] ExecutionWorkloadKind execution_workload_kind(
+    const ExecutionWorkloadProfile& profile) noexcept;
 
 [[nodiscard]] WorkUnitKind work_unit_kind(
-    const WorkloadRequestProfile& profile) noexcept;
+    const ExecutionWorkloadProfile& profile) noexcept;
 
 // Active workload concurrency is the one request-shape dimension already
 // shared by both qualified workloads. The helper does not imply that sequence
 // and image-instance scheduling are otherwise equivalent.
 [[nodiscard]] std::uint32_t active_workload_instances(
-    const WorkloadRequestProfile& profile) noexcept;
+    const ExecutionWorkloadProfile& profile) noexcept;
 
 // Validation is deliberately narrow. Existing autoregressive RequestProfile
 // behavior is preserved rather than retroactively constrained. The new
 // iterative profile requires a real finite iteration and at least one active
 // workload instance.
 [[nodiscard]] Status validate_workload_request_profile(
-    const WorkloadRequestProfile& profile) noexcept;
+    const ExecutionWorkloadProfile& profile) noexcept;
 
 } // namespace air
