@@ -1084,3 +1084,62 @@ Slice 3 falsification requirements:
    incumbent resource that would be dropped;
 6. CPU preflight passes;
 7. fresh CUDA Qwen qualification later confirms planner/runtime integration.
+
+
+## Stage 8B slice 3 CPU qualification and CUDA replay handoff
+
+Implementation source:
+
+`97078266d410d4a33a36be1ecac8fd2b1cbdb66e`
+
+Adaptive CPU preflight:
+
+`36939282676` -> SUCCESS.
+
+The next gate reuses retained qualified Prompt 6C strategy evidence rather than
+rerunning its full benchmark census.
+
+Retained strategy oracle:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt6C-Transitions-20260930-100245`
+
+Canonical focused qualifier:
+
+`scripts/qualify-adaptive-prompt8b-planner-resources.sh`
+
+It performs:
+
+- clean GPU baseline;
+- current CPU preflight;
+- fresh CUDA build and full CTest;
+- retained-manifest hot-dense replay;
+- retained-manifest dense -> reuse8 eviction replay;
+- exact resource-state validation from Strategy Probe snapshots;
+- bounded evidence checksums.
+
+Required hot-dense evidence:
+
+- dense selected twice;
+- second request reports prepared-state hot;
+- second request forecasts zero preparation bytes;
+- exact resource ID
+  `cuda/linear/dense-f32-cublas`
+  is resident before and after the second request;
+- derived aggregate bytes equal that resource's measured resident bytes.
+
+Required eviction evidence:
+
+- dense selected first;
+- reuse8 selected second;
+- dense resource is resident before the second request;
+- positive eviction duration is measured;
+- the same dense resource is nonresident with zero resident bytes after;
+- derived aggregate prepared bytes are zero;
+- no hidden dense residency remains.
+
+Expected final marker:
+
+`PROMPT8B_PLANNER_RESOURCE_AUTHORITY=PASS`
+
+This is a focused replay of the planner behavior affected by slice 3. It is not
+a new performance qualification and does not replace Prompt 6 evidence.

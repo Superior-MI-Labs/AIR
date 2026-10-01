@@ -563,13 +563,26 @@ actually resident incumbent resource that the candidate would drop.
 Manifest prepared bytes remain aggregate measured capacity evidence in this
 slice; AIR will not invent per-resource byte splits.
 
+Slice-3 implementation source:
+
+`97078266d410d4a33a36be1ecac8fd2b1cbdb66e`
+
+Adaptive CPU preflight `36939282676`: SUCCESS.
+
+Focused CUDA qualification now replays the retained Prompt 6C hot-dense and
+dense -> reuse8 transitions through the identity-aware planner.
+
+Canonical qualifier:
+
+`scripts/qualify-adaptive-prompt8b-planner-resources.sh`
+
 Immediate next action:
 
-- qualify slice 3 on exact-head CPU preflight;
-- inspect any compatibility failures caused by removal of authored aggregate
-  runtime state;
-- only after CPU qualification, run Qwen CUDA transition/nonregression
-  qualification against the identity-aware planner.
+- run the focused Prompt 8B planner-resource qualifier on WolfCat;
+- require exact dense resource identity to make the second dense request hot;
+- require the same identity to become nonresident after reuse8 eviction;
+- if it passes, close the RuntimeSnapshot/planner authority migration and move
+  to per-work-unit identity / ExecutionGraph evolution.
 
 ## Current architectural hypothesis
 
