@@ -192,6 +192,7 @@ int main() {
     span.backend = "reference";
     span.start_ns = 10U;
     span.end_ns = 20U;
+    span.work_unit_kind = air::WorkUnitKind::tokens;
     span.work_units = 2U;
     timeline.spans.push_back(span);
     const auto timeline_body = air::server::execution_timeline_json(timeline);
@@ -200,7 +201,8 @@ int main() {
           timeline_body.find("\"category\":\"backend-call\"") != std::string::npos &&
           timeline_body.find("\"phase\":\"prefill\"") != std::string::npos &&
           timeline_body.find("\"start_ns\":10") != std::string::npos &&
-          timeline_body.find("\"end_ns\":20") != std::string::npos,
+          timeline_body.find("\"end_ns\":20") != std::string::npos &&
+          timeline_body.find("\"work_unit_kind\":\"tokens\"") != std::string::npos,
           "execution timeline serialization preserves typed clock and span semantics");
 
     air::BackendCapabilities graph_capabilities;
@@ -215,6 +217,7 @@ int main() {
 
     air::PhysicalInvocation invocation;
     invocation.kind = air::PhysicalInvocationKind::prefill_single;
+    invocation.work_unit_kind = air::WorkUnitKind::tokens;
     invocation.participants.push_back(
         air::PhysicalInvocationParticipant{
             2U, air::PhysicalOutputMode::logits, 0U});
@@ -255,6 +258,8 @@ int main() {
               graph_body.find("\"identity\":\"execution-graph:r0:") !=
                   std::string::npos &&
               graph_body.find("\"invocation\":\"prefill-single\"") !=
+                  std::string::npos &&
+              graph_body.find("\"work_unit_kind\":\"tokens\"") !=
                   std::string::npos &&
               graph_body.find("\"hardware_resource_id\":\"cpu0\"") !=
                   std::string::npos &&
