@@ -14,7 +14,7 @@ namespace air {
 // generation versus bounded decision. Both service semantics can lower to the
 // same autoregressive execution structure. Prompt 9 owns unknown-semantics
 // extension behavior.
-enum class ExecutionExecutionWorkloadKind {
+enum class ExecutionWorkloadKind {
     autoregressive_tokens = 0,
     iterative_state,
 };
@@ -61,7 +61,7 @@ using ExecutionWorkloadProfile =
 // behavior is preserved rather than retroactively constrained. The new
 // iterative profile requires a real finite iteration and at least one active
 // workload instance.
-[[nodiscard]] Status validate_workload_request_profile(
+[[nodiscard]] Status validate_execution_workload_profile(
     const ExecutionWorkloadProfile& profile) noexcept;
 
 } // namespace air
