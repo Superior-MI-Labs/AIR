@@ -190,11 +190,28 @@ import pathlib
 import sys
 
 root = pathlib.Path(sys.argv[1])
+names = [
+    "identity.txt",
+    "gpu-compute-baseline.txt",
+    "preflight-terminal.txt",
+    "cmake-cuda.txt",
+    "build-cuda.txt",
+    "ctest-cuda.txt",
+    "cuda-contract.txt",
+    "server.log",
+    "generation.json",
+    "runtime.json",
+    "gpu-compute-final.txt",
+    "nvidia-smi.txt",
+]
 out = root / "SHA256SUMS.txt"
 with out.open("w") as handle:
-    for path in sorted(p for p in root.rglob("*") if p.is_file() and p != out):
+    for name in names:
+        path = root / name
+        if not path.is_file():
+            continue
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        handle.write(f"{digest}  {path.relative_to(root)}\n")
+        handle.write(f"{digest}  {name}\n")
 print(f"checksums={out}")
 PY
 
