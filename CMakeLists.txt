@@ -48,6 +48,7 @@ add_library(air_core
     src/runtime/sequence_state_store.cpp
     src/runtime/runtime.cpp
     src/runtime/workload.cpp
+    src/runtime/resource.cpp
     src/runtime/verification.cpp
     src/runtime/manifest.cpp
     src/runtime/qualification.cpp
@@ -224,6 +225,10 @@ air_enable_warnings(air-protocol-tests)
     target_link_libraries(air-workload-contract-tests PRIVATE AIR::core)
     air_enable_warnings(air-workload-contract-tests)
 
+    add_executable(air-resource-contract-tests tests/resource_contract_tests.cpp)
+    target_link_libraries(air-resource-contract-tests PRIVATE AIR::core)
+    air_enable_warnings(air-resource-contract-tests)
+
     add_test(NAME air-core-tests COMMAND air-core-tests)
     add_test(NAME air-reference-tests COMMAND air-reference-tests)
     add_test(NAME air-cuda-contract-tests COMMAND air-cuda-contract-tests)
@@ -238,6 +243,7 @@ air_enable_warnings(air-protocol-tests)
     add_test(NAME air-observation-contract-tests COMMAND air-observation-contract-tests)
     add_test(NAME air-strategy-lab-tests COMMAND air-strategy-lab-tests)
     add_test(NAME air-workload-contract-tests COMMAND air-workload-contract-tests)
+    add_test(NAME air-resource-contract-tests COMMAND air-resource-contract-tests)
 endif()
 
 

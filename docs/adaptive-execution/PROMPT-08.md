@@ -670,7 +670,7 @@ Prompt 8 may close only if:
 
 ## Stage 8A immediate implementation packet
 
-Stage 8A is CURRENT.
+Stage 8A is CLOSED / QUALIFIED.
 
 It is deliberately smaller than the whole Prompt 8 program.
 
@@ -765,7 +765,12 @@ Existing test suites remain the characterization authority for:
 - ExecutionGraph serialization/identity;
 - observation contracts.
 
-Stage 8A remains open until the exact final source clears CPU preflight.
+Stage 8A qualified at source
+`0768b749d466f8084add09088be993060f63a564`.
+
+Adaptive CPU preflight run `36930036554` completed SUCCESS.
+
+Stage 8A is CLOSED / QUALIFIED.
 
 
 ## Stage 8A preflight failure and ownership correction
@@ -819,3 +824,70 @@ A mechanical intermediate rename briefly produced
 `ExecutionExecutionWorkloadKind` in the header. This was caught during source
 review before the next qualification run and corrected. It is retained here as
 process evidence for why exact-head preflight remains mandatory.
+
+
+## Stage 8B slice 1 - prepared-resource identity contract
+
+Status: CURRENT
+
+Prompt 6 could safely treat prepared state as anonymous bytes only because the
+qualified strategy effectively had one optional prepared artifact.
+
+Prompt 7 falsifies that assumption.
+
+Text encoder, denoiser, and VAE are independently meaningful resources. Equal
+resident byte totals from different resources cannot establish that a required
+component is hot.
+
+The same issue already exists below Qwen's aggregate interface: the CUDA
+executor owns distinct dense-FP32 and q5q8-DP4A prepared arenas even though
+`PreparedModel::prepared_artifact_device_bytes()` currently exposes only their
+sum.
+
+Slice 1 therefore introduces identity before changing runtime ownership:
+
+- `PreparedResourceRequirement`;
+- `PreparedResourceResidency`;
+- explicit `unknown | nonresident | resident` residency state;
+- optional expected device bytes on requirements;
+- measured resident device bytes on residency records;
+- validation requiring unique non-empty IDs;
+- identity-aware requirement satisfaction;
+- aggregate resident bytes as a derived calculation;
+- deterministic projection of current CUDA prepared linear tactics to stable
+  resource IDs.
+
+Important rule:
+
+`same bytes != same resource`
+
+Generic AIR resource logic treats resource IDs as opaque equality keys. It does
+not parse names to recover semantic meaning.
+
+Known current physical IDs:
+
+- `cuda/linear/dense-f32-cublas`;
+- `cuda/linear/q5q8-dp4a-hybrid`.
+
+These identify current optional CUDA prepared artifacts. They are not universal
+semantic operation names.
+
+This first slice intentionally does not yet migrate `RuntimeSnapshot`,
+Strategy Lab manifests, backend residency reporting, or capacity admission.
+Those remain the next Stage 8B slice after this resource identity contract is
+qualified.
+
+The legacy aggregate prepared-artifact path therefore remains temporarily
+authoritative in runtime planning during slice 1. No new producer writes an
+identified residency set yet, so there is not yet a second mutable runtime
+truth.
+
+Stage 8B slice 1 exit:
+
+- wrong-resource/equal-byte substitution is rejected;
+- unknown/nonresident state cannot be interpreted as hot;
+- multiple component residencies can coexist;
+- aggregate bytes are derivable from identified resident records;
+- current Qwen prepared tactic requirements deduplicate by stable identity;
+- no Qwen numerical/planner/scheduler behavior changes;
+- Adaptive CPU preflight passes.

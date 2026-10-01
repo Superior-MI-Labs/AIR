@@ -1,7 +1,7 @@
 # AIR Adaptive Execution Substrate R0 - Current
 
-Updated: 2026-09-30
-Status: PROMPT 7 CURRENT
+Updated: 2026-10-01
+Status: PROMPT 8 CURRENT
 
 ## Frozen baseline
 
@@ -38,13 +38,12 @@ adaptive execution substrate where:
 
 ## Current wave
 
-Wave 6 / Prompt 7: image workflow oracle + package/component model.
+Prompt 8: second architecture through AIR.
 
-Prompt 6 is CLOSED / QUALIFIED.
+Prompts 1-7 are CLOSED / QUALIFIED.
 
-Prompt 7 is evidence-first. No broad image-runtime refactor is authorized
-until one external image workflow is selected, frozen as an oracle, and its
-component/state/iteration requirements are measured.
+Prompt 8 is using the qualified Qwen2 + FLUX.2 comparison to evolve only
+structure that both workloads have falsified or required.
 
 ## Work completed in Wave 0 initialization
 
@@ -452,7 +451,7 @@ It does not introduce:
 - an image-specific scheduler/planner/residency authority;
 - a Python workflow runtime.
 
-### Stage 8A current
+### Stage 8A closed / qualified
 
 Stage 8A introduces the workload request boundary without changing numerical
 execution or planner/scheduler policy.
@@ -489,12 +488,36 @@ execution-structure axis `ExecutionWorkloadKind`. The discriminated physical
 planning profile is now `ExecutionWorkloadProfile`.
 
 
+Stage 8A qualified source:
+
+`0768b749d466f8084add09088be993060f63a564`
+
+Adaptive CPU preflight:
+
+`36930036554` -> SUCCESS.
+
+### Stage 8B current
+
+Stage 8B is now addressing identified prepared-resource residency.
+
+First falsified assumption:
+
+`resident prepared bytes >= candidate prepared bytes`
+
+is not a valid general hot-state test once more than one prepared resource can
+exist. Equal bytes from the wrong resource must not satisfy a requirement.
+
+Slice 1 introduces a pure resource identity/residency contract and current Qwen
+prepared-tactic requirement projection. It does not yet migrate
+`RuntimeSnapshot`, manifests, backend state reporting, or planner policy.
+
 Immediate next action:
 
-- require exact final Stage 8A source to pass the Adaptive CPU preflight;
-- if it passes, close Stage 8A;
-- then begin Stage 8B identified prepared-resource residency;
-- do not migrate manifest/schema policy in Stage 8A.
+- qualify the Stage 8B slice-1 resource contract on CPU;
+- then expose backend-owned Qwen prepared resources by identity;
+- only after backend residency identity is qualified, migrate
+  `RuntimeSnapshot` and Strategy Lab away from anonymous aggregate hot-state
+  comparison.
 
 ## Current architectural hypothesis
 
