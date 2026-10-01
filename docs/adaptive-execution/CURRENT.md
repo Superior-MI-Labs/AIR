@@ -476,7 +476,16 @@ Measurement claims are intentionally narrow:
 The observer must preserve the qualified RGB pixel identity and must not mutate
 AIR or ComfyUI source.
 
-Run Prompt 7G next.
+First live Prompt 7G attempt at
+`~/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164359`
+stopped at the clean-GPU precondition because an unrelated
+`llama-server` process (PID `993156`) already held `1424 MiB` of device
+memory. No ComfyUI oracle execution began. This is an environment-precondition
+stop, not Prompt 7G falsification, and does not justify a code change.
+
+Stop/remove the unrelated GPU compute workload, confirm a clean compute
+baseline, and rerun Prompt 7G unchanged.
+
 
 If it passes, close Prompt 7 and derive the smallest Prompt 8 implementation
 packet from the qualified Qwen2 + FLUX.2 evidence. Do not extend Prompt 7 into
