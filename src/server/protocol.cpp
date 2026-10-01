@@ -528,6 +528,15 @@ std::string service_snapshot_json(const ServiceSnapshot& snapshot) {
     out["current_kv_bytes"] = snapshot.current_kv_bytes;
     out["current_device_bytes"] = snapshot.current_device_bytes;
     out["current_prepared_artifact_bytes"] = snapshot.current_prepared_artifact_bytes;
+    json::array prepared_resources;
+    for (const auto& resource : snapshot.current_prepared_resources) {
+        json::object item;
+        item["resource_id"] = resource.resource_id;
+        item["state"] = std::string(to_string(resource.state));
+        item["device_bytes"] = resource.device_bytes;
+        prepared_resources.push_back(std::move(item));
+    }
+    out["current_prepared_resources"] = std::move(prepared_resources);
     out["aggregate_generated_tokens_per_second"] = snapshot.aggregate_generated_tokens_per_second;
     out["p50_total_ms"] = snapshot.p50_total_ms;
     out["p95_total_ms"] = snapshot.p95_total_ms;

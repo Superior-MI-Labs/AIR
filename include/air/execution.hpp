@@ -1,6 +1,7 @@
 #pragma once
 
 #include "air/result.hpp"
+#include "air/resource_state.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -121,7 +122,7 @@ struct RequestProfile {
 struct RuntimeSnapshot {
     std::uint64_t free_device_memory_bytes{0};
     std::uint64_t resident_kv_bytes{0};
-    std::uint64_t prepared_artifact_bytes{0};
+    std::vector<PreparedResourceResidency> prepared_resources;
     std::string current_strategy_id;
     double device_utilization{0.0};
 };

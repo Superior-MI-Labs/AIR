@@ -2,6 +2,7 @@
 
 #include "air/execution.hpp"
 #include "air/result.hpp"
+#include "air/resource_state.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -19,30 +20,12 @@ inline constexpr std::string_view cuda_dense_f32_cublas_resource_id =
 inline constexpr std::string_view cuda_q5q8_dp4a_hybrid_resource_id =
     "cuda/linear/q5q8-dp4a-hybrid";
 
-enum class PreparedResourceResidencyState {
-    unknown = 0,
-    nonresident,
-    resident,
-};
-
-[[nodiscard]] const char* to_string(
-    PreparedResourceResidencyState state) noexcept;
-
 // A requirement names the exact prepared physical resource a plan needs.
 // expected_device_bytes is evidence/forecast when known. Absence means the
 // requirement identity is known but its byte cost is not asserted here.
 struct PreparedResourceRequirement {
     std::string resource_id;
     std::optional<std::uint64_t> expected_device_bytes;
-};
-
-// Residency is current physical state. device_bytes is resident bytes, not
-// nominal resource size. Nonresident/unknown observations therefore carry zero.
-struct PreparedResourceResidency {
-    std::string resource_id;
-    PreparedResourceResidencyState state{
-        PreparedResourceResidencyState::unknown};
-    std::uint64_t device_bytes{0};
 };
 
 [[nodiscard]] Status validate_prepared_resource_requirements(

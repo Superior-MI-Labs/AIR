@@ -119,6 +119,15 @@ json::object snapshot_json(const air::ServiceSnapshot& s) {
     }
     o["strategy_candidates"]=std::move(candidates);
     o["current_prepared_artifact_bytes"]=s.current_prepared_artifact_bytes;
+    json::array prepared_resources;
+    for (const auto& resource : s.current_prepared_resources) {
+        json::object item;
+        item["resource_id"] = resource.resource_id;
+        item["state"] = air::to_string(resource.state);
+        item["device_bytes"] = resource.device_bytes;
+        prepared_resources.push_back(std::move(item));
+    }
+    o["current_prepared_resources"]=std::move(prepared_resources);
     o["current_device_bytes"]=s.current_device_bytes;
     o["peak_device_bytes"]=s.peak_device_bytes;
     o["current_kv_bytes"]=s.current_kv_bytes;

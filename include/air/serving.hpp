@@ -6,6 +6,7 @@
 #include "air/model.hpp"
 #include "air/observation.hpp"
 #include "air/manifest.hpp"
+#include "air/resource_state.hpp"
 #include "air/result.hpp"
 #include "air/types.hpp"
 
@@ -226,7 +227,9 @@ struct ServiceSnapshot {
     std::uint64_t peak_device_bytes{0};
     std::uint64_t current_kv_bytes{0};
     std::uint64_t current_device_bytes{0};
+    // Derived compatibility/diagnostic total from current_prepared_resources.
     std::uint64_t current_prepared_artifact_bytes{0};
+    std::vector<PreparedResourceResidency> current_prepared_resources;
     double aggregate_generated_tokens_per_second{0.0};
     double p50_total_ms{0.0};
     double p95_total_ms{0.0};

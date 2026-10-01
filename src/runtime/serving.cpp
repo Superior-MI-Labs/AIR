@@ -4,6 +4,7 @@
 #include "air/manifest.hpp"
 #include "air/machine.hpp"
 #include "air/runtime.hpp"
+#include "air/resource.hpp"
 #include "air/tokenizer.hpp"
 
 #include "runtime/backend.hpp"
@@ -774,7 +775,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
         }
         if (cuda) {
             if (const auto free = cuda->free_device_bytes()) runtime_snapshot.free_device_memory_bytes = *free;
-            runtime_snapshot.prepared_artifact_bytes = cuda->prepared_artifact_device_bytes();
+            runtime_snapshot.prepared_resources = cuda->prepared_resources();
         }
         {
             std::lock_guard lock(mutex);
@@ -851,7 +852,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
             if (const auto free = cuda->free_device_bytes()) {
                 snapshot.free_device_memory_bytes = *free;
             }
-            snapshot.prepared_artifact_bytes = cuda->prepared_artifact_device_bytes();
+            snapshot.prepared_resources = cuda->prepared_resources();
         }
         {
             std::lock_guard lock(mutex);
@@ -3245,7 +3246,12 @@ ServiceSnapshot InferenceService::snapshot() const {
     }
     if (impl_->cuda) {
         out.current_device_bytes = impl_->cuda->resident_device_bytes();
-        out.current_prepared_artifact_bytes = impl_->cuda->prepared_artifact_device_bytes();
+        out.current_prepared_resources = impl_->cuda->prepared_resources();
+        const auto prepared_bytes =
+            resident_prepared_resource_bytes(out.current_prepared_resources);
+        if (prepared_bytes) {
+            out.current_prepared_artifact_bytes = prepared_bytes.value();
+        }
     }
     const auto elapsed = std::chrono::duration<double>(Clock::now() - impl_->service_started).count();
     if (elapsed > 0.0) out.aggregate_generated_tokens_per_second = static_cast<double>(impl_->generated_tokens) / elapsed;

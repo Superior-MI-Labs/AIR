@@ -1,6 +1,7 @@
 #include "air/manifest.hpp"
 
 #include "air/version.hpp"
+#include "air/resource.hpp"
 
 #include <boost/json.hpp>
 
@@ -153,6 +154,15 @@ Status validate_strategy_semantics(const QualifiedStrategy& s) {
         if (!has_latency || !has_throughput) {
             return Status::data_error("strict-qualified manifest strategy is missing required performance evidence");
         }
+    }
+    const auto requirements = prepared_resource_requirements(s.plan);
+    if (!requirements.empty() && s.prepared_artifact_bytes == 0U) {
+        return Status::data_error(
+            "manifest strategy requires prepared resources but has zero prepared_artifact_bytes evidence");
+    }
+    if (s.prepared_artifact_bytes > 0U && requirements.empty()) {
+        return Status::data_error(
+            "manifest strategy reports prepared_artifact_bytes but its plan requires no known prepared resource");
     }
     if (s.prepared_artifact_bytes > 0U && !s.preparation_measured) {
         return Status::data_error("manifest strategy with optional prepared state is missing measured preparation evidence");
@@ -334,21 +344,80 @@ bool performance_present(const QualifiedStrategy& s, const RequestProfile& reque
            (request.max_output_tokens == 0U || s.mean_decode_tokens_per_second > 0.0);
 }
 
+std::vector<PreparedResourceRequirement> strategy_prepared_requirements(
+    const QualifiedStrategy& strategy) {
+    auto requirements = prepared_resource_requirements(strategy.plan);
+    // Current qualified Qwen strategies have one optional prepared resource.
+    // When exactly one resource is required, the retained manifest aggregate is
+    // also valid expected-byte evidence for that resource. Do not split an
+    // aggregate across multiple resources without per-resource evidence.
+    if (requirements.size() == 1U && strategy.prepared_artifact_bytes > 0U) {
+        requirements.front().expected_device_bytes =
+            strategy.prepared_artifact_bytes;
+    }
+    return requirements;
+}
+
+Result<bool> strategy_prepared_state_hot(
+    const QualifiedStrategy& strategy,
+    const RuntimeSnapshot& runtime) {
+    auto requirements = strategy_prepared_requirements(strategy);
+    if (requirements.empty()) return false;
+    return prepared_resources_satisfy(requirements, runtime.prepared_resources);
+}
+
+bool requirement_contains(
+    std::span<const PreparedResourceRequirement> requirements,
+    std::string_view resource_id) {
+    return std::any_of(
+        requirements.begin(), requirements.end(),
+        [&](const PreparedResourceRequirement& requirement) {
+            return requirement.resource_id == resource_id;
+        });
+}
+
+bool candidate_drops_resident_incumbent_resource(
+    const QualifiedStrategy& candidate,
+    const QualifiedStrategy* incumbent,
+    const RuntimeSnapshot& runtime) {
+    if (!incumbent || incumbent->strategy_id == candidate.strategy_id) {
+        return false;
+    }
+
+    const auto incumbent_requirements =
+        strategy_prepared_requirements(*incumbent);
+    const auto candidate_requirements =
+        strategy_prepared_requirements(candidate);
+
+    for (const auto& requirement : incumbent_requirements) {
+        if (requirement_contains(candidate_requirements, requirement.resource_id)) {
+            continue;
+        }
+        const auto resident = std::find_if(
+            runtime.prepared_resources.begin(), runtime.prepared_resources.end(),
+            [&](const PreparedResourceResidency& resource) {
+                return resource.resource_id == requirement.resource_id;
+            });
+        if (resident != runtime.prepared_resources.end() &&
+            resident->state == PreparedResourceResidencyState::resident) {
+            return true;
+        }
+    }
+    return false;
+}
+
 EstimatedCost estimate_cost(const QualifiedStrategy& candidate,
                             const QualifiedStrategy* incumbent,
                             const RequestProfile& request,
-                            const RuntimeSnapshot& runtime,
+                            bool candidate_hot,
+                            bool drops_resident_incumbent_resource,
                             const StrategyLabConfig& config) {
     EstimatedCost out;
-    const bool candidate_hot = candidate.prepared_artifact_bytes > 0U &&
-        runtime.prepared_artifact_bytes >= candidate.prepared_artifact_bytes;
     if (!candidate_hot && candidate.prepared_artifact_bytes > 0U) {
         out.transition_ms += positive_upper(candidate.preparation_ms_mean,
                                             candidate.preparation_ms_confidence_half_width);
     }
-    if (runtime.prepared_artifact_bytes > 0U && incumbent &&
-        incumbent->strategy_id != candidate.strategy_id &&
-        candidate.prepared_artifact_bytes < runtime.prepared_artifact_bytes) {
+    if (drops_resident_incumbent_resource && incumbent) {
         out.transition_ms += positive_upper(incumbent->eviction_ms_mean,
                                             incumbent->eviction_ms_confidence_half_width);
     }
@@ -574,6 +643,21 @@ PlanningDecision StrategyLabPlanner::decide(const PlanningInput& input) const {
 
     const auto* incumbent = manifest_.find_strategy(input.runtime.current_strategy_id);
     const auto candidates = manifest_.candidates(input.request);
+
+    const auto runtime_prepared_bytes =
+        resident_prepared_resource_bytes(input.runtime.prepared_resources);
+    if (!runtime_prepared_bytes) {
+        result.reason = "fallback:invalid-runtime-resource-state";
+        for (const auto* c : candidates) {
+            PlanningCandidateTrace trace;
+            trace.strategy_id = c->strategy_id;
+            trace.prepared_artifact_bytes = c->prepared_artifact_bytes;
+            trace.disposition = "rejected:invalid-runtime-resource-state";
+            result.candidates.push_back(std::move(trace));
+        }
+        return result;
+    }
+
     std::vector<std::pair<const QualifiedStrategy*, EstimatedCost>> eligible;
     std::uint64_t lowest_prepared = std::numeric_limits<std::uint64_t>::max();
     for (const auto* c : candidates) if (c->strict_qualified) lowest_prepared = std::min(lowest_prepared, c->prepared_artifact_bytes);
@@ -582,7 +666,13 @@ PlanningDecision StrategyLabPlanner::decide(const PlanningInput& input) const {
         PlanningCandidateTrace trace;
         trace.strategy_id = c->strategy_id;
         trace.prepared_artifact_bytes = c->prepared_artifact_bytes;
-        trace.prepared_state_hot = c->prepared_artifact_bytes > 0U && input.runtime.prepared_artifact_bytes >= c->prepared_artifact_bytes;
+        const auto hot = strategy_prepared_state_hot(*c, input.runtime);
+        if (!hot) {
+            trace.disposition = "rejected:invalid-runtime-resource-state";
+            result.candidates.push_back(std::move(trace));
+            continue;
+        }
+        trace.prepared_state_hot = hot.value();
         trace.memory_feasible = true;
         if (!c->strict_qualified) { trace.disposition = "rejected:not-strict-qualified"; result.candidates.push_back(std::move(trace)); continue; }
         if (!performance_present(*c, input.request)) { trace.disposition = "rejected:missing-performance-evidence"; result.candidates.push_back(std::move(trace)); continue; }
@@ -594,8 +684,11 @@ PlanningDecision StrategyLabPlanner::decide(const PlanningInput& input) const {
         if (!trace.prepared_state_hot && c->prepared_artifact_bytes > 0U && !c->preparation_measured) {
             trace.disposition = "rejected:missing-preparation-evidence"; result.candidates.push_back(std::move(trace)); continue;
         }
-        if (input.runtime.prepared_artifact_bytes > 0U && incumbent && incumbent->strategy_id != c->strategy_id &&
-            c->prepared_artifact_bytes < input.runtime.prepared_artifact_bytes && !incumbent->eviction_measured &&
+        const bool drops_incumbent_resource =
+            candidate_drops_resident_incumbent_resource(
+                *c, incumbent, input.runtime);
+        if (drops_incumbent_resource && incumbent &&
+            !incumbent->eviction_measured &&
             !config_.allow_unmeasured_eviction_for_qualification) {
             trace.disposition = "rejected:missing-eviction-evidence"; result.candidates.push_back(std::move(trace)); continue;
         }
@@ -625,7 +718,13 @@ PlanningDecision StrategyLabPlanner::decide(const PlanningInput& input) const {
         }
         if (overlap) { trace.disposition = "rejected:confidence-overlap-with-lower-memory"; result.candidates.push_back(std::move(trace)); continue; }
 
-        auto cost = estimate_cost(*c, incumbent, input.request, input.runtime, config_);
+        auto cost = estimate_cost(
+            *c,
+            incumbent,
+            input.request,
+            trace.prepared_state_hot,
+            drops_incumbent_resource,
+            config_);
         trace.estimated_transition_ms = cost.transition_ms;
         trace.estimated_horizon_ms = cost.horizon_ms;
         trace.disposition = "eligible";
@@ -680,7 +779,10 @@ PlanningDecision StrategyLabPlanner::decide(const PlanningInput& input) const {
     }
 
     result.plan = chosen->first->plan;
-    result.prepared_state_hot = chosen->first->prepared_artifact_bytes > 0U && input.runtime.prepared_artifact_bytes >= chosen->first->prepared_artifact_bytes;
+    const auto chosen_hot =
+        strategy_prepared_state_hot(*chosen->first, input.runtime);
+    result.prepared_state_hot =
+        chosen_hot && chosen_hot.value();
     result.estimated_transition_ms = chosen->second.transition_ms;
     result.reason = result.prepared_state_hot ? "selected:qualified-hot-state" : "selected:qualified-break-even";
 

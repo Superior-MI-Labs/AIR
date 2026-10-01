@@ -533,15 +533,43 @@ Canonical WolfCat qualifier:
 
 `scripts/qualify-adaptive-prompt8b-resources.sh`
 
+WolfCat Stage 8B slice-2 evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt8B-Resources-20261001-184458`
+
+Final marker:
+
+`PROMPT8B_PREPARED_RESOURCE_RESIDENCY=PASS`
+
+Results:
+
+- CPU 15/15 PASS;
+- CUDA 15/15 PASS;
+- identified dense prepared-resource transition PASS;
+- semantic parity / graph concordance / renamed-source independence PASS;
+- real Qwen CUDA generation nonregression PASS.
+
+Stage 8B slice 2 is CLOSED / QUALIFIED.
+
+Stage 8B slice 3 is CURRENT.
+
+The planner is being migrated from anonymous
+`RuntimeSnapshot::prepared_artifact_bytes` to identified
+`PreparedResourceResidency` records.
+
+Hot state now requires resource identity. Eviction evidence is tied to an
+actually resident incumbent resource that the candidate would drop.
+
+Manifest prepared bytes remain aggregate measured capacity evidence in this
+slice; AIR will not invent per-resource byte splits.
+
 Immediate next action:
 
-- run the Prompt 8B prepared-resource qualifier on WolfCat with the qualified
-  Qwen2.5 1.5B model;
-- require full CUDA CTest, identified dense-resource
-  nonresident -> resident -> nonresident evidence, and real-Qwen CUDA
-  nonregression;
-- if it passes, migrate `RuntimeSnapshot` and Strategy Lab hot-state logic
-  from anonymous byte comparison to identified residency.
+- qualify slice 3 on exact-head CPU preflight;
+- inspect any compatibility failures caused by removal of authored aggregate
+  runtime state;
+- only after CPU qualification, run Qwen CUDA transition/nonregression
+  qualification against the identity-aware planner.
 
 ## Current architectural hypothesis
 

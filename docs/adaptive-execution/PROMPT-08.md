@@ -994,4 +994,93 @@ Expected final marker:
 
 `PROMPT8B_PREPARED_RESOURCE_RESIDENCY=PASS`
 
-Stage 8B slice 2 remains OPEN until WolfCat produces that marker.
+WolfCat qualified Stage 8B slice 2.
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt8B-Resources-20261001-184458`
+
+Final marker:
+
+`PROMPT8B_PREPARED_RESOURCE_RESIDENCY=PASS`
+
+Qualified facts:
+
+- adaptive CPU preflight: 15/15 PASS;
+- fresh CUDA CTest: 15/15 PASS;
+- CUDA prepared backend operation-site legality PASS;
+- identified prepared-resource residency transition PASS;
+- CUDA/reference semantic-binding parity PASS;
+- ExecutionGraph planned/observed concordance PASS;
+- renamed-source dense tactic independence PASS;
+- real Qwen CUDA nonregression PASS;
+- selected backend CUDA;
+- generated tokens: 4;
+- evidence checksums retained.
+
+Stage 8B slice 2 is CLOSED / QUALIFIED.
+
+
+## Stage 8B slice 3 - planner residency authority migration
+
+Status: CURRENT
+
+Slice 3 removes anonymous prepared bytes as authored runtime planner state.
+
+The already-qualified `PreparedResourceResidency` record is extracted into
+`resource_state.hpp` so both runtime snapshots and resource helpers use the
+same type without a circular dependency.
+
+`RuntimeSnapshot` now owns:
+
+- free device memory;
+- resident KV bytes;
+- identified prepared-resource residency records;
+- current strategy identity;
+- device utilization.
+
+It no longer owns an authored `prepared_artifact_bytes` field.
+
+Strategy Lab changes:
+
+- runtime resource records are validated before planning;
+- invalid residency state causes conservative fallback;
+- candidate hot-state requires exact prepared-resource identity;
+- equal bytes from the wrong resource cannot establish hot state;
+- current Qwen single-resource manifest bytes become expected-byte evidence
+  only when the plan has exactly one prepared resource;
+- unknown multi-resource byte splits are not invented;
+- eviction evidence is required only when a candidate would actually drop a
+  resident prepared resource required by the incumbent plan;
+- transition-cost estimation uses the same identity-aware facts.
+
+Capacity limitation retained deliberately:
+
+Manifest `prepared_artifact_bytes` remains aggregate measured capacity
+evidence for this slice.
+
+If a future candidate requires several resources and only a subset is already
+resident, AIR conservatively treats the candidate as cold and charges the full
+aggregate preparation bytes. It does not guess a per-resource byte split.
+
+Serving changes:
+
+- planner snapshots are populated from backend `prepared_resources()`;
+- service snapshots expose current identified resources;
+- `current_prepared_artifact_bytes` remains a derived diagnostic total;
+- `/runtime` additionally exposes `current_prepared_resources`.
+
+The backend compatibility method
+`prepared_artifact_device_bytes()` remains derived from the same executor
+counters but is no longer the planner residency authority.
+
+Slice 3 falsification requirements:
+
+1. hot dense resource remains hot;
+2. same-byte wrong resource remains cold;
+3. invalid resource state causes conservative fallback;
+4. cold/hot break-even behavior otherwise remains characterized;
+5. missing eviction evidence is required only for an actually resident
+   incumbent resource that would be dropped;
+6. CPU preflight passes;
+7. fresh CUDA Qwen qualification later confirms planner/runtime integration.

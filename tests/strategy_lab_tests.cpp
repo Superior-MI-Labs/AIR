@@ -1,4 +1,5 @@
 #include "air/manifest.hpp"
+#include "air/resource.hpp"
 #include "air/version.hpp"
 
 #include <cmath>
@@ -94,6 +95,25 @@ air::ExecutionManifest manifest() {
     return m;
 }
 
+air::RuntimeSnapshot runtime_snapshot(
+    std::uint64_t free_device_bytes,
+    std::string current_strategy,
+    bool dense_resident = false,
+    std::uint64_t dense_bytes = 1431306240ULL) {
+    air::RuntimeSnapshot runtime;
+    runtime.free_device_memory_bytes = free_device_bytes;
+    runtime.current_strategy_id = std::move(current_strategy);
+    if (dense_resident) {
+        runtime.prepared_resources.push_back(
+            air::PreparedResourceResidency{
+                std::string(air::cuda_dense_f32_cublas_resource_id),
+                air::PreparedResourceResidencyState::resident,
+                dense_bytes,
+            });
+    }
+    return runtime;
+}
+
 air::PlanningDecision decide(air::ExecutionManifest m, air::StrategyLabConfig cfg,
                              air::RequestProfile request, air::RuntimeSnapshot runtime = {}) {
     air::ModelDefinition model;
@@ -113,33 +133,61 @@ int main() {
     throughput.objective = air::StrategyObjective::maximum_throughput;
 
     // Cold, short work cannot amortize one second of preparation.
-    auto short_cold = decide(manifest(), throughput, {64, 8, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto short_cold = decide(manifest(), throughput, {64, 8, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(short_cold.plan.strategy_id == "reuse8", "short cold workload retains reuse8 when dense cannot amortize preparation");
 
     // Long horizon crosses the conservative break-even boundary.
     auto long_cfg = throughput;
     long_cfg.expected_horizon_tokens = 10000;
-    auto long_cold = decide(manifest(), long_cfg, {1024, 128, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto long_cold = decide(manifest(), long_cfg, {1024, 128, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(long_cold.plan.strategy_id == "dense", "long workload selects dense after break-even");
     check(long_cold.estimated_transition_ms > 0.0, "cold dense selection exposes preparation transition cost");
 
     // Hot dense state naturally supplies hysteresis without timers.
     auto hot = decide(manifest(), throughput, {1024, 128, 1},
-                      {8ULL << 30, 0, 1431306240ULL, "dense", 0.0});
+                      runtime_snapshot(8ULL << 30, "dense", true));
     check(hot.plan.strategy_id == "dense" && hot.prepared_state_hot && hot.estimated_transition_ms == 0.0,
           "hot dense state is sticky because repeated work has zero transition cost");
+
+    // Equal anonymous bytes from another resource must not make dense hot.
+    auto wrong_resource_runtime = runtime_snapshot(8ULL << 30, "dense");
+    wrong_resource_runtime.prepared_resources.push_back(
+        air::PreparedResourceResidency{
+            "component/not-dense",
+            air::PreparedResourceResidencyState::resident,
+            1431306240ULL,
+        });
+    auto wrong_resource = decide(
+        manifest(), throughput, {1024, 128, 1}, wrong_resource_runtime);
+    check(!wrong_resource.prepared_state_hot &&
+              wrong_resource.estimated_transition_ms > 0.0,
+          "equal bytes from wrong resource remain cold and retain preparation cost");
+
+    // Invalid resource observations fail conservatively rather than becoming hot.
+    auto invalid_runtime = runtime_snapshot(8ULL << 30, "dense");
+    invalid_runtime.prepared_resources.push_back(
+        air::PreparedResourceResidency{
+            std::string(air::cuda_dense_f32_cublas_resource_id),
+            air::PreparedResourceResidencyState::nonresident,
+            1U,
+        });
+    auto invalid_state = decide(
+        manifest(), throughput, {1024, 128, 1}, invalid_runtime);
+    check(invalid_state.plan.strategy_id == "reuse8" &&
+              invalid_state.reason == "fallback:invalid-runtime-resource-state",
+          "invalid runtime resource state fails to fallback without guessing");
 
     // Explicit user budget can make dense infeasible even when device free memory is ample.
     auto budget = throughput;
     budget.prepared_memory_budget_bytes = 512ULL << 20;
-    auto constrained = decide(manifest(), budget, {1024, 128, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto constrained = decide(manifest(), budget, {1024, 128, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(constrained.plan.strategy_id == "reuse8" && disposition(constrained, "dense", "rejected:memory-infeasible"),
           "prepared-state budget rejects dense and selects reuse8");
 
     // Unqualified tactics are never considered product candidates.
     auto unqualified_manifest = manifest();
     unqualified_manifest.strategies[1].strict_qualified = false;
-    auto unqualified = decide(std::move(unqualified_manifest), long_cfg, {1024, 128, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto unqualified = decide(std::move(unqualified_manifest), long_cfg, {1024, 128, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(unqualified.plan.strategy_id == "reuse8" && disposition(unqualified, "dense", "rejected:not-strict-qualified"),
           "non-strict-qualified dense tactic cannot be selected");
 
@@ -147,14 +195,14 @@ int main() {
     auto overlap_manifest = manifest();
     overlap_manifest.strategies[1].mean_prefill_tokens_per_second = 430;
     overlap_manifest.strategies[1].prefill_tokens_per_second_confidence_half_width = 60;
-    auto overlap = decide(std::move(overlap_manifest), long_cfg, {1024, 128, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto overlap = decide(std::move(overlap_manifest), long_cfg, {1024, 128, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(overlap.plan.strategy_id == "reuse8" && disposition(overlap, "dense", "rejected:confidence-overlap-with-lower-memory"),
           "confidence overlap conservatively favors lower residency");
 
     // Unknown preparation cost is not measured zero.
     auto no_prep_manifest = manifest();
     no_prep_manifest.strategies[1].preparation_measured = false;
-    auto no_prep = decide(std::move(no_prep_manifest), long_cfg, {1024, 128, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto no_prep = decide(std::move(no_prep_manifest), long_cfg, {1024, 128, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(disposition(no_prep, "dense", "rejected:missing-preparation-evidence"),
           "cold dense candidate with unknown preparation cost is rejected");
 
@@ -164,12 +212,12 @@ int main() {
     air::StrategyLabConfig min_vram;
     min_vram.objective = air::StrategyObjective::minimum_vram;
     auto no_evict = decide(std::move(no_evict_manifest), min_vram, {64, 8, 1},
-                           {8ULL << 30, 0, 1431306240ULL, "dense", 0.0});
+                           runtime_snapshot(8ULL << 30, "dense", true));
     check(disposition(no_evict, "reuse8", "rejected:missing-eviction-evidence") && no_evict.plan.strategy_id == "dense",
           "planner will not pretend eviction is free when its cost is unknown");
 
     // Minimum-VRAM is lexicographic when transition evidence exists.
-    auto min = decide(manifest(), min_vram, {1024, 128, 1}, {8ULL << 30, 0, 0, "reuse8", 0.0});
+    auto min = decide(manifest(), min_vram, {1024, 128, 1}, runtime_snapshot(8ULL << 30, "reuse8"));
     check(min.plan.strategy_id == "reuse8", "minimum-vram objective prefers zero-prepared-residency tactic");
 
     // Operation scope survives strategy selection.
