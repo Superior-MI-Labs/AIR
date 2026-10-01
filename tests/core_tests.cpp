@@ -804,6 +804,7 @@ void test_execution_graph_projection() {
 
     air::PhysicalInvocation native_prefill;
     native_prefill.kind = InvocationKind::prefill_native_batch;
+    native_prefill.work_unit_kind = air::WorkUnitKind::tokens;
     native_prefill.participants = {
         air::PhysicalInvocationParticipant{8U, OutputMode::discard, 0U},
         air::PhysicalInvocationParticipant{8U, OutputMode::greedy, 0U},
@@ -819,6 +820,7 @@ void test_execution_graph_projection() {
 
     air::PhysicalInvocation decode_batch;
     decode_batch.kind = InvocationKind::decode_native_greedy_batch;
+    decode_batch.work_unit_kind = air::WorkUnitKind::tokens;
     decode_batch.participants = {
         air::PhysicalInvocationParticipant{1U, OutputMode::greedy, 0U},
         air::PhysicalInvocationParticipant{1U, OutputMode::greedy, 0U},
