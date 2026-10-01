@@ -1141,7 +1141,10 @@ Corrected evidence rule:
 - explicit unload duration is measured only where the external runtime exposes
   an unload callback;
 - if a component was already absent before forced free, classify it as
-  `released-before-forced-free` and do not invent exact release timing.
+  `released-before-forced-free` and do not invent exact release timing;
+- use the ordered loaded-model registry snapshots to bracket the last observed
+  presence and first observed absence where possible. That interval is
+  chronology evidence, not an unload-duration measurement.
 
 The retained `20261001-164618` evidence should be re-analyzed first with the
 corrected analyzer.
