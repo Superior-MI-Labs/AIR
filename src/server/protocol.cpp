@@ -692,6 +692,12 @@ std::string execution_timeline_json(
         value["start_ns"] = span.start_ns;
         value["end_ns"] = span.end_ns;
         value["participant_count"] = span.participant_count;
+        if (span.work_unit_kind) {
+            value["work_unit_kind"] =
+                json::value(std::string(to_string(*span.work_unit_kind)));
+        } else {
+            value["work_unit_kind"] = nullptr;
+        }
         value["work_units"] = span.work_units;
         value["success"] = span.success;
         spans.push_back(std::move(value));
@@ -767,6 +773,8 @@ std::string execution_graph_timeline_json(
                 graph.invocation().topology_fingerprint);
             graph_value["hardware_resource_id"] = json::value(
                 graph.invocation().hardware_resource_id);
+            graph_value["work_unit_kind"] = json::value(
+                std::string(to_string(*graph.invocation().work_unit_kind)));
             graph_value["state_storage"] = json::value(
                 std::string(to_string(graph.state_storage())));
             if (graph.state_page_tokens()) {

@@ -2,6 +2,7 @@
 
 #include "air/execution.hpp"
 #include "air/status.hpp"
+#include "air/work_unit.hpp"
 
 #include <cstdint>
 #include <variant>
@@ -19,13 +20,7 @@ enum class ExecutionWorkloadKind {
     iterative_state,
 };
 
-enum class WorkUnitKind {
-    tokens = 0,
-    iterations,
-};
-
 [[nodiscard]] const char* to_string(ExecutionWorkloadKind kind) noexcept;
-[[nodiscard]] const char* to_string(WorkUnitKind kind) noexcept;
 
 // Existing RequestProfile remains the qualified autoregressive request shape.
 // The alias names that meaning explicitly without breaking existing callers.

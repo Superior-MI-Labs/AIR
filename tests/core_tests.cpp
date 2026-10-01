@@ -610,6 +610,7 @@ void test_execution_graph_projection() {
 
     air::PhysicalInvocation reference_prefill;
     reference_prefill.kind = InvocationKind::prefill_single;
+    reference_prefill.work_unit_kind = air::WorkUnitKind::tokens;
     reference_prefill.participants = {
         air::PhysicalInvocationParticipant{8U, OutputMode::logits, 0U},
     };
@@ -670,6 +671,7 @@ void test_execution_graph_projection() {
 
     air::PhysicalInvocation cuda_prefill;
     cuda_prefill.kind = InvocationKind::prefill_single;
+    cuda_prefill.work_unit_kind = air::WorkUnitKind::tokens;
     cuda_prefill.participants = {
         air::PhysicalInvocationParticipant{16U, OutputMode::logits, 0U},
     };
@@ -697,6 +699,7 @@ void test_execution_graph_projection() {
               "CUDA logits prefill exposes input transfer, output transfer, and stream wait");
         const auto serialized = air::serialize_execution_graph(graph_a.value());
         check(serialized.find("identity=execution-graph:r0:") != std::string::npos &&
+              serialized.find("work-unit-kind=tokens") != std::string::npos &&
               serialized.find("topology=27:hardware-topology:test-cuda") != std::string::npos &&
               serialized.find("resource=13:accelerator:0") != std::string::npos,
               "ExecutionGraph inspection serialization includes stable identity and placement");
@@ -710,6 +713,22 @@ void test_execution_graph_projection() {
     check(graph_a && policy_graph &&
           graph_a.value().identity() == policy_graph.value().identity(),
           "planner strategy labels and already-consumed scheduler quantum do not fragment physical graph identity");
+
+    auto missing_work_unit = cuda_prefill;
+    missing_work_unit.work_unit_kind.reset();
+    auto missing_work_unit_graph =
+        air::derive_execution_graph(cuda_plan, cuda, missing_work_unit);
+    check(!missing_work_unit_graph,
+          "non-zero physical invocation work cannot remain untyped");
+
+    auto iterative_unit_on_token_invocation = cuda_prefill;
+    iterative_unit_on_token_invocation.work_unit_kind =
+        air::WorkUnitKind::iterations;
+    auto wrong_unit_graph =
+        air::derive_execution_graph(
+            cuda_plan, cuda, iterative_unit_on_token_invocation);
+    check(!wrong_unit_graph,
+          "token-specific prefill vocabulary rejects iterative work units");
 
     auto changed_work = cuda_prefill;
     changed_work.participants.front().work_units = 17U;

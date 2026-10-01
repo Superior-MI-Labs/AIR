@@ -101,6 +101,23 @@ void test_service_semantics_and_execution_structure_are_separate_axes() {
         "execution workload structure must have a distinct inspection identity");
 }
 
+void test_work_measure_contract() {
+    check(
+        air::to_string(air::WorkUnitKind::bytes) == std::string("bytes"),
+        "existing CUDA transfer byte counts require an explicit byte unit");
+    check(
+        air::validate_work_measure(std::nullopt, 0U).is_ok(),
+        "zero-work administrative observations may omit a unit");
+    check(
+        !air::validate_work_measure(std::nullopt, 1U).is_ok(),
+        "non-zero work may not remain untyped");
+    check(
+        air::validate_work_measure(air::WorkUnitKind::tokens, 8U).is_ok() &&
+        air::validate_work_measure(air::WorkUnitKind::iterations, 4U).is_ok() &&
+        air::validate_work_measure(air::WorkUnitKind::bytes, 64U).is_ok(),
+        "qualified token, iteration, and byte work measures must validate");
+}
+
 void test_stable_inspection_names() {
     check(
         std::string(air::to_string(air::ExecutionWorkloadKind::autoregressive_tokens)) ==
@@ -126,6 +143,7 @@ int main() {
     test_iterative_profile_has_no_token_shape();
     test_invalid_iterative_profiles_fail_without_guessing();
     test_service_semantics_and_execution_structure_are_separate_axes();
+    test_work_measure_contract();
     test_stable_inspection_names();
 
     if (failures != 0) {

@@ -48,6 +48,7 @@ add_library(air_core
     src/runtime/sequence_state_store.cpp
     src/runtime/runtime.cpp
     src/runtime/workload.cpp
+    src/runtime/work_unit.cpp
     src/runtime/resource.cpp
     src/runtime/verification.cpp
     src/runtime/manifest.cpp

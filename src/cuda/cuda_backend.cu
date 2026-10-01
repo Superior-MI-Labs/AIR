@@ -64,20 +64,20 @@ void observe_cuda_host_operation(
     ObservationClock::time_point start,
     ObservationClock::time_point end,
     std::uint64_t work_units,
+    std::optional<WorkUnitKind> work_unit_kind,
     bool success) noexcept {
     if (!correlation.sink) return;
-    correlation.sink->observe_backend(
-        correlation,
-        BackendExecutionObservation{
-            category,
-            phase,
-            "cuda",
-            start,
-            end,
-            1U,
-            work_units,
-            success,
-        });
+    BackendExecutionObservation observation;
+    observation.category = category;
+    observation.phase = phase;
+    observation.backend = "cuda";
+    observation.start = start;
+    observation.end = end;
+    observation.participant_count = 1U;
+    observation.work_unit_kind = work_unit_kind;
+    observation.work_units = work_units;
+    observation.success = success;
+    correlation.sink->observe_backend(correlation, observation);
 }
 
 Status cublas_status(cublasStatus_t code, const char* operation) {
@@ -1948,6 +1948,7 @@ struct CudaExecutor::Impl {
                 copy_start,
                 copy_end,
                 tokens.size_bytes(),
+                WorkUnitKind::bytes,
                 copy_code == cudaSuccess);
         }
         if (!status) return status;
@@ -2404,7 +2405,7 @@ struct CudaExecutor::Impl {
         observe_cuda_host_operation(
             correlation, ExecutionSpanCategory::transfer,
             "d2h-logits-enqueue", copy_start, copy_end, bytes,
-            copy_code == cudaSuccess);
+            WorkUnitKind::bytes, copy_code == cudaSuccess);
         if (!status) return status;
 
         const auto sync_start = ObservationClock::now();
@@ -2414,7 +2415,7 @@ struct CudaExecutor::Impl {
         observe_cuda_host_operation(
             correlation, ExecutionSpanCategory::synchronization,
             "cuda-stream-wait-logits", sync_start, sync_end, 0U,
-            sync_code == cudaSuccess);
+            std::nullopt, sync_code == cudaSuccess);
         if (!status) return status;
         device_to_host_bytes.fetch_add(bytes, std::memory_order_relaxed);
         full_logit_readbacks.fetch_add(1U, std::memory_order_relaxed);
@@ -2457,7 +2458,7 @@ struct CudaExecutor::Impl {
         observe_cuda_host_operation(
             correlation, ExecutionSpanCategory::transfer,
             "d2h-greedy-result-enqueue", copy_start, copy_end,
-            sizeof(result), copy_code == cudaSuccess);
+            sizeof(result), WorkUnitKind::bytes, copy_code == cudaSuccess);
         if (!status) return status;
 
         const auto sync_start = ObservationClock::now();
@@ -2467,7 +2468,7 @@ struct CudaExecutor::Impl {
         observe_cuda_host_operation(
             correlation, ExecutionSpanCategory::synchronization,
             "cuda-stream-wait-greedy", sync_start, sync_end, 0U,
-            sync_code == cudaSuccess);
+            std::nullopt, sync_code == cudaSuccess);
         if (!status) return status;
         device_to_host_bytes.fetch_add(sizeof(result), std::memory_order_relaxed);
         greedy_token_readbacks.fetch_add(1U, std::memory_order_relaxed);
@@ -2513,7 +2514,7 @@ struct CudaExecutor::Impl {
             correlation, ExecutionSpanCategory::transfer,
             "h2d-target-token-enqueue",
             token_copy_start, token_copy_end, token_bytes,
-            token_copy_code == cudaSuccess);
+            WorkUnitKind::bytes, token_copy_code == cudaSuccess);
         if (!status) return status;
         host_to_device_bytes.fetch_add(token_bytes, std::memory_order_relaxed);
         status = cuda_status(cudaMemsetAsync(workspace.nonfinite_flag, 0, sizeof(TokenId), stream),
@@ -2541,7 +2542,7 @@ struct CudaExecutor::Impl {
             correlation, ExecutionSpanCategory::transfer,
             "d2h-target-logprobs-enqueue",
             score_copy_start, score_copy_end, score_bytes,
-            score_copy_code == cudaSuccess);
+            WorkUnitKind::bytes, score_copy_code == cudaSuccess);
         if (!status) return status;
 
         const auto flag_copy_start = ObservationClock::now();
@@ -2555,7 +2556,7 @@ struct CudaExecutor::Impl {
             correlation, ExecutionSpanCategory::transfer,
             "d2h-target-logprob-flag-enqueue",
             flag_copy_start, flag_copy_end, sizeof(nonfinite),
-            flag_copy_code == cudaSuccess);
+            WorkUnitKind::bytes, flag_copy_code == cudaSuccess);
         if (!status) return status;
 
         const auto sync_start = ObservationClock::now();
@@ -2566,7 +2567,8 @@ struct CudaExecutor::Impl {
         observe_cuda_host_operation(
             correlation, ExecutionSpanCategory::synchronization,
             "cuda-stream-wait-target-logprobs",
-            sync_start, sync_end, 0U, sync_code == cudaSuccess);
+            sync_start, sync_end, 0U, std::nullopt,
+            sync_code == cudaSuccess);
         if (!status) return status;
         device_to_host_bytes.fetch_add(score_bytes + sizeof(nonfinite), std::memory_order_relaxed);
         target_logprob_readbacks.fetch_add(1U, std::memory_order_relaxed);
@@ -2587,7 +2589,8 @@ struct CudaExecutor::Impl {
         observe_cuda_host_operation(
             correlation, ExecutionSpanCategory::synchronization,
             "cuda-stream-wait-outputless-prefill",
-            sync_start, sync_end, 0U, sync_code == cudaSuccess);
+            sync_start, sync_end, 0U, std::nullopt,
+            sync_code == cudaSuccess);
         if (status) outputless_prefill_chunks.fetch_add(1U, std::memory_order_relaxed);
         return status;
     }

@@ -1143,3 +1143,89 @@ Expected final marker:
 
 This is a focused replay of the planner behavior affected by slice 3. It is not
 a new performance qualification and does not replace Prompt 6 evidence.
+
+
+## Stage 8B slice 3 qualification
+
+WolfCat evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt8B-Planner-Resources-20261001-193414`
+
+Final marker:
+
+`PROMPT8B_PLANNER_RESOURCE_AUTHORITY=PASS`
+
+Qualified results:
+
+- full CUDA CTest: 15/15 PASS;
+- hot dense identity replay PASS;
+- dense -> reuse8 eviction identity replay PASS;
+- exact dense resource ID:
+  `cuda/linear/dense-f32-cublas`;
+- measured hot dense residency: `5240782848` bytes;
+- measured eviction: `2.401996 ms`;
+- hidden dense residency after eviction: NO;
+- evidence checksums retained.
+
+Stage 8B is CLOSED / QUALIFIED.
+
+## Stage 8C slice 1 - explicit work-unit identity
+
+Status: CURRENT
+
+The initial Stage 8A hypothesis contained only:
+
+- tokens;
+- iterations.
+
+Review of the existing qualified CUDA observer falsified that as incomplete
+before implementation.
+
+Existing CUDA transfer observations already store byte counts in the field
+named `work_units`, including:
+
+- input token buffer bytes;
+- logits buffer bytes;
+- greedy-result bytes;
+- target-token buffer bytes;
+- target-logprob result bytes;
+- target-logprob flag bytes.
+
+Therefore Prompt 8C adds only one newly proven unit:
+
+- `bytes`.
+
+No FLOP, tensor-element, pixel, sample, frame, or other imagined unit is added.
+
+Slice-1 contract:
+
+- `WorkUnitKind` moves to an independent work-unit contract;
+- supported proven kinds are `tokens | iterations | bytes`;
+- every non-zero work measure requires a unit;
+- zero-work administrative/synchronization spans may omit a unit;
+- `PhysicalInvocation` carries an explicit work-unit kind;
+- current prefill/decode invocation vocabulary accepts only token work;
+- iterative work is not forced through token-specific invocation kinds;
+- execution observation spans carry an optional unit alongside the count;
+- Qwen service compute/request work is reported as tokens;
+- CUDA transfer work is reported as bytes;
+- zero-work synchronization spans remain unitless;
+- execution graph and observation schemas advance because typed and untyped
+  counts are different contracts;
+- graph canonical identity includes invocation work-unit kind;
+- node-local `ExecutionGraphNode.work_units` remains unchanged in this slice.
+
+The node-local field is deliberately deferred. Existing graph nodes use
+heterogeneous local counts such as target count and greedy participant count.
+Relabeling those as tokens would be false. Stage 8G ExecutionGraph R1 owns that
+cleanup after Stage 8D establishes workload-scoped invocation vocabulary.
+
+Slice-1 falsification:
+
+1. missing invocation work-unit kind fails graph derivation;
+2. iterative units on current token-specific prefill/decode vocabulary fail;
+3. deterministic Qwen graph identity includes `tokens`;
+4. non-zero untyped observations are invalid;
+5. current CUDA transfer observations report `bytes`;
+6. current Qwen service observations report `tokens`;
+7. CPU preflight passes before live CUDA qualification.

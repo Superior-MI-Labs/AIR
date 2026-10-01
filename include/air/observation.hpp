@@ -1,16 +1,18 @@
 #pragma once
 
 #include "air/types.hpp"
+#include "air/work_unit.hpp"
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace air {
 
-inline constexpr std::uint32_t execution_observation_schema_version = 1U;
+inline constexpr std::uint32_t execution_observation_schema_version = 2U;
 
 enum class ExecutionObservationLevel {
     off = 0,
@@ -52,6 +54,7 @@ struct BackendExecutionObservation {
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
     std::uint32_t participant_count{1};
+    std::optional<WorkUnitKind> work_unit_kind;
     std::uint64_t work_units{0};
     bool success{true};
 };
@@ -76,6 +79,7 @@ struct ExecutionSpan {
     std::uint64_t start_ns{0};
     std::uint64_t end_ns{0};
     std::uint32_t participant_count{1};
+    std::optional<WorkUnitKind> work_unit_kind;
     std::uint64_t work_units{0};
     bool success{true};
 };

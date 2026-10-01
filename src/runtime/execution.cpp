@@ -380,6 +380,13 @@ namespace {
     out << "schema=" << graph.schema_version() << '\n';
     out << "backend=" << to_string(graph.backend()) << '\n';
     out << "invocation=" << to_string(graph.invocation().kind) << '\n';
+    out << "work-unit-kind=";
+    if (graph.invocation().work_unit_kind) {
+        out << to_string(*graph.invocation().work_unit_kind);
+    } else {
+        out << "none";
+    }
+    out << '\n';
     out << "topology=" << graph.invocation().topology_fingerprint.size()
         << ':' << graph.invocation().topology_fingerprint << '\n';
     out << "resource=" << graph.invocation().hardware_resource_id.size()
@@ -467,6 +474,13 @@ Result<ExecutionGraph> derive_execution_graph(
 
     if (!valid_invocation_kind(invocation.kind)) {
         return Status::invalid_argument("physical invocation kind is unknown");
+    }
+    const auto work_measure =
+        validate_work_measure(invocation.work_unit_kind, 1U);
+    if (!work_measure) return work_measure;
+    if (*invocation.work_unit_kind != WorkUnitKind::tokens) {
+        return Status::unsupported(
+            "current prefill/decode physical invocation vocabulary requires token work units");
     }
     if (invocation.topology_fingerprint.empty()) {
         return Status::invalid_argument(

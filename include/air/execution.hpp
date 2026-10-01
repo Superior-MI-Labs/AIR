@@ -2,6 +2,7 @@
 
 #include "air/result.hpp"
 #include "air/resource_state.hpp"
+#include "air/work_unit.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -172,7 +173,7 @@ struct ExecutionPlan {
 // ExecutionGraph R0 describes one already-concrete physical backend invocation.
 // It is derived execution data, not model semantics, scheduler authority, or an
 // executable graph. The production backend path remains unchanged in Prompt 5B.
-inline constexpr std::uint32_t execution_graph_schema_version = 1U;
+inline constexpr std::uint32_t execution_graph_schema_version = 2U;
 
 enum class PhysicalInvocationKind {
     prefill_single = 0,
@@ -239,6 +240,11 @@ struct PhysicalInvocationParticipant {
 
 struct PhysicalInvocation {
     PhysicalInvocationKind kind{PhysicalInvocationKind::prefill_single};
+
+    // The count carried by each participant is meaningless without its unit.
+    // Current Qwen invocation kinds require tokens. Iterative workload
+    // invocation vocabulary is introduced separately in Stage 8D.
+    std::optional<WorkUnitKind> work_unit_kind;
 
     // Physical ordering is retained because native backend packing may depend on
     // participant order. Request/sequence IDs deliberately do not appear here.

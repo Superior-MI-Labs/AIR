@@ -14,16 +14,6 @@ const char* to_string(ExecutionWorkloadKind kind) noexcept {
     return "unknown";
 }
 
-const char* to_string(WorkUnitKind kind) noexcept {
-    switch (kind) {
-    case WorkUnitKind::tokens:
-        return "tokens";
-    case WorkUnitKind::iterations:
-        return "iterations";
-    }
-    return "unknown";
-}
-
 ExecutionWorkloadKind execution_workload_kind(const ExecutionWorkloadProfile& profile) noexcept {
     return std::visit(
         [](const auto& value) noexcept {

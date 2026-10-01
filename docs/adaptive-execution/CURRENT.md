@@ -576,13 +576,55 @@ Canonical qualifier:
 
 `scripts/qualify-adaptive-prompt8b-planner-resources.sh`
 
+WolfCat Stage 8B slice-3 evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt8B-Planner-Resources-20261001-193414`
+
+Final marker:
+
+`PROMPT8B_PLANNER_RESOURCE_AUTHORITY=PASS`
+
+Qualified:
+
+- CUDA CTest 15/15 PASS;
+- exact dense resource hot-state identity PASS;
+- hot dense resident bytes `5240782848`;
+- exact dense resource eviction identity PASS;
+- eviction `2.401996 ms`;
+- hidden dense residency after eviction: NO.
+
+Stage 8B is CLOSED / QUALIFIED.
+
+### Stage 8C current
+
+Stage 8C makes work-unit interpretation explicit in physical invocation and
+execution observation.
+
+Implementation review found that the initial
+`tokens | iterations` hypothesis is incomplete: existing CUDA transfer
+observations already record byte counts in `work_units`.
+
+Therefore the proven unit vocabulary is now:
+
+- tokens;
+- iterations;
+- bytes.
+
+No other unit is generalized without evidence.
+
+Slice 1 requires current Qwen physical invocations to explicitly declare token
+work, CUDA transfers to explicitly declare byte work, and non-zero untyped
+measures to fail validation.
+
+Graph-node-local heterogeneous counts are intentionally deferred to
+ExecutionGraph R1 rather than falsely relabeled.
+
 Immediate next action:
 
-- run the focused Prompt 8B planner-resource qualifier on WolfCat;
-- require exact dense resource identity to make the second dense request hot;
-- require the same identity to become nonresident after reuse8 eviction;
-- if it passes, close the RuntimeSnapshot/planner authority migration and move
-  to per-work-unit identity / ExecutionGraph evolution.
+- exact-head Adaptive CPU preflight for Stage 8C slice 1;
+- if green, run detailed CUDA observation/ExecutionGraph qualification and
+  require token-vs-byte units to appear correctly without numerical or graph
+  concordance regression.
 
 ## Current architectural hypothesis
 

@@ -341,9 +341,17 @@ struct InferenceService::Impl : ExecutionObservationSink {
         Clock::time_point end,
         std::uint32_t participant_count = 1U,
         std::uint64_t work_units = 0U,
-        bool success = true) noexcept {
+        bool success = true,
+        std::optional<WorkUnitKind> work_unit_kind = std::nullopt) noexcept {
         if (config.execution_observation_level == ExecutionObservationLevel::off) return;
         if (end < start) end = start;
+
+        const auto measure_status =
+            validate_work_measure(work_unit_kind, work_units);
+        if (!measure_status) {
+            dropped_execution_spans.fetch_add(1U, std::memory_order_relaxed);
+            return;
+        }
 
         try {
             ExecutionSpan record;
@@ -356,6 +364,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
             record.start_ns = observation_ns(start);
             record.end_ns = observation_ns(end);
             record.participant_count = std::max<std::uint32_t>(1U, participant_count);
+            record.work_unit_kind = work_unit_kind;
             record.work_units = work_units;
             record.success = success;
 
@@ -393,7 +402,10 @@ struct InferenceService::Impl : ExecutionObservationSink {
             end,
             participant_count,
             work_units,
-            success);
+            success,
+            work_units == 0U
+                ? std::optional<WorkUnitKind>{}
+                : std::optional<WorkUnitKind>{WorkUnitKind::tokens});
     }
 
     void execution_span(
@@ -433,7 +445,8 @@ struct InferenceService::Impl : ExecutionObservationSink {
             observation.end,
             observation.participant_count,
             observation.work_units,
-            observation.success);
+            observation.success,
+            observation.work_unit_kind);
     }
 
     [[nodiscard]] ExecutionCorrelation correlation_for(
@@ -1296,6 +1309,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
         if (const auto* prepared = prepared_for(item.plan.backend)) {
             PhysicalInvocation graph_invocation;
             graph_invocation.kind = PhysicalInvocationKind::decode_single;
+        graph_invocation.work_unit_kind = WorkUnitKind::tokens;
             graph_invocation.participants.push_back(
                 PhysicalInvocationParticipant{
                     1U,
@@ -1512,6 +1526,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
 
         PhysicalInvocation graph_invocation;
         graph_invocation.kind = PhysicalInvocationKind::prefill_single;
+        graph_invocation.work_unit_kind = WorkUnitKind::tokens;
         graph_invocation.participants.push_back(
             PhysicalInvocationParticipant{
                 static_cast<std::uint64_t>(chunk),
@@ -1672,6 +1687,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
         PhysicalInvocation graph_invocation;
         graph_invocation.kind =
             PhysicalInvocationKind::prefill_native_batch;
+        graph_invocation.work_unit_kind = WorkUnitKind::tokens;
         std::vector<ExecutionGraphParticipantCorrelation>
             graph_participants;
         graph_participants.reserve(items.size());
@@ -1818,6 +1834,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
 
         PhysicalInvocation graph_invocation;
         graph_invocation.kind = PhysicalInvocationKind::decode_single;
+        graph_invocation.work_unit_kind = WorkUnitKind::tokens;
         graph_invocation.participants.push_back(
             PhysicalInvocationParticipant{
                 1U,
@@ -1922,6 +1939,7 @@ struct InferenceService::Impl : ExecutionObservationSink {
         PhysicalInvocation graph_invocation;
         graph_invocation.kind =
             PhysicalInvocationKind::decode_native_greedy_batch;
+        graph_invocation.work_unit_kind = WorkUnitKind::tokens;
         std::vector<ExecutionGraphParticipantCorrelation>
             graph_participants;
         graph_participants.reserve(items.size());
