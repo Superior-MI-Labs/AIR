@@ -22,11 +22,11 @@ void test_existing_request_profile_is_preserved_as_autoregressive_contract() {
         air::RequestProfile>);
 
     const air::RequestProfile original{128U, 32U, 3U};
-    const air::WorkloadRequestProfile workload{original};
+    const air::ExecutionWorkloadProfile workload{original};
 
     check(
-        air::workload_kind(workload) ==
-            air::WorkloadKind::autoregressive_tokens,
+        air::execution_workload_kind(workload) ==
+            air::ExecutionWorkloadKind::autoregressive_tokens,
         "existing RequestProfile must classify as autoregressive token work");
     check(
         air::work_unit_kind(workload) == air::WorkUnitKind::tokens,
@@ -52,11 +52,11 @@ void test_existing_request_profile_is_preserved_as_autoregressive_contract() {
 }
 
 void test_iterative_profile_has_no_token_shape() {
-    const air::WorkloadRequestProfile workload{
+    const air::ExecutionWorkloadProfile workload{
         air::IterativeRequestProfile{4U, 1U}};
 
     check(
-        air::workload_kind(workload) == air::WorkloadKind::iterative_state,
+        air::execution_workload_kind(workload) == air::ExecutionWorkloadKind::iterative_state,
         "iterative request must classify independently from token generation");
     check(
         air::work_unit_kind(workload) == air::WorkUnitKind::iterations,
@@ -76,9 +76,9 @@ void test_iterative_profile_has_no_token_shape() {
 }
 
 void test_invalid_iterative_profiles_fail_without_guessing() {
-    const air::WorkloadRequestProfile zero_iterations{
+    const air::ExecutionWorkloadProfile zero_iterations{
         air::IterativeRequestProfile{0U, 1U}};
-    const air::WorkloadRequestProfile zero_instances{
+    const air::ExecutionWorkloadProfile zero_instances{
         air::IterativeRequestProfile{4U, 0U}};
 
     check(
@@ -89,13 +89,20 @@ void test_invalid_iterative_profiles_fail_without_guessing() {
         "zero-instance iterative workload must be rejected");
 }
 
+void test_service_semantics_and_execution_structure_are_separate_axes() {
+    static_assert(!std::is_same_v<air::ExecutionWorkloadKind, air::WorkUnitKind>);
+    check(
+        static_cast<int>(air::ExecutionWorkloadKind::autoregressive_tokens) == 0,
+        "execution workload identity must remain independent of service workload identity");
+}
+
 void test_stable_inspection_names() {
     check(
-        std::string(air::to_string(air::WorkloadKind::autoregressive_tokens)) ==
+        std::string(air::to_string(air::ExecutionWorkloadKind::autoregressive_tokens)) ==
             "autoregressive-tokens",
         "autoregressive workload inspection name must be stable");
     check(
-        std::string(air::to_string(air::WorkloadKind::iterative_state)) ==
+        std::string(air::to_string(air::ExecutionWorkloadKind::iterative_state)) ==
             "iterative-state",
         "iterative workload inspection name must be stable");
     check(
@@ -113,6 +120,7 @@ int main() {
     test_existing_request_profile_is_preserved_as_autoregressive_contract();
     test_iterative_profile_has_no_token_shape();
     test_invalid_iterative_profiles_fail_without_guessing();
+    test_service_semantics_and_execution_structure_are_separate_axes();
     test_stable_inspection_names();
 
     if (failures != 0) {
