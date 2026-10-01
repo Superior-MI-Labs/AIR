@@ -492,6 +492,32 @@ def analyze_mode(argv: list[str]) -> int:
     if missing:
         raise SystemExit(f"Prompt 7G did not observe required component boundaries: {missing}")
 
+    forced_unload = next(
+        (
+            event
+            for event in reversed(end_calls)
+            if event.get("call") == "model_management.unload_all_models"
+        ),
+        None,
+    )
+    if forced_unload is None:
+        raise SystemExit("Prompt 7G did not observe the explicit post-oracle unload_all_models boundary")
+
+    def labels_in_snapshot(snapshot):
+        return {
+            item.get("component_label")
+            for item in (snapshot or [])
+            if item.get("component_label") in REQUIRED_COMPONENTS
+        }
+
+    forced_before_labels = labels_in_snapshot(forced_unload.get("loaded_models_before"))
+    forced_after_labels = labels_in_snapshot(forced_unload.get("loaded_models_after"))
+    if forced_after_labels:
+        raise SystemExit(
+            "Prompt 7G forced /free left required components in ComfyUI's loaded-model "
+            f"registry: {sorted(forced_after_labels)}"
+        )
+
     component_summary: dict[str, Any] = {}
     for name, items in by_component.items():
         load_items = [
@@ -506,8 +532,25 @@ def analyze_mode(argv: list[str]) -> int:
         ]
         if not load_items:
             raise SystemExit(f"Prompt 7G observed {name} but no load boundary")
-        if not unload_items:
-            raise SystemExit(f"Prompt 7G observed {name} but no unload boundary after /free")
+
+        if unload_items:
+            release_classification = "explicit-unload-boundary-observed"
+            release_evidence = (
+                "ComfyUI exposed one or more explicit model_unload/partially_unload "
+                "callbacks for this component."
+            )
+        elif name not in forced_before_labels:
+            release_classification = "released-before-forced-free"
+            release_evidence = (
+                "The component was loaded earlier but was already absent from ComfyUI's "
+                "loaded-model registry when the explicit post-oracle unload_all_models "
+                "boundary began. Exact release timing/mechanism is therefore not claimed."
+            )
+        else:
+            raise SystemExit(
+                f"Prompt 7G observed {name} present at forced /free but no explicit "
+                "unload callback; observer coverage is insufficient"
+            )
 
         component_summary[name] = {
             "load_host_call_duration": summarize_durations(
@@ -516,6 +559,10 @@ def analyze_mode(argv: list[str]) -> int:
             "unload_host_call_duration": summarize_durations(
                 [float(e["duration_ms"]) for e in unload_items]
             ),
+            "release_classification": release_classification,
+            "release_evidence": release_evidence,
+            "present_at_forced_free_begin": name in forced_before_labels,
+            "present_at_forced_free_end": name in forced_after_labels,
             "events": [
                 {
                     "sequence": e.get("sequence"),
@@ -577,8 +624,12 @@ def analyze_mode(argv: list[str]) -> int:
         },
         "observation_quality": {
             "component_model_management_boundaries": "measured",
-            "component_host_call_duration": "measured",
+            "component_load_host_call_duration": "measured",
+            "component_unload_host_call_duration": (
+                "measured only where ComfyUI exposed an explicit unload callback"
+            ),
             "runtime_reported_loaded_bytes_at_boundaries": "measured",
+            "forced_free_registry_terminal_state": "measured",
             "device_memory_trajectory": "sampled",
             "async_gpu_transfer_completion": "not directly measured",
             "per_layer_dynamic_vram_residency": "externally opaque",
@@ -604,6 +655,11 @@ def analyze_mode(argv: list[str]) -> int:
     print(f"transition_events={len(end_calls)}")
     print(f"residency_timeline_points={len(residency_timeline)}")
     print(f"gpu_telemetry_samples={gpu_telemetry['samples']}")
+    for component in REQUIRED_COMPONENTS:
+        print(
+            f"{component}_release="
+            f"{component_summary[component]['release_classification']}"
+        )
     print("conditioning_runtime_shape=DEFERRED_NOT_REQUIRED")
     print("async_gpu_transfer_completion=DIRECT_MEASUREMENT_NOT_CLAIMED")
     print("per_layer_dynamic_vram_residency=EXTERNALLY_OPAQUE")
