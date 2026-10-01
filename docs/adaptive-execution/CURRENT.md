@@ -483,8 +483,28 @@ stopped at the clean-GPU precondition because an unrelated
 memory. No ComfyUI oracle execution began. This is an environment-precondition
 stop, not Prompt 7G falsification, and does not justify a code change.
 
-Stop/remove the unrelated GPU compute workload, confirm a clean compute
-baseline, and rerun Prompt 7G unchanged.
+The clean-baseline retry then executed the unchanged oracle successfully from:
+
+`~/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164618`
+
+Both runs retained the qualified RGB pixel identity. The forced `/free`
+request completed, but the analyzer stopped because the text encoder had no
+explicit unload callback.
+
+This falsified the analyzer's callback assumption, not the workload or AIR.
+Pinned ComfyUI does not require a component already released from its
+loaded-model registry to later traverse `model_unload`.
+
+The analyzer now distinguishes:
+
+- explicit unload callback observed;
+- released before the forced-free boundary;
+- still resident after forced free, which remains a failure.
+
+Immediate next action:
+
+Re-analyze the retained `20261001-164618` evidence with the corrected analyzer.
+Do not rerun FLUX.2 first.
 
 
 If it passes, close Prompt 7 and derive the smallest Prompt 8 implementation
