@@ -466,17 +466,28 @@ Published implementation:
 
 Current concepts:
 
-- `WorkloadKind::autoregressive_tokens`;
-- `WorkloadKind::iterative_state`;
+- `ExecutionWorkloadKind::autoregressive_tokens`;
+- `ExecutionWorkloadKind::iterative_state`;
 - `WorkUnitKind::tokens`;
 - `WorkUnitKind::iterations`;
 - existing `RequestProfile` retained exactly as the autoregressive request
   contract;
 - `IterativeRequestProfile` with finite iteration count and active instances;
-- discriminated `WorkloadRequestProfile`.
+- discriminated `ExecutionWorkloadProfile`.
 
 No manifest, planner, scheduler, backend, numerical, or graph behavior has been
 changed by this slice.
+
+The first exact-head Stage 8A preflight failed at link time because Prompt 8A
+initially reused the already-owned `air::WorkloadKind` name from the Decision
+semantic contract. This was an ownership collision, not a numerical/runtime
+failure.
+
+The correction keeps the existing Decision axis
+`generation | bounded_decision` unchanged and names the new physical
+execution-structure axis `ExecutionWorkloadKind`. The discriminated physical
+planning profile is now `ExecutionWorkloadProfile`.
+
 
 Immediate next action:
 
