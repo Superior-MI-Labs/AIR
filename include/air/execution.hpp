@@ -109,6 +109,9 @@ attention_implementations(
     const BackendCapabilities& capabilities,
     QualifiedOperationSite site);
 
+// Qualified autoregressive-token request shape. Prompt 8A preserves this
+// contract and wraps it in WorkloadRequestProfile rather than pretending token
+// dimensions are universal workload dimensions.
 struct RequestProfile {
     std::uint64_t prompt_tokens{0};
     std::uint64_t max_output_tokens{0};
