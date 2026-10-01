@@ -661,3 +661,43 @@ At the end of every substantial session:
 - record failed experiments;
 - leave one concrete next action;
 - do not rely on chat context alone.
+
+
+### Stage 8C slice-1 qualification state
+
+Initial slice-1 source:
+
+`bb274cd7666452ab63d87b6c34990cafd81a616e`
+
+Adaptive CPU preflight `36942384084` failed at CTest after a successful
+build.
+
+Classification: CHARACTERIZATION FIXTURE MIGRATION.
+
+The new explicit-work-unit validator correctly rejected three legacy test
+fixtures that directly constructed Qwen physical invocations without declaring
+`tokens`.
+
+Corrections preserve the new contract:
+
+- native prefill batch fixture declares tokens;
+- native decode batch fixture declares tokens;
+- protocol graph fixture declares tokens;
+- protocol observation fixture declares tokens;
+- protocol JSON characterization requires explicit token unit;
+- intentionally missing-unit graph test remains negative;
+- work-measure validation is not marked noexcept because error Status
+  construction may allocate.
+
+Corrected source before this documentation update:
+
+`ede0816fa9bae844d81cabc6b0d01d5439a78064`
+
+Immediate next action:
+
+- freeze branch writes;
+- require exact-head Adaptive CPU preflight success;
+- if green, package focused WolfCat detailed-observation qualification that
+  proves service work is tokens, CUDA transfer work is bytes, zero-work
+  synchronization may be unitless, and ExecutionGraph concordance remains
+  unchanged.
