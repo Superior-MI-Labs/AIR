@@ -1229,3 +1229,43 @@ Slice-1 falsification:
 5. current CUDA transfer observations report `bytes`;
 6. current Qwen service observations report `tokens`;
 7. CPU preflight passes before live CUDA qualification.
+
+
+## Stage 8C slice 1 first preflight result
+
+Source:
+
+`bb274cd7666452ab63d87b6c34990cafd81a616e`
+
+Adaptive CPU preflight:
+
+`36942384084` -> FAIL at CTest.
+
+Classification:
+
+CHARACTERIZATION FIXTURE MIGRATION.
+
+Build/link succeeded. 13/15 tests passed.
+
+Failures:
+
+- `air-core-tests`:
+  - native prefill batch fixture omitted work-unit kind;
+  - native decode batch fixture omitted work-unit kind;
+- `air-protocol-tests`:
+  - protocol graph fixture omitted work-unit kind.
+
+This is the intended new validation firing on legacy direct constructors. No
+production runtime path was shown to be untyped.
+
+Correction:
+
+- remaining Qwen graph fixtures explicitly declare `tokens`;
+- protocol observation fixture explicitly declares token work;
+- protocol JSON tests now require `work_unit_kind: "tokens"`;
+- the protocol graph JSON test requires token work-unit identity;
+- `validate_work_measure` is not `noexcept`, because constructing an error
+  Status may allocate.
+
+The negative characterization that intentionally omits a work-unit kind remains
+and must continue to fail graph derivation.
