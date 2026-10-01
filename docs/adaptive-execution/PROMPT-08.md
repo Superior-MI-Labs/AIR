@@ -212,7 +212,7 @@ structures without changing Qwen numerical execution.
 Candidate concepts:
 
 ```cpp
-enum class WorkloadKind {
+enum class ExecutionWorkloadKind {
     autoregressive_tokens,
     iterative_state,
 };
@@ -516,7 +516,7 @@ struct IterativeRequestProfile {
     std::uint32_t active_instances;
 };
 
-using WorkloadRequestProfile =
+using ExecutionWorkloadProfile =
     std::variant<AutoregressiveRequestProfile, IterativeRequestProfile>;
 ```
 
@@ -729,7 +729,7 @@ Design choices:
 - `IterativeRequestProfile` contains only:
   - finite `iteration_count`;
   - `active_instances`;
-- `WorkloadRequestProfile` is a discriminated `std::variant`;
+- `ExecutionWorkloadProfile` is a discriminated `std::variant`;
 - `WorkloadKind` currently contains only:
   - `autoregressive_tokens`;
   - `iterative_state`;
@@ -766,3 +766,56 @@ Existing test suites remain the characterization authority for:
 - observation contracts.
 
 Stage 8A remains open until the exact final source clears CPU preflight.
+
+
+## Stage 8A preflight failure and ownership correction
+
+Exact failing source:
+
+`31c4f62b06ef8c48e56c4f8a24be2101829ed164`
+
+GitHub Actions run:
+
+`36929261081`, attempt 2.
+
+Classification:
+
+CONTRACT OWNERSHIP / SYMBOL COLLISION.
+
+The new Prompt 8A header originally introduced `air::WorkloadKind`.
+AIR already owns that name in `air/decision.hpp` for a different semantic
+axis:
+
+- `generation`;
+- `bounded_decision`.
+
+That existing type classifies service/request semantics.
+
+Prompt 8A needs a separate execution-structure axis:
+
+- autoregressive token recurrence;
+- iterative state transformation.
+
+Those axes must not be collapsed. A bounded Decision request currently lowers
+through the same autoregressive token machinery as Generation, so service
+semantic kind is not execution structure.
+
+The linker correctly rejected duplicate
+`to_string(air::WorkloadKind)` definitions.
+
+Correction:
+
+- retain existing `air::WorkloadKind` unchanged;
+- rename the new physical-structure enum to
+  `air::ExecutionWorkloadKind`;
+- rename the discriminated planning profile to
+  `air::ExecutionWorkloadProfile`;
+- tests now include `air/decision.hpp` and assert the two enum types remain
+  distinct;
+- no planner, scheduler, manifest, backend, or numerical behavior changes are
+  introduced by the correction.
+
+A mechanical intermediate rename briefly produced
+`ExecutionExecutionWorkloadKind` in the header. This was caught during source
+review before the next qualification run and corrected. It is retained here as
+process evidence for why exact-head preflight remains mandatory.
