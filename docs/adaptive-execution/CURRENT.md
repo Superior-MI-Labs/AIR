@@ -391,131 +391,99 @@ scheduler contracts already cover round-robin fairness, decode-first budget,
 admission/capacity, exact concurrency-region behavior, cancellation cleanup,
 and transition-capacity accounting.
 
-## Prompt 7 current
+## Prompt 7 closed / qualified
 
-Prompt 7 is CURRENT / IMAGE WORKFLOW ORACLE + PACKAGE/COMPONENT MODEL.
+Prompt 7 - Image workflow oracle + package/component model - is CLOSED /
+QUALIFIED.
 
 Authority:
 
 `docs/adaptive-execution/PROMPT-07.md`
 
-Prompt 7 does not implement image generation inside AIR.
-
-It first:
-
-1. selects one concrete image workflow that runs externally on qualified
-   hardware;
-2. freezes exact workflow/runtime/resource identity;
-3. captures external oracle output/behavior;
-4. inventories components, residency/offload, iteration state, semantic values,
-   and scheduler/solver behavior;
-5. maps those requirements against current AIR;
-6. derives the smallest Prompt 8 implementation packet.
-
-No universal semantic IR and no image-specific second runtime/planner/scheduler
-are authorized in Prompt 7.
-
-## Immediate next action
-
-Prompt 7C-H is CLOSED / QUALIFIED.
-
-Qualified retained-oracle evidence:
-
-`~/Downloads/AIR-0.11-Prompt7C-H-FLUX2-Census-20260930-152948`
-
-Qualified source:
-
-`04ad75e505eff5b5f0ef37830e00804b9c5f1a59`
-
-Final marker:
-
-`PROMPT7C_H_ORACLE_ANALYSIS=PASS`
-
-Key findings:
-
-- latent semantic geometry: `[1, 128, 64, 64]`;
-- Flux2 four-transition sigma path retained;
-- staged component observations:
-  - text encoder `3669 MB`;
-  - denoiser `3882 MB`;
-  - VAE `160 MB`;
-- peak qualified-oracle device memory remained `10106 MiB`;
-- existing hardware/environment, planning, capacity, resource-ownership, graph,
-  evidence, and one-runtime authorities remain reusable;
-- token-only request/value/iteration/resource/plan/output vocabularies require
-  workload-typed evolution;
-- no second image runtime/planner/scheduler/residency authority is justified.
-
-Three unresolved items were retained. Exact conditioning tensor shape/dtype is
-not currently material to the Prompt 8 semantic boundary and remains
-explicitly deferred. The two material remaining items are component transition
-timing and residency chronology.
-
-Prompt 7G is CURRENT / FOCUSED RESIDENCY + TRANSITION OBSERVABILITY.
-
-Authorities:
-
-- `scripts/prompt7g_residency_probe.py`;
-- `scripts/qualify-adaptive-prompt7g-residency.sh`;
-- unchanged `scripts/prompt7b_flux2_oracle.py`.
-
-Prompt 7G keeps the pinned ComfyUI checkout clean. A launch-time observer
-attaches after ComfyUI's native module initialization and wraps only existing
-model-management load/unload boundaries. The same qualified FLUX.2 oracle runs
-unchanged, followed by the existing ComfyUI `POST /free` path to expose
-eviction boundaries. Device telemetry is sampled separately.
-
-Measurement claims are intentionally narrow:
-
-- host-call transition duration: measured;
-- runtime-reported loaded bytes/residency at observed boundaries: measured;
-- device memory/utilization trajectory: sampled;
-- exact asynchronous transfer completion: not directly measured;
-- exact per-layer DynamicVRAM residency: external-runtime opaque.
-
-The observer must preserve the qualified RGB pixel identity and must not mutate
-AIR or ComfyUI source.
-
-First live Prompt 7G attempt at
-`~/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164359`
-stopped at the clean-GPU precondition because an unrelated
-`llama-server` process (PID `993156`) already held `1424 MiB` of device
-memory. No ComfyUI oracle execution began. This is an environment-precondition
-stop, not Prompt 7G falsification, and does not justify a code change.
-
-The clean-baseline retry then executed the unchanged oracle successfully from:
+Final retained Prompt 7G evidence:
 
 `~/Downloads/AIR-0.11-Prompt7G-FLUX2-Residency-20261001-164618`
 
-Both runs retained the qualified RGB pixel identity. The forced `/free`
-request completed, but the analyzer stopped because the text encoder had no
-explicit unload callback.
+Final retained-evidence marker:
 
-This falsified the analyzer's callback assumption, not the workload or AIR.
-Pinned ComfyUI does not require a component already released from its
-loaded-model registry to later traverse `model_unload`.
+`PROMPT7G_RETAINED_EVIDENCE_REANALYSIS=PASS`
 
-The analyzer now distinguishes:
+Qualified final observations include:
 
-- explicit unload callback observed;
-- released before the forced-free boundary;
-- still resident after forced free, which remains a failure.
+- semantic observer non-intrusion PASS;
+- baseline and observed RGB pixel SHA-256 both
+  `c3a4278c608408df5019cf15162707e29263dee76e7a0114a6b1dcf2c29e1aa6`;
+- text encoder, FLUX.2 denoiser, and VAE all observed at load boundaries;
+- 26 transition events;
+- 20 residency timeline points;
+- 324 approximately-100ms GPU telemetry samples;
+- peak device memory `11791 MiB`;
+- minimum free device memory `4194 MiB`;
+- all three components classified `released-before-forced-free`;
+- every required component absent both at the beginning and end of the explicit
+  forced-free boundary;
+- registry disappearance bracketed between observed sequences 50 and 53 over
+  `1439.212009 ms`.
 
-For early release it also brackets the last registry snapshot where the
-component was present and the first where it was absent. That bracket is
-chronology evidence, not an eviction-duration claim.
+The `1439.212009 ms` value is a chronology bracket, not an unload-duration
+measurement.
+
+Exact asynchronous transfer completion and exact per-layer DynamicVRAM
+residency remain explicitly unknown external-runtime details.
+
+Prompt 7 therefore closes without deeper ComfyUI reverse engineering.
+
+## Prompt 8 current
+
+Prompt 8 - Second architecture through AIR - is CURRENT.
+
+Authority:
+
+`docs/adaptive-execution/PROMPT-08.md`
+
+Prompt 8 generalizes only structure justified by the qualified Qwen2 + FLUX.2
+comparison.
+
+It does not introduce:
+
+- a universal tensor IR;
+- a universal semantic catalog;
+- a second runtime;
+- an image-specific scheduler/planner/residency authority;
+- a Python workflow runtime.
+
+### Stage 8A current
+
+Stage 8A introduces the workload request boundary without changing numerical
+execution or planner/scheduler policy.
+
+Published implementation:
+
+- `include/air/workload.hpp`;
+- `src/runtime/workload.cpp`;
+- `tests/workload_contract_tests.cpp`;
+- CMake target `air-workload-contract-tests`.
+
+Current concepts:
+
+- `WorkloadKind::autoregressive_tokens`;
+- `WorkloadKind::iterative_state`;
+- `WorkUnitKind::tokens`;
+- `WorkUnitKind::iterations`;
+- existing `RequestProfile` retained exactly as the autoregressive request
+  contract;
+- `IterativeRequestProfile` with finite iteration count and active instances;
+- discriminated `WorkloadRequestProfile`.
+
+No manifest, planner, scheduler, backend, numerical, or graph behavior has been
+changed by this slice.
 
 Immediate next action:
 
-Re-analyze the retained `20261001-164618` evidence with the corrected analyzer.
-Do not rerun FLUX.2 first.
-
-
-If it passes, close Prompt 7 and derive the smallest Prompt 8 implementation
-packet from the qualified Qwen2 + FLUX.2 evidence. Do not extend Prompt 7 into
-general ComfyUI reverse engineering unless 7G falsifies a resource assumption
-that Prompt 8 actually needs.
-
+- require exact final Stage 8A source to pass the Adaptive CPU preflight;
+- if it passes, close Stage 8A;
+- then begin Stage 8B identified prepared-resource residency;
+- do not migrate manifest/schema policy in Stage 8A.
 
 ## Current architectural hypothesis
 
