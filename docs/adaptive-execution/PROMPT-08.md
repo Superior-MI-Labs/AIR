@@ -710,3 +710,59 @@ The success condition is:
 
 Full end-to-end FLUX.2 numerical ownership is desirable but must not be claimed
 unless implemented and qualified.
+
+
+## Stage 8A implementation slice 1
+
+Published source:
+
+- `include/air/workload.hpp`;
+- `src/runtime/workload.cpp`;
+- `tests/workload_contract_tests.cpp`;
+- CMake test target `air-workload-contract-tests`.
+
+Design choices:
+
+- existing `RequestProfile` is preserved as the qualified autoregressive
+  contract;
+- `AutoregressiveRequestProfile` is a compatibility alias to that exact type;
+- `IterativeRequestProfile` contains only:
+  - finite `iteration_count`;
+  - `active_instances`;
+- `WorkloadRequestProfile` is a discriminated `std::variant`;
+- `WorkloadKind` currently contains only:
+  - `autoregressive_tokens`;
+  - `iterative_state`;
+- `WorkUnitKind` currently contains only:
+  - `tokens`;
+  - `iterations`.
+
+This slice deliberately does not add semantic value names, image dimensions,
+tensor dtype, device placement, resource residency, manifest changes, planner
+changes, scheduler changes, or backend changes.
+
+The iterative validator rejects:
+
+- zero iterations;
+- zero active instances.
+
+Existing autoregressive validity behavior is not retroactively tightened.
+
+The dedicated characterization tests require:
+
+- exact preservation of all existing `RequestProfile` fields through the new
+  boundary;
+- explicit token work-unit identity for Qwen;
+- explicit iteration work-unit identity for the qualified iterative profile;
+- stable inspection strings;
+- failure for invalid iterative profiles.
+
+Existing test suites remain the characterization authority for:
+
+- Runtime/StaticPlanner request behavior;
+- Strategy Lab request horizon and RuntimeSnapshot behavior;
+- scheduler homogeneous request-shape behavior;
+- ExecutionGraph serialization/identity;
+- observation contracts.
+
+Stage 8A remains open until the exact final source clears CPU preflight.
