@@ -4,11 +4,11 @@
 
 namespace air {
 
-const char* to_string(WorkloadKind kind) noexcept {
+const char* to_string(ExecutionWorkloadKind kind) noexcept {
     switch (kind) {
-    case WorkloadKind::autoregressive_tokens:
+    case ExecutionWorkloadKind::autoregressive_tokens:
         return "autoregressive-tokens";
-    case WorkloadKind::iterative_state:
+    case ExecutionWorkloadKind::iterative_state:
         return "iterative-state";
     }
     return "unknown";
@@ -24,27 +24,27 @@ const char* to_string(WorkUnitKind kind) noexcept {
     return "unknown";
 }
 
-WorkloadKind workload_kind(const WorkloadRequestProfile& profile) noexcept {
+ExecutionWorkloadKind execution_workload_kind(const ExecutionWorkloadProfile& profile) noexcept {
     return std::visit(
         [](const auto& value) noexcept {
             using T = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<T, AutoregressiveRequestProfile>) {
-                return WorkloadKind::autoregressive_tokens;
+                return ExecutionWorkloadKind::autoregressive_tokens;
             } else {
-                return WorkloadKind::iterative_state;
+                return ExecutionWorkloadKind::iterative_state;
             }
         },
         profile);
 }
 
-WorkUnitKind work_unit_kind(const WorkloadRequestProfile& profile) noexcept {
-    return workload_kind(profile) == WorkloadKind::autoregressive_tokens
+WorkUnitKind work_unit_kind(const ExecutionWorkloadProfile& profile) noexcept {
+    return execution_workload_kind(profile) == ExecutionWorkloadKind::autoregressive_tokens
         ? WorkUnitKind::tokens
         : WorkUnitKind::iterations;
 }
 
 std::uint32_t active_workload_instances(
-    const WorkloadRequestProfile& profile) noexcept {
+    const ExecutionWorkloadProfile& profile) noexcept {
     return std::visit(
         [](const auto& value) noexcept -> std::uint32_t {
             using T = std::decay_t<decltype(value)>;
@@ -58,7 +58,7 @@ std::uint32_t active_workload_instances(
 }
 
 Status validate_workload_request_profile(
-    const WorkloadRequestProfile& profile) noexcept {
+    const ExecutionWorkloadProfile& profile) noexcept {
     if (const auto* iterative = std::get_if<IterativeRequestProfile>(&profile)) {
         if (iterative->iteration_count == 0U) {
             return Status::invalid_argument(
