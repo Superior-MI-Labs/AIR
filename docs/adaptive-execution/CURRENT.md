@@ -701,3 +701,31 @@ Immediate next action:
   proves service work is tokens, CUDA transfer work is bytes, zero-work
   synchronization may be unitless, and ExecutionGraph concordance remains
   unchanged.
+
+
+### Stage 8C slice-1 live handoff
+
+Corrected source:
+
+`6984b768088a687548c2cdcf514ba38eee2d0260`
+
+Adaptive CPU preflight `36942691588`: SUCCESS.
+
+Canonical WolfCat qualifier:
+
+`scripts/qualify-adaptive-prompt8c-work-units.sh`
+
+The live gate proves the new units against real detailed CUDA observation:
+
+- Qwen service work -> tokens;
+- CUDA transfer work -> bytes;
+- zero-work synchronization -> unitless;
+- current Qwen ExecutionGraph invocation -> tokens;
+- graph evidence remains concordant.
+
+Immediate next action:
+
+- run the Prompt 8C typed-work-unit qualifier on WolfCat;
+- if it passes, close Stage 8C slice 1;
+- then Stage 8D may introduce workload-scoped iterative invocation vocabulary
+  without reusing prefill/decode names or token output semantics.

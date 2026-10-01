@@ -1269,3 +1269,47 @@ Correction:
 
 The negative characterization that intentionally omits a work-unit kind remains
 and must continue to fail graph derivation.
+
+
+## Stage 8C slice 1 corrected CPU qualification
+
+Corrected exact source:
+
+`6984b768088a687548c2cdcf514ba38eee2d0260`
+
+Adaptive CPU preflight:
+
+`36942691588` -> SUCCESS.
+
+The fixture-migration failure is closed without weakening the explicit-unit
+contract.
+
+Canonical WolfCat qualifier:
+
+`scripts/qualify-adaptive-prompt8c-work-units.sh`
+
+Live qualification requires:
+
+- clean GPU compute baseline;
+- exact current CPU preflight;
+- fresh CUDA build;
+- full CUDA CTest;
+- ExecutionGraph characterization;
+- CUDA graph/observation concordance contract;
+- real Qwen generation under detailed observation;
+- timeline schema v2;
+- every non-zero service work count typed `tokens`;
+- every non-zero CUDA transfer work count typed `bytes`;
+- zero-work CUDA synchronization spans unitless;
+- every current Qwen ExecutionGraph invocation typed `tokens`;
+- graph schema v2;
+- no graph derivation failures;
+- graph evidence concordant;
+- clean GPU/process/worktree teardown;
+- bounded evidence checksums.
+
+Expected final marker:
+
+`PROMPT8C_TYPED_WORK_UNITS=PASS`
+
+Stage 8C slice 1 remains OPEN until that live evidence passes.
