@@ -1566,3 +1566,77 @@ Stage 8F slice-1 falsification:
 8. no transition/residency measurement fields are fabricated;
 9. missing placement is rejected;
 10. all prior contracts remain green.
+
+
+## Stage 8F slice 1 CPU qualification
+
+Source:
+
+`92b0dd2e183acd152e4603125ab3084f20ccaf25`
+
+Adaptive CPU preflight:
+
+`36947579369` -> SUCCESS.
+
+Stage 8F slice 1 is CLOSED / QUALIFIED.
+
+Qualified conclusion:
+
+The second workload can use the same identified prepared-resource requirement
+authority already qualified by Qwen. No image-specific resource/residency model
+is required.
+
+The qualified FLUX.2 component plan intentionally remains descriptive. It does
+not claim AIR-owned text-encoder, denoiser, or VAE numerical execution yet.
+
+## Stage 8G slice 1 - ExecutionGraph R1 Qwen-preserving data-model migration
+
+Status: CURRENT
+
+Stage 8G will be split before any FLUX.2 graph projection.
+
+Slice 1 evolves the single ExecutionGraph data model while requiring current
+Qwen graph behavior and detailed CUDA concordance to survive.
+
+Target structural changes:
+
+1. move physical invocation vocabulary to an independent header so
+   ExecutionGraph can own a discriminated workload invocation without a header
+   cycle;
+2. move `ExecutionWorkloadKind` to an independent structural contract;
+3. make ExecutionGraph invocation storage a workload-discriminated variant;
+4. retain source compatibility for the existing Qwen physical invocation type;
+5. make KV state description explicitly autoregressive rather than pretending
+   every graph owns KV state;
+6. type node-level workload work where the count actually represents workload
+   progress;
+7. separate node-local item multiplicity from workload work instead of calling
+   target counts or greedy participant counts "tokens";
+8. add opaque prepared-resource references on compute regions;
+9. add opaque semantic value input/output identities without teaching generic
+   graph code what those values mean;
+10. project Qwen only in slice 1.
+
+Qwen rules for slice 1:
+
+- prefill/decode invocation semantics remain unchanged;
+- token work remains token work;
+- target-count and greedy-result multiplicity must not be mislabeled as token
+  work;
+- existing prepared-resource identities may be referenced from the model
+  compute region through the already-qualified Stage 8B projection;
+- Qwen does not acquire FLUX semantic value names;
+- production execution remains unchanged;
+- detailed CUDA graph observation must remain concordant.
+
+Only after that is live-qualified may slice 2 project the frozen FLUX.2
+component plan into the same ExecutionGraph authority.
+
+Stage 8G slice-1 stop conditions:
+
+- any need for a second graph type;
+- Qwen numerical/runtime regression;
+- graph evidence concordance regression;
+- semantic meaning inferred from opaque value/resource IDs;
+- node counts relabeled with false units merely to satisfy a schema;
+- KV fields remaining mandatory for iterative graphs.

@@ -817,10 +817,37 @@ selected by the projection.
 Prompt 7 staged-MB observations are not converted to AIR resident-byte
 requirements. Expected component device bytes remain unknown.
 
+Stage 8F slice-1 source:
+
+`92b0dd2e183acd152e4603125ab3084f20ccaf25`
+
+Adaptive CPU preflight `36947579369`: SUCCESS.
+
+Stage 8F slice 1 is CLOSED / QUALIFIED.
+
+### Stage 8G current
+
+Stage 8G begins with a Qwen-preserving ExecutionGraph R1 data-model migration
+before any FLUX.2 graph projection.
+
+Slice 1 will:
+
+- make graph invocation workload-discriminated;
+- retain the existing Qwen invocation as the autoregressive member;
+- make KV state explicitly autoregressive/optional;
+- type true workload work at node level;
+- stop using `work_units` as an untyped bucket for target/participant counts;
+- allow compute regions to reference opaque prepared-resource identities;
+- allow graph regions to reference opaque semantic value identities;
+- project Qwen only;
+- preserve production numerical execution.
+
+The mandatory live gate is current Qwen detailed CUDA graph concordance.
+FLUX.2 enters ExecutionGraph only after that gate survives.
+
 Immediate next action:
 
-- exact-head Adaptive CPU preflight for Stage 8F slice 1;
-- require resource identity, semantic handoff, iterative work, and
-  no-fabricated-byte/transition tests to pass;
-- if green, close the component-plan slice and begin ExecutionGraph R1
-  projection of both qualified workloads.
+- implement Stage 8G slice 1 behind characterization tests;
+- exact-head CPU preflight;
+- then focused WolfCat CUDA graph/evidence replay before any second-workload
+  graph projection.
