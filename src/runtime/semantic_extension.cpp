@@ -10,6 +10,11 @@ namespace {
 
 bool valid_identity(const std::string& value) {
     if (value.empty()) return false;
+    if (value.front() == '/' || value.back() == '/' ||
+        value.find("..") != std::string::npos ||
+        value.find("//") != std::string::npos) {
+        return false;
+    }
     return std::all_of(
         value.begin(), value.end(),
         [](unsigned char c) {
