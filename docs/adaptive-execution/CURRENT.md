@@ -723,9 +723,49 @@ The live gate proves the new units against real detailed CUDA observation:
 - current Qwen ExecutionGraph invocation -> tokens;
 - graph evidence remains concordant.
 
+WolfCat Stage 8C evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt8C-WorkUnits-20261001-202558`
+
+Final marker:
+
+`PROMPT8C_TYPED_WORK_UNITS=PASS`
+
+Qualified:
+
+- CPU preflight 15/15 PASS;
+- CUDA CTest 15/15 PASS;
+- 5 non-zero service spans typed as tokens;
+- 5 non-zero CUDA transfer spans typed as bytes;
+- 4 synchronization spans zero-work and unitless;
+- 4 Qwen graph observations typed as tokens;
+- graph concordance PASS;
+- topology fingerprint `hardware-topology:v1:f521e9bdd95ed645`;
+- hardware resource `gpu0`.
+
+Stage 8C slice 1 is CLOSED / QUALIFIED.
+
+### Stage 8D current
+
+Stage 8D introduces a discriminated workload-scoped physical invocation
+boundary without changing the Qwen numerical/runtime path.
+
+Chosen direction:
+
+`AutoregressivePhysicalInvocation | IterativePhysicalInvocation`
+
+The existing Qwen `PhysicalInvocation` remains the autoregressive member.
+The iterative member carries only finite iteration count, active instances, and
+physical placement. Its type fixes work-unit identity to iterations and has no
+token output vocabulary.
+
+ExecutionGraph R0 remains autoregressive-only until the later graph projection
+stage. This slice does not create a second graph or executor.
+
 Immediate next action:
 
-- run the Prompt 8C typed-work-unit qualifier on WolfCat;
-- if it passes, close Stage 8C slice 1;
-- then Stage 8D may introduce workload-scoped iterative invocation vocabulary
-  without reusing prefill/decode names or token output semantics.
+- exact-head Adaptive CPU preflight for the Stage 8D slice-1 invocation
+  contract;
+- require all existing tests plus the new invocation contract test to pass;
+- if green, close the discrimination boundary and move to the known FLUX.2
+  semantic adapter without yet claiming AIR-owned FLUX numerical execution.

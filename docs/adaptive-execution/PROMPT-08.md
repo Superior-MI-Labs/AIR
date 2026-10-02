@@ -1313,3 +1313,85 @@ Expected final marker:
 `PROMPT8C_TYPED_WORK_UNITS=PASS`
 
 Stage 8C slice 1 remains OPEN until that live evidence passes.
+
+
+## Stage 8C slice 1 WolfCat qualification
+
+Evidence:
+
+`/home/emerson/Downloads/AIR-0.11-Prompt8C-WorkUnits-20261001-202558`
+
+Final marker:
+
+`PROMPT8C_TYPED_WORK_UNITS=PASS`
+
+Qualified facts:
+
+- Adaptive CPU preflight: 15/15 PASS;
+- fresh CUDA CTest: 15/15 PASS;
+- ExecutionGraph R0 characterization PASS;
+- CUDA operation-site, prepared-resource, parity, graph concordance, and
+  renamed-source contracts PASS;
+- real detailed Qwen observation:
+  - non-zero service spans: 5, all `tokens`;
+  - non-zero backend transfer spans: 5, all `bytes`;
+  - backend synchronization spans: 4, all zero-work/unitless;
+  - graph observations: 4, all current Qwen invocation work `tokens`;
+  - graph concordance PASS;
+- topology fingerprint:
+  `hardware-topology:v1:f521e9bdd95ed645`;
+- physical hardware resource:
+  `gpu0`;
+- evidence checksums retained.
+
+Stage 8C slice 1 is CLOSED / QUALIFIED.
+
+## Stage 8D slice 1 - discriminated workload-scoped physical invocation
+
+Status: CURRENT
+
+The first design decision is to avoid extending the existing flat Qwen
+`PhysicalInvocationKind` and token-only `PhysicalOutputMode` enums with
+iterative/image values.
+
+That flat-enum approach would permit structurally illegal combinations such as
+an iterative denoising invocation with logits/greedy output vocabulary.
+
+Instead Stage 8D chooses the discriminated direction already allowed by the
+Prompt 8 plan:
+
+`AutoregressivePhysicalInvocation | IterativePhysicalInvocation`
+
+Slice-1 rules:
+
+- existing `PhysicalInvocation` remains the already-qualified Qwen member and
+  is named by the additive alias `AutoregressivePhysicalInvocation`;
+- `IterativePhysicalInvocation` carries only:
+  - finite iteration count;
+  - active instance count;
+  - topology fingerprint;
+  - hardware resource identity;
+- the iterative type has no token participant list;
+- the iterative type has no logits/greedy/target-logprob output field;
+- its work-unit interpretation is fixed structurally to `iterations`;
+- no conditioning/noise/sigma/latent/image semantic values enter this type;
+- no text-encoder/denoiser/VAE component identity enters this type yet;
+- no second graph, executor, planner, scheduler, or resource authority is
+  introduced;
+- ExecutionGraph R0 remains autoregressive-only in this slice.
+
+The shared boundary validates only discrimination-level invariants. It does not
+duplicate detailed Qwen prefill/decode legality already owned by
+`derive_execution_graph`.
+
+Stage 8D slice-1 falsification:
+
+1. Qwen member remains exactly the existing physical invocation type;
+2. iterative member cannot express token participant/output vocabulary;
+3. qualified four-iteration shape validates;
+4. zero iterations/instances fail;
+5. missing topology/resource placement fails;
+6. untyped autoregressive work fails the Stage 8C invariant;
+7. shared validation does not become a second Qwen graph validator;
+8. CPU preflight passes with all existing tests plus the new invocation
+   contract test.
