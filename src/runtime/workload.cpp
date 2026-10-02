@@ -4,16 +4,6 @@
 
 namespace air {
 
-const char* to_string(ExecutionWorkloadKind kind) noexcept {
-    switch (kind) {
-    case ExecutionWorkloadKind::autoregressive_tokens:
-        return "autoregressive-tokens";
-    case ExecutionWorkloadKind::iterative_state:
-        return "iterative-state";
-    }
-    return "unknown";
-}
-
 ExecutionWorkloadKind execution_workload_kind(const ExecutionWorkloadProfile& profile) noexcept {
     return std::visit(
         [](const auto& value) noexcept {

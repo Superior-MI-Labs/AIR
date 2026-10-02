@@ -1,6 +1,7 @@
 #pragma once
 
 #include "air/execution.hpp"
+#include "air/invocation.hpp"
 #include "air/status.hpp"
 #include "air/work_unit.hpp"
 
@@ -9,19 +10,9 @@
 
 namespace air {
 
-// Prompt 8A execution-structure identity is intentionally limited to the two
-// physical workload shapes that have qualified evidence. This is separate from
-// air::WorkloadKind in decision.hpp, which classifies service semantics such as
-// generation versus bounded decision. Both service semantics can lower to the
-// same autoregressive execution structure. Prompt 9 owns unknown-semantics
-// extension behavior.
-enum class ExecutionWorkloadKind {
-    autoregressive_tokens = 0,
-    iterative_state,
-};
-
-[[nodiscard]] const char* to_string(ExecutionWorkloadKind kind) noexcept;
-
+// ExecutionWorkloadKind is owned by invocation.hpp so both workload profiles
+// and ExecutionGraph can use the same structural discriminator without a
+// header cycle. Service semantic WorkloadKind remains separate.
 // Existing RequestProfile remains the qualified autoregressive request shape.
 // The alias names that meaning explicitly without breaking existing callers.
 using AutoregressiveRequestProfile = RequestProfile;

@@ -4,6 +4,7 @@
 #include "air/version.hpp"
 #include "../src/statistics.hpp"
 #include "air/runtime.hpp"
+#include "air/resource.hpp"
 #include "air/tokenizer.hpp"
 
 #include <bit>
@@ -698,8 +699,10 @@ void test_execution_graph_projection() {
                   std::nullopt, std::nullopt),
               "CUDA logits prefill exposes input transfer, output transfer, and stream wait");
         const auto serialized = air::serialize_execution_graph(graph_a.value());
-        check(serialized.find("identity=execution-graph:r0:") != std::string::npos &&
+        check(serialized.find("identity=execution-graph:r1:") != std::string::npos &&
+              serialized.find("workload-kind=autoregressive-tokens") != std::string::npos &&
               serialized.find("work-unit-kind=tokens") != std::string::npos &&
+              serialized.find("autoregressive-state=present") != std::string::npos &&
               serialized.find("topology=27:hardware-topology:test-cuda") != std::string::npos &&
               serialized.find("resource=13:accelerator:0") != std::string::npos,
               "ExecutionGraph inspection serialization includes stable identity and placement");
@@ -755,6 +758,30 @@ void test_execution_graph_projection() {
           graph_a.value().identity() == unaffected_prefill.value().identity(),
           "decode output implementation does not contaminate prefill graph identity");
 
+    auto dense_resource_plan = cuda_plan;
+    dense_resource_plan.linear.prefill_block =
+        air::QuantizedLinearExecutionKind::dense_f32_cublas;
+    auto dense_caps = cuda;
+    dense_caps.prefill_block_quantized_linear.push_back(
+        air::QuantizedLinearExecutionKind::dense_f32_cublas);
+    auto dense_resource_graph =
+        air::derive_execution_graph(
+            dense_resource_plan, dense_caps, cuda_prefill);
+    bool saw_dense_resource_reference = false;
+    if (dense_resource_graph) {
+        for (const auto& node : dense_resource_graph.value().nodes()) {
+            if (node.compute == ComputeKind::model &&
+                node.prepared_resource_ids ==
+                    std::vector<std::string>{
+                        std::string(air::cuda_dense_f32_cublas_resource_id)}) {
+                saw_dense_resource_reference = true;
+            }
+        }
+    }
+    check(
+        saw_dense_resource_reference,
+        "Qwen model compute region references existing prepared-resource authority");
+
     auto changed_prefill = cuda_plan;
     changed_prefill.linear.prefill_block =
         air::QuantizedLinearExecutionKind::batch_reuse4;
@@ -777,6 +804,23 @@ void test_execution_graph_projection() {
               std::nullopt, PayloadKind::greedy_result),
           "device-greedy output has explicit selection and result-transfer regions");
 
+    if (greedy_graph) {
+        bool greedy_items_not_work = true;
+        for (const auto& node : greedy_graph.value().nodes()) {
+            if (node.compute == ComputeKind::device_greedy_selection ||
+                node.payload == PayloadKind::greedy_result) {
+                greedy_items_not_work =
+                    greedy_items_not_work &&
+                    !node.work_unit_kind &&
+                    node.work_units == 0U &&
+                    node.item_count == 1U;
+            }
+        }
+        check(
+            greedy_items_not_work,
+            "greedy result multiplicity is item_count, not workload tokens");
+    }
+
     auto target_prefill = cuda_prefill;
     target_prefill.participants.front().output = OutputMode::target_logprobs;
     target_prefill.participants.front().target_count = 3U;
@@ -793,6 +837,24 @@ void test_execution_graph_projection() {
               target_graph.value(), NodeKind::transfer_region,
               std::nullopt, PayloadKind::target_logprob_results),
           "target-logprob output exposes target upload, reduction, and result readback");
+
+    if (target_graph) {
+        bool typed_auxiliary_counts = true;
+        for (const auto& node : target_graph.value().nodes()) {
+            if (node.payload == PayloadKind::target_tokens ||
+                node.payload == PayloadKind::target_logprob_results ||
+                node.compute == ComputeKind::target_logprob_reduction) {
+                typed_auxiliary_counts =
+                    typed_auxiliary_counts &&
+                    !node.work_unit_kind &&
+                    node.work_units == 0U &&
+                    node.item_count == 3U;
+            }
+        }
+        check(
+            typed_auxiliary_counts,
+            "target multiplicity is item_count, not falsely labeled token work");
+    }
 
     auto target_width = target_prefill;
     target_width.participants.front().target_count = 4U;
@@ -862,7 +924,7 @@ void test_execution_graph_projection() {
     check(!air::derive_execution_graph(cuda_plan, cuda, no_resource),
           "ExecutionGraph cannot invent missing hardware placement identity");
 
-    std::cout << "ExecutionGraph R0 characterization passed\n";
+    std::cout << "ExecutionGraph R1 Qwen-preserving characterization passed\n";
 }
 
 

@@ -3,6 +3,7 @@
 #include "air/result.hpp"
 #include "air/resource_state.hpp"
 #include "air/work_unit.hpp"
+#include "air/invocation.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -173,90 +174,7 @@ struct ExecutionPlan {
 // ExecutionGraph R0 describes one already-concrete physical backend invocation.
 // It is derived execution data, not model semantics, scheduler authority, or an
 // executable graph. The production backend path remains unchanged in Prompt 5B.
-inline constexpr std::uint32_t execution_graph_schema_version = 2U;
-
-enum class PhysicalInvocationKind {
-    prefill_single = 0,
-    prefill_native_batch,
-    decode_single,
-    decode_native_greedy_batch,
-};
-
-enum class PhysicalOutputMode {
-    discard = 0,
-    logits,
-    greedy,
-    target_logprobs,
-};
-
-enum class ExecutionGraphNodeKind {
-    compute_region = 0,
-    transfer_region,
-    synchronization_region,
-};
-
-enum class ExecutionComputeRegionKind {
-    model = 0,
-    device_greedy_selection,
-    target_logprob_reduction,
-};
-
-enum class ExecutionTransferDirection {
-    host_to_device = 0,
-    device_to_host,
-};
-
-enum class ExecutionPayloadKind {
-    input_tokens = 0,
-    full_logits,
-    greedy_result,
-    target_tokens,
-    target_logprob_results,
-};
-
-enum class ExecutionSynchronizationKind {
-    backend_stream_wait = 0,
-};
-
-[[nodiscard]] const char* to_string(PhysicalInvocationKind kind) noexcept;
-[[nodiscard]] const char* to_string(PhysicalOutputMode mode) noexcept;
-[[nodiscard]] const char* to_string(ExecutionGraphNodeKind kind) noexcept;
-[[nodiscard]] const char* to_string(ExecutionComputeRegionKind kind) noexcept;
-[[nodiscard]] const char* to_string(ExecutionTransferDirection direction) noexcept;
-[[nodiscard]] const char* to_string(ExecutionPayloadKind payload) noexcept;
-[[nodiscard]] const char* to_string(ExecutionSynchronizationKind kind) noexcept;
-
-struct PhysicalInvocationParticipant {
-    // Amount of scheduler/backend work represented by this participant. For
-    // token paths this is the concrete token count of the invocation.
-    std::uint64_t work_units{0};
-
-    // Backend output behavior already selected by the serving path.
-    PhysicalOutputMode output{PhysicalOutputMode::logits};
-
-    // Non-zero only for target-logprob output.
-    std::uint32_t target_count{0};
-};
-
-struct PhysicalInvocation {
-    PhysicalInvocationKind kind{PhysicalInvocationKind::prefill_single};
-
-    // The count carried by each participant is meaningless without its unit.
-    // Current Qwen invocation kinds require tokens. Iterative workload
-    // invocation vocabulary is introduced separately in Stage 8D.
-    std::optional<WorkUnitKind> work_unit_kind;
-
-    // Physical ordering is retained because native backend packing may depend on
-    // participant order. Request/sequence IDs deliberately do not appear here.
-    std::vector<PhysicalInvocationParticipant> participants;
-
-    // Existing HardwareTopology identity and node/resource identity chosen by
-    // the current machine/backend placement authorities. The resource ID is
-    // topology-local, so both are required for unambiguous physical placement.
-    // ExecutionGraph references these values but never owns or rediscovers them.
-    std::string topology_fingerprint;
-    std::string hardware_resource_id;
-};
+inline constexpr std::uint32_t execution_graph_schema_version = 3U;
 
 struct ExecutionImplementationBinding {
     QualifiedOperationSite site{QualifiedOperationSite::prefill_transformer_block_linear};
@@ -269,7 +187,12 @@ struct ExecutionGraphNode {
     ExecutionGraphNodeKind kind{ExecutionGraphNodeKind::compute_region};
     std::string hardware_resource_id;
     std::uint32_t participant_count{0};
+
+    // Only true workload progress belongs here. Auxiliary multiplicity such as
+    // target count or number of greedy results is item_count instead.
+    std::optional<WorkUnitKind> work_unit_kind;
     std::uint64_t work_units{0};
+    std::uint64_t item_count{0};
     std::vector<std::uint32_t> dependencies;
 
     std::optional<ExecutionComputeRegionKind> compute;
@@ -277,9 +200,20 @@ struct ExecutionGraphNode {
     std::optional<ExecutionPayloadKind> payload;
     std::optional<ExecutionSynchronizationKind> synchronization;
 
-    // Present only on the model compute region. These are references to the
-    // already-selected Prompt 4 implementation identities, not a new registry.
+    // Present only on compute regions where known. These are references to
+    // already-selected implementation/resource authorities, not new registries.
     std::vector<ExecutionImplementationBinding> implementations;
+    std::vector<std::string> prepared_resource_ids;
+
+    // Opaque adapter-owned semantic identities. Generic graph code compares
+    // and serializes these IDs but does not infer meaning from their spelling.
+    std::vector<std::string> input_value_ids;
+    std::vector<std::string> output_value_ids;
+};
+
+struct AutoregressiveExecutionState {
+    KvStorageKind storage{KvStorageKind::contiguous};
+    std::optional<std::uint32_t> page_tokens;
 };
 
 class ExecutionGraph final {
@@ -294,14 +228,28 @@ public:
     }
     [[nodiscard]] const std::string& identity() const noexcept { return identity_; }
     [[nodiscard]] BackendKind backend() const noexcept { return backend_; }
-    [[nodiscard]] const PhysicalInvocation& invocation() const noexcept {
+    [[nodiscard]] ExecutionWorkloadKind workload_kind() const noexcept {
+        return physical_invocation_workload_kind(invocation_);
+    }
+    [[nodiscard]] const WorkloadPhysicalInvocation& workload_invocation() const noexcept {
         return invocation_;
     }
-    [[nodiscard]] KvStorageKind state_storage() const noexcept {
-        return state_storage_;
+
+    // Transitional Qwen-only compatibility accessor. Stage 8G2 updates generic
+    // consumers before iterative graphs are admitted.
+    [[nodiscard]] const PhysicalInvocation& invocation() const {
+        return std::get<AutoregressivePhysicalInvocation>(invocation_);
     }
-    [[nodiscard]] const std::optional<std::uint32_t>& state_page_tokens() const noexcept {
-        return state_page_tokens_;
+
+    [[nodiscard]] const std::optional<AutoregressiveExecutionState>&
+    autoregressive_state() const noexcept {
+        return autoregressive_state_;
+    }
+    [[nodiscard]] KvStorageKind state_storage() const {
+        return autoregressive_state_.value().storage;
+    }
+    [[nodiscard]] const std::optional<std::uint32_t>& state_page_tokens() const {
+        return autoregressive_state_.value().page_tokens;
     }
     [[nodiscard]] std::span<const ExecutionGraphNode> nodes() const noexcept {
         return nodes_;
@@ -315,22 +263,19 @@ private:
 
     ExecutionGraph(std::string identity,
                    BackendKind backend,
-                   PhysicalInvocation invocation,
-                   KvStorageKind state_storage,
-                   std::optional<std::uint32_t> state_page_tokens,
+                   WorkloadPhysicalInvocation invocation,
+                   std::optional<AutoregressiveExecutionState> autoregressive_state,
                    std::vector<ExecutionGraphNode> nodes)
         : identity_(std::move(identity)),
           backend_(backend),
           invocation_(std::move(invocation)),
-          state_storage_(state_storage),
-          state_page_tokens_(state_page_tokens),
+          autoregressive_state_(std::move(autoregressive_state)),
           nodes_(std::move(nodes)) {}
 
     std::string identity_;
     BackendKind backend_{BackendKind::reference};
-    PhysicalInvocation invocation_{};
-    KvStorageKind state_storage_{KvStorageKind::contiguous};
-    std::optional<std::uint32_t> state_page_tokens_;
+    WorkloadPhysicalInvocation invocation_{AutoregressivePhysicalInvocation{}};
+    std::optional<AutoregressiveExecutionState> autoregressive_state_;
     std::vector<ExecutionGraphNode> nodes_;
 };
 

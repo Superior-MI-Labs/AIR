@@ -1,35 +1,65 @@
 #pragma once
 
-#include "air/workload.hpp"
+#include "air/status.hpp"
+#include "air/work_unit.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 namespace air {
 
-// The existing PhysicalInvocation remains the qualified autoregressive token
-// invocation used by ExecutionGraph R0. This alias names that meaning without
-// changing the already-qualified Qwen graph/runtime contract.
-using AutoregressivePhysicalInvocation = PhysicalInvocation;
+// Physical workload structure is independent of service semantics such as
+// generation versus bounded decision.
+enum class ExecutionWorkloadKind {
+    autoregressive_tokens = 0,
+    iterative_state,
+};
 
-// Prompt 7 proves a finite iterative physical workload shape. This type carries
-// only physical structure: finite work, concurrency, and placement. Semantic
-// values such as conditioning, noise, sigma schedule, latent state, and image
-// output remain outside this contract and belong to the known semantic adapter.
-struct IterativePhysicalInvocation {
-    std::uint64_t iteration_count{0};
-    std::uint32_t active_instances{1};
+[[nodiscard]] const char* to_string(ExecutionWorkloadKind kind) noexcept;
 
-    // Placement is supplied by existing AIR hardware/planning authority. The
-    // invocation does not discover hardware or own placement policy.
+enum class PhysicalInvocationKind {
+    prefill_single = 0,
+    prefill_native_batch,
+    decode_single,
+    decode_native_greedy_batch,
+};
+
+enum class PhysicalOutputMode {
+    discard = 0,
+    logits,
+    greedy,
+    target_logprobs,
+};
+
+[[nodiscard]] const char* to_string(PhysicalInvocationKind kind) noexcept;
+[[nodiscard]] const char* to_string(PhysicalOutputMode mode) noexcept;
+
+struct PhysicalInvocationParticipant {
+    std::uint64_t work_units{0};
+    PhysicalOutputMode output{PhysicalOutputMode::logits};
+    std::uint32_t target_count{0};
+};
+
+struct PhysicalInvocation {
+    PhysicalInvocationKind kind{PhysicalInvocationKind::prefill_single};
+    std::optional<WorkUnitKind> work_unit_kind;
+    std::vector<PhysicalInvocationParticipant> participants;
     std::string topology_fingerprint;
     std::string hardware_resource_id;
 };
 
-// One discriminated physical-invocation boundary. It is not a second graph or
-// runtime. ExecutionGraph R0 still consumes only its already-qualified
-// autoregressive member until the later ExecutionGraph R1 projection stage.
+using AutoregressivePhysicalInvocation = PhysicalInvocation;
+
+struct IterativePhysicalInvocation {
+    std::uint64_t iteration_count{0};
+    std::uint32_t active_instances{1};
+    std::string topology_fingerprint;
+    std::string hardware_resource_id;
+};
+
 using WorkloadPhysicalInvocation =
     std::variant<AutoregressivePhysicalInvocation, IterativePhysicalInvocation>;
 
@@ -39,10 +69,6 @@ using WorkloadPhysicalInvocation =
 [[nodiscard]] WorkUnitKind physical_invocation_work_unit_kind(
     const WorkloadPhysicalInvocation& invocation) noexcept;
 
-// This validates only the new shared discrimination boundary. Detailed
-// autoregressive prefill/decode legality remains owned by derive_execution_graph
-// and its backend capability checks. The iterative member has no second
-// executor/graph path here.
 [[nodiscard]] Status validate_workload_physical_invocation_boundary(
     const WorkloadPhysicalInvocation& invocation);
 

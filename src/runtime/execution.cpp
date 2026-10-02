@@ -1,4 +1,5 @@
 #include "air/execution.hpp"
+#include "air/resource.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -232,27 +233,6 @@ Status validate_execution_plan(const ExecutionPlan& plan,
     return Status::ok();
 }
 
-const char* to_string(PhysicalInvocationKind kind) noexcept {
-    switch (kind) {
-    case PhysicalInvocationKind::prefill_single: return "prefill-single";
-    case PhysicalInvocationKind::prefill_native_batch: return "prefill-native-batch";
-    case PhysicalInvocationKind::decode_single: return "decode-single";
-    case PhysicalInvocationKind::decode_native_greedy_batch:
-        return "decode-native-greedy-batch";
-    }
-    return "unknown";
-}
-
-const char* to_string(PhysicalOutputMode mode) noexcept {
-    switch (mode) {
-    case PhysicalOutputMode::discard: return "discard";
-    case PhysicalOutputMode::logits: return "logits";
-    case PhysicalOutputMode::greedy: return "greedy";
-    case PhysicalOutputMode::target_logprobs: return "target-logprobs";
-    }
-    return "unknown";
-}
-
 const char* to_string(ExecutionGraphNodeKind kind) noexcept {
     switch (kind) {
     case ExecutionGraphNodeKind::compute_region: return "compute-region";
@@ -379,6 +359,7 @@ namespace {
     std::ostringstream out;
     out << "schema=" << graph.schema_version() << '\n';
     out << "backend=" << to_string(graph.backend()) << '\n';
+    out << "workload-kind=" << to_string(graph.workload_kind()) << '\n';
     out << "invocation=" << to_string(graph.invocation().kind) << '\n';
     out << "work-unit-kind=";
     if (graph.invocation().work_unit_kind) {
@@ -391,10 +372,20 @@ namespace {
         << ':' << graph.invocation().topology_fingerprint << '\n';
     out << "resource=" << graph.invocation().hardware_resource_id.size()
         << ':' << graph.invocation().hardware_resource_id << '\n';
-    out << "state-storage=" << to_string(graph.state_storage()) << '\n';
+    out << "autoregressive-state=" << (graph.autoregressive_state() ? "present" : "none") << '\n';
+    out << "state-storage=";
+    if (graph.autoregressive_state()) {
+        out << to_string(graph.autoregressive_state()->storage);
+    } else {
+        out << "none";
+    }
+    out << '\n';
     out << "state-page-tokens=";
-    if (graph.state_page_tokens()) out << *graph.state_page_tokens();
-    else out << "none";
+    if (graph.autoregressive_state() && graph.autoregressive_state()->page_tokens) {
+        out << *graph.autoregressive_state()->page_tokens;
+    } else {
+        out << "none";
+    }
     out << '\n';
 
     out << "participants=" << graph.invocation().participants.size() << '\n';
@@ -413,7 +404,11 @@ namespace {
             << "|resource=" << node.hardware_resource_id.size()
             << ':' << node.hardware_resource_id
             << "|participants=" << node.participant_count
-            << "|work=" << node.work_units
+            << "|work-unit=";
+        if (node.work_unit_kind) out << to_string(*node.work_unit_kind);
+        else out << "none";
+        out << "|work=" << node.work_units
+            << "|items=" << node.item_count
             << "|compute=";
         if (node.compute) out << to_string(*node.compute);
         else out << "none";
@@ -431,6 +426,25 @@ namespace {
         for (std::size_t i = 0; i < node.dependencies.size(); ++i) {
             if (i != 0U) out << ',';
             out << node.dependencies[i];
+        }
+
+        out << "|prepared=";
+        for (std::size_t i = 0; i < node.prepared_resource_ids.size(); ++i) {
+            if (i != 0U) out << ',';
+            out << node.prepared_resource_ids[i].size() << ':'
+                << node.prepared_resource_ids[i];
+        }
+
+        out << "|inputs=";
+        for (std::size_t i = 0; i < node.input_value_ids.size(); ++i) {
+            if (i != 0U) out << ',';
+            out << node.input_value_ids[i].size() << ':' << node.input_value_ids[i];
+        }
+
+        out << "|outputs=";
+        for (std::size_t i = 0; i < node.output_value_ids.size(); ++i) {
+            if (i != 0U) out << ',';
+            out << node.output_value_ids[i].size() << ':' << node.output_value_ids[i];
         }
 
         out << "|impl=";
@@ -458,7 +472,7 @@ namespace {
         value *= 1099511628211ULL;
     }
     std::ostringstream out;
-    out << "execution-graph:r0:"
+    out << "execution-graph:r1:"
         << std::hex << std::setfill('0') << std::setw(16) << value;
     return out.str();
 }
@@ -624,6 +638,7 @@ Result<ExecutionGraph> derive_execution_graph(
         node.kind = kind;
         node.hardware_resource_id = invocation.hardware_resource_id;
         node.participant_count = participant_count;
+        node.work_unit_kind = WorkUnitKind::tokens;
         node.work_units = checked_total_work;
         return node;
     };
@@ -643,6 +658,9 @@ Result<ExecutionGraph> derive_execution_graph(
     auto model = make_node(ExecutionGraphNodeKind::compute_region);
     model.compute = ExecutionComputeRegionKind::model;
     model.implementations = model_bindings(plan, invocation.kind);
+    for (const auto& requirement : prepared_resource_requirements(plan)) {
+        model.prepared_resource_ids.push_back(requirement.resource_id);
+    }
     append_node(std::move(model));
 
     if (capabilities.backend == BackendKind::cuda) {
@@ -650,23 +668,30 @@ Result<ExecutionGraph> derive_execution_graph(
             auto targets = make_node(ExecutionGraphNodeKind::transfer_region);
             targets.transfer_direction = ExecutionTransferDirection::host_to_device;
             targets.payload = ExecutionPayloadKind::target_tokens;
-            targets.work_units = checked_total_targets;
+            targets.work_unit_kind.reset();
+            targets.work_units = 0U;
+            targets.item_count = checked_total_targets;
             append_node(std::move(targets));
 
             auto reduction = make_node(ExecutionGraphNodeKind::compute_region);
             reduction.compute = ExecutionComputeRegionKind::target_logprob_reduction;
-            reduction.work_units = checked_total_targets;
+            reduction.work_unit_kind.reset();
+            reduction.work_units = 0U;
+            reduction.item_count = checked_total_targets;
             append_node(std::move(reduction));
 
             auto results = make_node(ExecutionGraphNodeKind::transfer_region);
             results.transfer_direction = ExecutionTransferDirection::device_to_host;
             results.payload = ExecutionPayloadKind::target_logprob_results;
-            results.work_units = checked_total_targets;
+            results.work_unit_kind.reset();
+            results.work_units = 0U;
+            results.item_count = checked_total_targets;
             append_node(std::move(results));
 
             auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
             wait.synchronization =
                 ExecutionSynchronizationKind::backend_stream_wait;
+            wait.work_unit_kind.reset();
             wait.work_units = 0U;
             append_node(std::move(wait));
         } else if (any_greedy) {
@@ -680,20 +705,25 @@ Result<ExecutionGraph> derive_execution_graph(
             auto selection = make_node(ExecutionGraphNodeKind::compute_region);
             selection.compute = ExecutionComputeRegionKind::device_greedy_selection;
             selection.participant_count = greedy_participants;
-            selection.work_units = greedy_participants;
+            selection.work_unit_kind.reset();
+            selection.work_units = 0U;
+            selection.item_count = greedy_participants;
             append_node(std::move(selection));
 
             auto result = make_node(ExecutionGraphNodeKind::transfer_region);
             result.transfer_direction = ExecutionTransferDirection::device_to_host;
             result.payload = ExecutionPayloadKind::greedy_result;
             result.participant_count = greedy_participants;
-            result.work_units = greedy_participants;
+            result.work_unit_kind.reset();
+            result.work_units = 0U;
+            result.item_count = greedy_participants;
             append_node(std::move(result));
 
             auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
             wait.synchronization =
                 ExecutionSynchronizationKind::backend_stream_wait;
             wait.participant_count = greedy_participants;
+            wait.work_unit_kind.reset();
             wait.work_units = 0U;
             append_node(std::move(wait));
         } else if (any_logits) {
@@ -702,37 +732,43 @@ Result<ExecutionGraph> derive_execution_graph(
             logits.payload = ExecutionPayloadKind::full_logits;
             // Exact bytes depend on model vocabulary geometry, which is not
             // owned by this R0 invocation descriptor. Do not invent a count.
+            logits.work_unit_kind.reset();
             logits.work_units = 0U;
+            logits.item_count = participant_count;
             append_node(std::move(logits));
 
             auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
             wait.synchronization =
                 ExecutionSynchronizationKind::backend_stream_wait;
+            wait.work_unit_kind.reset();
             wait.work_units = 0U;
             append_node(std::move(wait));
         } else if (any_discard) {
             auto wait = make_node(ExecutionGraphNodeKind::synchronization_region);
             wait.synchronization =
                 ExecutionSynchronizationKind::backend_stream_wait;
+            wait.work_unit_kind.reset();
             wait.work_units = 0U;
             append_node(std::move(wait));
         }
     }
 
+    const AutoregressiveExecutionState state{
+        capabilities.kv_storage,
+        plan.kv.page_tokens,
+    };
     ExecutionGraph structural(
         "",
         plan.backend,
-        invocation,
-        capabilities.kv_storage,
-        plan.kv.page_tokens,
+        WorkloadPhysicalInvocation{invocation},
+        state,
         std::move(nodes));
     const auto canonical = canonical_graph_body(structural);
     return ExecutionGraph(
         graph_identity(canonical),
         plan.backend,
-        std::move(invocation),
-        capabilities.kv_storage,
-        plan.kv.page_tokens,
+        WorkloadPhysicalInvocation{std::move(invocation)},
+        state,
         std::vector<ExecutionGraphNode>(
             structural.nodes().begin(), structural.nodes().end()));
 }

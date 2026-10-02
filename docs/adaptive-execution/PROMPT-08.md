@@ -1640,3 +1640,39 @@ Stage 8G slice-1 stop conditions:
 - semantic meaning inferred from opaque value/resource IDs;
 - node counts relabeled with false units merely to satisfy a schema;
 - KV fields remaining mandatory for iterative graphs.
+
+
+## Stage 8G slice 1 implementation
+
+Implementation source is the commit following the Stage 8F closure handoff.
+
+ExecutionGraph schema advances to v3 / R1 while Qwen remains the only admitted
+graph projection in this slice.
+
+Data-model changes:
+
+- physical invocation types move to the independent invocation contract;
+- `ExecutionWorkloadKind` is shared without a workload/execution header cycle;
+- ExecutionGraph internally stores `WorkloadPhysicalInvocation`;
+- the existing Qwen accessor remains temporarily as a compatibility view;
+- autoregressive KV state is explicitly optional graph state;
+- node workload work has an optional `WorkUnitKind`;
+- auxiliary result/target multiplicity moves to `item_count`;
+- target counts and greedy-result counts are no longer mislabeled as tokens;
+- compute nodes may reference opaque prepared-resource IDs;
+- nodes may reference opaque semantic input/output IDs;
+- Qwen model compute references existing Stage 8B resource requirements;
+- Qwen semantic value ID lists remain empty;
+- graph identity advances from `execution-graph:r0` to
+  `execution-graph:r1`.
+
+No production backend invocation changes in this slice.
+
+Required qualification:
+
+1. all CPU tests;
+2. deterministic Qwen graph identity;
+3. target/greedy item-count characterization;
+4. Qwen prepared-resource graph reference;
+5. protocol inspection fields;
+6. focused CUDA graph/evidence replay before iterative graph admission.

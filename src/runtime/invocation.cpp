@@ -5,6 +5,37 @@
 
 namespace air {
 
+const char* to_string(ExecutionWorkloadKind kind) noexcept {
+    switch (kind) {
+    case ExecutionWorkloadKind::autoregressive_tokens:
+        return "autoregressive-tokens";
+    case ExecutionWorkloadKind::iterative_state:
+        return "iterative-state";
+    }
+    return "unknown";
+}
+
+const char* to_string(PhysicalInvocationKind kind) noexcept {
+    switch (kind) {
+    case PhysicalInvocationKind::prefill_single: return "prefill-single";
+    case PhysicalInvocationKind::prefill_native_batch: return "prefill-native-batch";
+    case PhysicalInvocationKind::decode_single: return "decode-single";
+    case PhysicalInvocationKind::decode_native_greedy_batch:
+        return "decode-native-greedy-batch";
+    }
+    return "unknown";
+}
+
+const char* to_string(PhysicalOutputMode mode) noexcept {
+    switch (mode) {
+    case PhysicalOutputMode::discard: return "discard";
+    case PhysicalOutputMode::logits: return "logits";
+    case PhysicalOutputMode::greedy: return "greedy";
+    case PhysicalOutputMode::target_logprobs: return "target-logprobs";
+    }
+    return "unknown";
+}
+
 ExecutionWorkloadKind physical_invocation_workload_kind(
     const WorkloadPhysicalInvocation& invocation) noexcept {
     return std::visit(

@@ -767,6 +767,8 @@ std::string execution_graph_timeline_json(
             graph_value["identity"] = json::value(graph.identity());
             graph_value["backend"] =
                 json::value(std::string(to_string(graph.backend())));
+            graph_value["workload_kind"] =
+                json::value(std::string(to_string(graph.workload_kind())));
             graph_value["invocation"] = json::value(
                 std::string(to_string(graph.invocation().kind)));
             graph_value["topology_fingerprint"] = json::value(
@@ -775,11 +777,17 @@ std::string execution_graph_timeline_json(
                 graph.invocation().hardware_resource_id);
             graph_value["work_unit_kind"] = json::value(
                 std::string(to_string(*graph.invocation().work_unit_kind)));
-            graph_value["state_storage"] = json::value(
-                std::string(to_string(graph.state_storage())));
-            if (graph.state_page_tokens()) {
-                graph_value["state_page_tokens"] =
-                    *graph.state_page_tokens();
+            if (graph.autoregressive_state()) {
+                graph_value["state_storage"] = json::value(
+                    std::string(to_string(
+                        graph.autoregressive_state()->storage)));
+                if (graph.autoregressive_state()->page_tokens) {
+                    graph_value["state_page_tokens"] =
+                        *graph.autoregressive_state()->page_tokens;
+                }
+            } else {
+                graph_value["state_storage"] = nullptr;
+                graph_value["state_page_tokens"] = nullptr;
             }
 
             json::array invocation_participants;
@@ -805,7 +813,14 @@ std::string execution_graph_timeline_json(
                     json::value(node.hardware_resource_id);
                 node_value["participant_count"] =
                     node.participant_count;
+                if (node.work_unit_kind) {
+                    node_value["work_unit_kind"] = json::value(
+                        std::string(to_string(*node.work_unit_kind)));
+                } else {
+                    node_value["work_unit_kind"] = nullptr;
+                }
                 node_value["work_units"] = node.work_units;
+                node_value["item_count"] = node.item_count;
                 if (node.compute) {
                     node_value["compute"] = json::value(
                         std::string(to_string(*node.compute)));
@@ -857,6 +872,26 @@ std::string execution_graph_timeline_json(
                 }
                 node_value["implementations"] =
                     std::move(implementations);
+
+                json::array prepared_resources;
+                for (const auto& id : node.prepared_resource_ids) {
+                    prepared_resources.push_back(json::value(id));
+                }
+                node_value["prepared_resource_ids"] =
+                    std::move(prepared_resources);
+
+                json::array input_values;
+                for (const auto& id : node.input_value_ids) {
+                    input_values.push_back(json::value(id));
+                }
+                node_value["input_value_ids"] = std::move(input_values);
+
+                json::array output_values;
+                for (const auto& id : node.output_value_ids) {
+                    output_values.push_back(json::value(id));
+                }
+                node_value["output_value_ids"] = std::move(output_values);
+
                 nodes.push_back(std::move(node_value));
             }
             graph_value["nodes"] = std::move(nodes);

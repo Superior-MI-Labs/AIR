@@ -851,3 +851,31 @@ Immediate next action:
 - exact-head CPU preflight;
 - then focused WolfCat CUDA graph/evidence replay before any second-workload
   graph projection.
+
+
+### Stage 8G slice 1 implementation
+
+ExecutionGraph R1 Qwen-preserving migration is implemented.
+
+The graph now has workload-discriminated invocation storage and optional
+autoregressive state, while a temporary Qwen compatibility accessor keeps the
+existing detailed observation path stable.
+
+Node count semantics are corrected:
+
+- true Qwen workload progress -> typed token `work_units`;
+- target multiplicity -> `item_count`;
+- greedy result multiplicity -> `item_count`;
+- synchronization/unknown transfer work -> zero/unitless.
+
+Qwen model compute regions can now reference the existing identified prepared
+resource requirements. Generic semantic value references exist but remain empty
+for Qwen.
+
+Immediate next action:
+
+- exact-head Adaptive CPU preflight;
+- if green, create/run a focused Qwen CUDA graph R1 qualifier when a GPU runner
+  is available;
+- without a GPU runner, retain the CUDA gate as pending and continue only with
+  graph-contract work that does not assert live device behavior.
