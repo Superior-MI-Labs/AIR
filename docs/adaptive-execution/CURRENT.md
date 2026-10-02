@@ -905,3 +905,32 @@ Immediate next action:
 - then Stage 8H must decide and implement the smallest AIR-owned executable
   portion of FLUX.2 without depending on ComfyUI and without claiming
   unqualified device behavior.
+
+
+### Stage 8H current
+
+Stage 8G shared-graph source:
+
+`154f9b42b95642971f955cb362a34bf6186e5e75`
+
+Hosted preflight `36959917242`: SUCCESS.
+
+Stage 8G structural/common-graph work is closed. Real CUDA R1 concordance is
+retained as hardware qualification debt.
+
+Stage 8H adds AIR-owned execution for the deterministic FLUX.2 semantic subset
+that is fully supported by retained Prompt 7 evidence:
+
+- latent geometry derivation;
+- scheduler/sigma derivation.
+
+These functions execute in AIR itself and are checked against the frozen
+qualified oracle. They do not depend on ComfyUI.
+
+Immediate next action:
+
+- exact-head hosted preflight for Stage 8H;
+- if green, close Prompt 8 at the honest boundary:
+  shared Qwen/FLUX architecture + executable deterministic FLUX semantics,
+  with model/device execution and R1 CUDA replay listed as hardware evidence
+  debt rather than falsely qualified.

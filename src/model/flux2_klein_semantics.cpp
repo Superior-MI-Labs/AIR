@@ -82,6 +82,100 @@ const char* to_string(Flux2KleinSamplerKind kind) noexcept {
     return "unknown";
 }
 
+
+Result<Flux2KleinLatentGeometry>
+derive_flux2_klein_latent_geometry(
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t batch) {
+    if (width == 0U || height == 0U || batch == 0U) {
+        return Status::invalid_argument(
+            "FLUX.2 Klein latent geometry requires positive width/height/batch");
+    }
+    if ((width % 16U) != 0U || (height % 16U) != 0U) {
+        return Status::invalid_argument(
+            "FLUX.2 Klein qualified latent geometry requires dimensions divisible by 16");
+    }
+    return Flux2KleinLatentGeometry{
+        batch,
+        128U,
+        height / 16U,
+        width / 16U,
+    };
+}
+
+Result<Flux2KleinScheduleDerivation>
+derive_flux2_klein_schedule(
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t steps) {
+    if (width == 0U || height == 0U || steps == 0U) {
+        return Status::invalid_argument(
+            "FLUX.2 Klein schedule requires positive width/height/steps");
+    }
+
+    const long double pixels =
+        static_cast<long double>(width) *
+        static_cast<long double>(height);
+    const long double sequence =
+        pixels / static_cast<long double>(16U * 16U);
+    if (!std::isfinite(static_cast<double>(sequence))) {
+        return Status::invalid_argument(
+            "FLUX.2 Klein schedule image sequence length is not finite");
+    }
+
+    const auto image_sequence_length =
+        static_cast<std::uint64_t>(std::llround(sequence));
+
+    constexpr double a1 = 8.73809524e-05;
+    constexpr double b1 = 1.89833333;
+    constexpr double a2 = 0.00016927;
+    constexpr double b2 = 0.45666666;
+
+    const double image_seq =
+        static_cast<double>(image_sequence_length);
+
+    double mu = 0.0;
+    if (image_sequence_length > 4300U) {
+        mu = a2 * image_seq + b2;
+    } else {
+        const double m200 = a2 * image_seq + b2;
+        const double m10 = a1 * image_seq + b1;
+        const double a = (m200 - m10) / 190.0;
+        const double b = m200 - 200.0 * a;
+        mu = a * static_cast<double>(steps) + b;
+    }
+
+    const double e_mu = std::exp(mu);
+    if (!std::isfinite(mu) || !std::isfinite(e_mu) || e_mu <= 0.0) {
+        return Status::data_error(
+            "FLUX.2 Klein schedule derivation produced non-finite shift");
+    }
+
+    Flux2KleinScheduleDerivation result;
+    result.image_sequence_length = image_sequence_length;
+    result.mu = mu;
+    result.sigmas.reserve(static_cast<std::size_t>(steps) + 1U);
+
+    for (std::uint32_t i = 0U; i <= steps; ++i) {
+        const double t =
+            1.0 - static_cast<double>(i) / static_cast<double>(steps);
+        if (i == steps) {
+            result.sigmas.push_back(0.0);
+            continue;
+        }
+        const double sigma =
+            e_mu / (e_mu + (1.0 / t - 1.0));
+        if (!std::isfinite(sigma)) {
+            return Status::data_error(
+                "FLUX.2 Klein schedule derivation produced non-finite sigma");
+        }
+        result.sigmas.push_back(sigma);
+    }
+
+    return result;
+}
+
 Flux2KleinSemanticContract qualified_flux2_klein_oracle_semantics() {
     Flux2KleinSemanticContract contract;
     contract.width = 1024U;
@@ -154,9 +248,41 @@ Status validate_flux2_klein_oracle_semantics(
         return Status::invalid_argument(
             "FLUX.2 Klein latent semantic geometry differs from qualified oracle");
     }
+
+    const auto derived_geometry =
+        derive_flux2_klein_latent_geometry(
+            contract.width, contract.height, contract.batch);
+    if (!derived_geometry ||
+        derived_geometry.value().batch != contract.latent_geometry.batch ||
+        derived_geometry.value().channels != contract.latent_geometry.channels ||
+        derived_geometry.value().height != contract.latent_geometry.height ||
+        derived_geometry.value().width != contract.latent_geometry.width) {
+        return Status::data_error(
+            "AIR FLUX.2 Klein latent derivation disagrees with qualified oracle");
+    }
+
     if (contract.sigma_schedule != kQualifiedSigmas) {
         return Status::invalid_argument(
             "FLUX.2 Klein sigma schedule differs from qualified oracle");
+    }
+
+    const auto derived_schedule =
+        derive_flux2_klein_schedule(
+            contract.width, contract.height, contract.iteration_count);
+    if (!derived_schedule ||
+        derived_schedule.value().image_sequence_length != 4096U ||
+        derived_schedule.value().sigmas.size() !=
+            contract.sigma_schedule.size()) {
+        return Status::data_error(
+            "AIR FLUX.2 Klein schedule derivation disagrees with qualified oracle structure");
+    }
+    for (std::size_t i = 0; i < contract.sigma_schedule.size(); ++i) {
+        if (std::abs(
+                derived_schedule.value().sigmas[i] -
+                contract.sigma_schedule[i]) > 1.0e-9) {
+            return Status::data_error(
+                "AIR FLUX.2 Klein schedule derivation disagrees with qualified oracle values");
+        }
     }
     if (contract.operation_sequence != kQualifiedOperationSequence) {
         return Status::invalid_argument(

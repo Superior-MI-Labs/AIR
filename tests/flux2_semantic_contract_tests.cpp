@@ -1,6 +1,7 @@
 #include "air/flux2_klein_semantics.hpp"
 
 #include <concepts>
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -29,6 +30,72 @@ template <typename T>
 concept HasTensorLayout = requires(T value) {
     value.layout;
 };
+
+
+void test_air_owned_latent_geometry_derivation_matches_oracle() {
+    auto geometry =
+        air::derive_flux2_klein_latent_geometry(1024U, 1024U, 1U);
+    check(geometry.is_ok(), "AIR derives qualified FLUX.2 latent geometry");
+    if (geometry) {
+        check(
+            geometry.value().batch == 1U &&
+            geometry.value().channels == 128U &&
+            geometry.value().height == 64U &&
+            geometry.value().width == 64U,
+            "AIR-owned latent geometry exactly matches Prompt 7 oracle");
+    }
+
+    check(
+        !air::derive_flux2_klein_latent_geometry(
+            1025U, 1024U, 1U).is_ok(),
+        "adapter rejects dimensions that cannot satisfy qualified /16 geometry");
+    check(
+        !air::derive_flux2_klein_latent_geometry(
+            1024U, 1024U, 0U).is_ok(),
+        "adapter rejects zero active image instances");
+}
+
+void test_air_owned_schedule_derivation_matches_retained_source_formula() {
+    auto schedule =
+        air::derive_flux2_klein_schedule(1024U, 1024U, 4U);
+    check(schedule.is_ok(), "AIR executes qualified FLUX.2 schedule derivation");
+    if (!schedule) return;
+
+    const std::array<double, 5> expected{
+        1.000000000,
+        0.967383988,
+        0.908143923,
+        0.767199964,
+        0.000000000,
+    };
+
+    check(
+        schedule.value().image_sequence_length == 4096U,
+        "AIR derives qualified Flux2 image sequence length");
+    check(
+        std::abs(schedule.value().mu - 2.291179894115571) < 1.0e-12,
+        "AIR derives retained scheduler shift mu");
+    check(
+        schedule.value().sigmas.size() == expected.size(),
+        "AIR derives steps+1 sigma values");
+    if (schedule.value().sigmas.size() == expected.size()) {
+        bool matches = true;
+        for (std::size_t i = 0; i < expected.size(); ++i) {
+            matches =
+                matches &&
+                std::abs(schedule.value().sigmas[i] - expected[i]) <
+                    1.0e-9;
+        }
+        check(
+            matches,
+            "AIR-owned scheduler reproduces retained Prompt 7 sigma path");
+    }
+
+    check(
+        !air::derive_flux2_klein_schedule(
+            1024U, 1024U, 0U).is_ok(),
+        "AIR schedule executor rejects zero transitions");
+}
 
 void test_frozen_prompt7_oracle_semantics() {
     const auto contract = air::qualified_flux2_klein_oracle_semantics();
@@ -139,6 +206,8 @@ void test_frozen_oracle_contract_rejects_unqualified_drift() {
 } // namespace
 
 int main() {
+    test_air_owned_latent_geometry_derivation_matches_oracle();
+    test_air_owned_schedule_derivation_matches_retained_source_formula();
     test_frozen_prompt7_oracle_semantics();
     test_operation_boundary_matches_retained_prompt7_evidence();
     test_semantic_identity_is_separate_from_storage_and_placement();

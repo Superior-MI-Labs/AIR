@@ -1,10 +1,12 @@
 #pragma once
 
+#include "air/result.hpp"
 #include "air/status.hpp"
 
 #include <array>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace air {
 
@@ -53,6 +55,27 @@ struct Flux2KleinLatentGeometry {
     std::uint32_t height{0};
     std::uint32_t width{0};
 };
+
+struct Flux2KleinScheduleDerivation {
+    std::uint64_t image_sequence_length{0};
+    double mu{0.0};
+    std::vector<double> sigmas;
+};
+
+// AIR-owned implementations of the two deterministic semantic operations that
+// can be qualified from retained Prompt 7 evidence without model execution.
+// These are FLUX.2 Klein adapter functions, not a universal diffusion API.
+[[nodiscard]] Result<Flux2KleinLatentGeometry>
+derive_flux2_klein_latent_geometry(
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t batch);
+
+[[nodiscard]] Result<Flux2KleinScheduleDerivation>
+derive_flux2_klein_schedule(
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t steps);
 
 struct Flux2KleinSemanticValues {
     Flux2KleinSemanticValueIdentity prompt_text;

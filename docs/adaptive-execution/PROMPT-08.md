@@ -1823,3 +1823,73 @@ projection, built successfully. The protocol test fixture:
   existing `not_evaluated`.
 
 No production implementation change is justified by this failure.
+
+
+## Stage 8G slice 2 hosted qualification
+
+Corrected source:
+
+`154f9b42b95642971f955cb362a34bf6186e5e75`
+
+Adaptive CPU preflight:
+
+`36959917242` -> SUCCESS.
+
+Stage 8G is CLOSED for the structural/common-graph claim.
+
+Qualified hosted claim:
+
+- Qwen and FLUX.2 lower into one ExecutionGraph R1 authority;
+- Qwen remains AIR-executable;
+- FLUX.2 remains descriptive;
+- iterative graphs carry no false KV state;
+- component resource/value identities survive graph lowering;
+- no FLUX transfers, synchronization, kernels, or device implementation
+  bindings are fabricated.
+
+Pending hardware debt remains:
+
+- Qwen ExecutionGraph R1 live CUDA concordance replay.
+
+## Stage 8H - AIR-owned executable FLUX.2 semantic subset
+
+Status: CURRENT
+
+The smallest second-architecture execution slice that can be truthfully
+qualified without model/GPU execution is the deterministic semantic setup
+already frozen by Prompt 7.
+
+AIR now implements, in C++, the selected adapter's:
+
+1. latent-geometry derivation:
+   `[batch, 128, height/16, width/16]`;
+2. Flux2 scheduler/sigma derivation from the pinned source formula.
+
+The scheduler implementation reproduces the retained Prompt 7 oracle at:
+
+- 1024 x 1024;
+- 4 transitions;
+- image sequence length 4096;
+- `mu = 2.291179894115571`;
+- sigma path within `1e-9`:
+  `1.000000000, 0.967383988, 0.908143923, 0.767199964, 0.000000000`.
+
+Evidence discipline:
+
+- the frozen semantic contract remains the oracle;
+- executable derivation is checked against it;
+- this does not authorize AIR-owned text encoding, denoising, seeded tensor
+  generation, or VAE decode;
+- it does not turn the FLUX graph from `descriptive` to
+  `air-executable`;
+- it proves AIR can execute known non-transformer semantic computation behind
+  the same adapter boundary without ComfyUI.
+
+Prompt 8 exit interpretation if this passes:
+
+- full second-workload structure lowers through shared AIR abstractions;
+- at least a meaningful deterministic portion of the second workload executes
+  inside AIR;
+- transformer-only assumptions have been removed where falsified;
+- device numerical execution remains explicit future implementation/evidence,
+  not a hidden Prompt 8 claim.
