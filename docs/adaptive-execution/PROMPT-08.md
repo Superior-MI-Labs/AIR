@@ -1705,3 +1705,31 @@ Correction:
   `execution.hpp`;
 - keep physical invocation/workload vocabulary in `invocation.hpp`;
 - do not duplicate ownership.
+
+
+## Stage 8G slice 1 second preflight result
+
+Source:
+
+`1faca3827feab47ebc26600b7668d370e54c3df8`
+
+Adaptive CPU preflight:
+
+`36959063283` -> FAIL at CPU CTest.
+
+Classification:
+
+PROTOCOL CHARACTERIZATION MIGRATION.
+
+Build completed successfully and 17/18 tests passed. The only failing test
+still required the old `execution-graph:r0` JSON identity.
+
+Correction updates the protocol characterization to require:
+
+- graph schema v3;
+- `execution-graph:r1` identity;
+- `autoregressive-tokens` workload kind;
+- explicit node `item_count`;
+- prepared-resource and semantic-value arrays.
+
+No production code was changed for this failure.
