@@ -1893,3 +1893,41 @@ Prompt 8 exit interpretation if this passes:
 - transformer-only assumptions have been removed where falsified;
 - device numerical execution remains explicit future implementation/evidence,
   not a hidden Prompt 8 claim.
+
+
+## Stage 8H hosted qualification and Prompt 8 exit
+
+Source:
+
+`829cb9644ab23503bc47f7cb569f92274683d2db`
+
+Adaptive CPU preflight:
+
+`36960285416` -> SUCCESS.
+
+Prompt 8 is CLOSED at the evidence-backed boundary.
+
+Qualified Prompt 8 claim:
+
+- workload structure is discriminated rather than token-universal;
+- work-unit interpretation is explicit;
+- identified prepared resources are shared across Qwen and FLUX.2;
+- one ExecutionGraph R1 authority accepts both workload families;
+- Qwen graphs remain AIR-executable;
+- FLUX.2 component graphs are explicitly descriptive;
+- AIR executes the qualified FLUX.2 latent-geometry and schedule derivations
+  without ComfyUI;
+- no parallel diffusion runtime/planner/scheduler/residency authority exists.
+
+Not claimed:
+
+- AIR-owned text encoder execution;
+- AIR-owned FLUX denoiser execution;
+- AIR-owned VAE execution;
+- AIR-generated image parity with the external oracle;
+- post-R1 live CUDA graph concordance.
+
+Those remain implementation/hardware qualification work, not hidden Prompt 8
+success criteria.
+
+Prompt 9 is now authorized.

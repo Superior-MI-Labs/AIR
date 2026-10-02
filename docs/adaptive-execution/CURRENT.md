@@ -934,3 +934,45 @@ Immediate next action:
   shared Qwen/FLUX architecture + executable deterministic FLUX semantics,
   with model/device execution and R1 CUDA replay listed as hardware evidence
   debt rather than falsely qualified.
+
+
+## Prompt 8 closed
+
+Prompt 8 final hosted-qualified source:
+
+`829cb9644ab23503bc47f7cb569f92274683d2db`
+
+Adaptive CPU preflight `36960285416`: SUCCESS.
+
+AIR now shares workload, resource, invocation, and ExecutionGraph abstractions
+across Qwen and the qualified FLUX.2 workload. AIR also executes the retained
+FLUX.2 latent-geometry and schedule semantic operations internally.
+
+Hardware debt remains explicit:
+
+- post-R1 Qwen live CUDA graph concordance;
+- AIR-owned FLUX component/device execution and image parity.
+
+## Prompt 9 current
+
+Prompt 9 introduces structured missing-semantic resolution and a trusted
+implementation registry.
+
+Packages remain data-only. They cannot supply scripts, source, commands,
+entrypoints, or library paths.
+
+The first Prompt 9 slice includes:
+
+- exact semantic kind/ID/version requirements;
+- structured MissingSemantic results;
+- explicit trusted implementation origin;
+- one registry authority;
+- exact-version resolution only;
+- test-only extension registration without core modification;
+- duplicate semantic owner rejection.
+
+Immediate next action:
+
+- exact-head hosted preflight;
+- if green, close Prompt 9 and expose missing/registered semantics through a
+  read-only server surface for the Control Room.
