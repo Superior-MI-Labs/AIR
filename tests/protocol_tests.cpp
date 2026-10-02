@@ -1,4 +1,5 @@
 #include "../src/server/protocol.hpp"
+#include "air/flux2_klein_plan.hpp"
 #include <memory>
 
 #include <iostream>
@@ -316,7 +317,7 @@ int main() {
                 std::make_shared<const air::ExecutionGraph>(
                     std::move(flux_graph).value());
             observation.evidence_status =
-                air::ExecutionGraphEvidenceStatus::unobserved;
+                air::ExecutionGraphEvidenceStatus::not_evaluated;
             graph_timeline.observations.push_back(
                 std::move(observation));
 
