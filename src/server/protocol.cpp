@@ -7,6 +7,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
+#include <type_traits>
 
 namespace air::server {
 namespace json = boost::json;
@@ -767,16 +768,58 @@ std::string execution_graph_timeline_json(
             graph_value["identity"] = json::value(graph.identity());
             graph_value["backend"] =
                 json::value(std::string(to_string(graph.backend())));
+            graph_value["binding"] =
+                json::value(std::string(to_string(graph.binding())));
             graph_value["workload_kind"] =
                 json::value(std::string(to_string(graph.workload_kind())));
-            graph_value["invocation"] = json::value(
-                std::string(to_string(graph.invocation().kind)));
-            graph_value["topology_fingerprint"] = json::value(
-                graph.invocation().topology_fingerprint);
-            graph_value["hardware_resource_id"] = json::value(
-                graph.invocation().hardware_resource_id);
-            graph_value["work_unit_kind"] = json::value(
-                std::string(to_string(*graph.invocation().work_unit_kind)));
+
+            json::array invocation_participants;
+            std::visit(
+                [&](const auto& invocation) {
+                    using T = std::decay_t<decltype(invocation)>;
+                    if constexpr (std::is_same_v<
+                                      T,
+                                      AutoregressivePhysicalInvocation>) {
+                        graph_value["invocation"] = json::value(
+                            std::string(to_string(invocation.kind)));
+                        graph_value["topology_fingerprint"] =
+                            json::value(invocation.topology_fingerprint);
+                        graph_value["hardware_resource_id"] =
+                            json::value(invocation.hardware_resource_id);
+                        if (invocation.work_unit_kind) {
+                            graph_value["work_unit_kind"] = json::value(
+                                std::string(to_string(
+                                    *invocation.work_unit_kind)));
+                        } else {
+                            graph_value["work_unit_kind"] = nullptr;
+                        }
+                        for (const auto& participant :
+                             invocation.participants) {
+                            json::object item;
+                            item["work_units"] = participant.work_units;
+                            item["output"] = json::value(
+                                std::string(to_string(participant.output)));
+                            item["target_count"] =
+                                participant.target_count;
+                            invocation_participants.push_back(
+                                std::move(item));
+                        }
+                    } else {
+                        graph_value["invocation"] =
+                            json::value(std::string("iterative-state"));
+                        graph_value["topology_fingerprint"] =
+                            json::value(invocation.topology_fingerprint);
+                        graph_value["hardware_resource_id"] =
+                            json::value(invocation.hardware_resource_id);
+                        graph_value["work_unit_kind"] =
+                            json::value(std::string("iterations"));
+                        graph_value["iteration_count"] =
+                            invocation.iteration_count;
+                        graph_value["active_instances"] =
+                            invocation.active_instances;
+                    }
+                },
+                graph.workload_invocation());
             if (graph.autoregressive_state()) {
                 graph_value["state_storage"] = json::value(
                     std::string(to_string(
@@ -790,16 +833,6 @@ std::string execution_graph_timeline_json(
                 graph_value["state_page_tokens"] = nullptr;
             }
 
-            json::array invocation_participants;
-            for (const auto& participant :
-                 graph.invocation().participants) {
-                json::object item;
-                item["work_units"] = participant.work_units;
-                item["output"] = json::value(
-                    std::string(to_string(participant.output)));
-                item["target_count"] = participant.target_count;
-                invocation_participants.push_back(std::move(item));
-            }
             graph_value["participants"] =
                 std::move(invocation_participants);
 

@@ -176,6 +176,13 @@ struct ExecutionPlan {
 // executable graph. The production backend path remains unchanged in Prompt 5B.
 inline constexpr std::uint32_t execution_graph_schema_version = 3U;
 
+enum class ExecutionGraphBindingKind {
+    descriptive = 0,
+    air_executable,
+};
+
+[[nodiscard]] const char* to_string(ExecutionGraphBindingKind kind) noexcept;
+
 enum class ExecutionGraphNodeKind {
     compute_region = 0,
     transfer_region,
@@ -184,6 +191,7 @@ enum class ExecutionGraphNodeKind {
 
 enum class ExecutionComputeRegionKind {
     model = 0,
+    component,
     device_greedy_selection,
     target_logprob_reduction,
 };
@@ -263,6 +271,9 @@ public:
     }
     [[nodiscard]] const std::string& identity() const noexcept { return identity_; }
     [[nodiscard]] BackendKind backend() const noexcept { return backend_; }
+    [[nodiscard]] ExecutionGraphBindingKind binding() const noexcept {
+        return binding_;
+    }
     [[nodiscard]] ExecutionWorkloadKind workload_kind() const noexcept {
         return physical_invocation_workload_kind(invocation_);
     }
@@ -291,30 +302,45 @@ public:
     }
 
 private:
-    friend Result<ExecutionGraph> derive_execution_graph(
-        const ExecutionPlan& plan,
-        const BackendCapabilities& capabilities,
-        PhysicalInvocation invocation);
+    friend Result<ExecutionGraph> finalize_execution_graph(
+        BackendKind backend,
+        ExecutionGraphBindingKind binding,
+        WorkloadPhysicalInvocation invocation,
+        std::optional<AutoregressiveExecutionState> autoregressive_state,
+        std::vector<ExecutionGraphNode> nodes);
 
     ExecutionGraph(std::string identity,
                    BackendKind backend,
+                   ExecutionGraphBindingKind binding,
                    WorkloadPhysicalInvocation invocation,
                    std::optional<AutoregressiveExecutionState> autoregressive_state,
                    std::vector<ExecutionGraphNode> nodes)
         : identity_(std::move(identity)),
           backend_(backend),
+          binding_(binding),
           invocation_(std::move(invocation)),
           autoregressive_state_(std::move(autoregressive_state)),
           nodes_(std::move(nodes)) {}
 
     std::string identity_;
     BackendKind backend_{BackendKind::reference};
+    ExecutionGraphBindingKind binding_{ExecutionGraphBindingKind::descriptive};
     WorkloadPhysicalInvocation invocation_{AutoregressivePhysicalInvocation{}};
     std::optional<AutoregressiveExecutionState> autoregressive_state_;
     std::vector<ExecutionGraphNode> nodes_;
 };
 
-// Pure projection only. This function validates the existing plan against the
+// One structural finalization authority for all workload adapters. It validates
+// graph-wide physical invariants and computes canonical identity after an
+// adapter has validated its own semantic/implementation contract.
+[[nodiscard]] Result<ExecutionGraph> finalize_execution_graph(
+    BackendKind backend,
+    ExecutionGraphBindingKind binding,
+    WorkloadPhysicalInvocation invocation,
+    std::optional<AutoregressiveExecutionState> autoregressive_state,
+    std::vector<ExecutionGraphNode> nodes);
+
+// Pure Qwen projection. This function validates the existing plan against the
 // existing capability authority and derives physical description data. It does
 // not schedule, allocate, prepare, restore, execute, or observe a backend.
 [[nodiscard]] Result<ExecutionGraph> derive_execution_graph(

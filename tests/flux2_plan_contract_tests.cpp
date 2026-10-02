@@ -138,6 +138,82 @@ void test_plan_does_not_fabricate_transition_or_residency_measurements() {
         "missing hardware placement is rejected");
 }
 
+void test_shared_execution_graph_projection_is_descriptive_and_iterative() {
+    const auto semantics =
+        air::qualified_flux2_klein_oracle_semantics();
+    auto plan = air::make_flux2_klein_component_plan(
+        semantics, "hardware-topology:test", "gpu0");
+    if (!plan) {
+        check(false, "graph projection fixture component plan derives");
+        return;
+    }
+
+    auto graph_a =
+        air::derive_flux2_klein_execution_graph(
+            semantics, plan.value());
+    auto graph_b =
+        air::derive_flux2_klein_execution_graph(
+            semantics, plan.value());
+    check(graph_a && graph_b, "FLUX.2 projects into shared ExecutionGraph");
+    if (!graph_a || !graph_b) return;
+
+    check(
+        graph_a.value().identity() == graph_b.value().identity() &&
+        graph_a.value().identity().starts_with("execution-graph:r1:"),
+        "FLUX.2 graph identity is deterministic under shared R1 authority");
+    check(
+        graph_a.value().binding() ==
+            air::ExecutionGraphBindingKind::descriptive &&
+        graph_a.value().backend() == air::BackendKind::cuda &&
+        graph_a.value().workload_kind() ==
+            air::ExecutionWorkloadKind::iterative_state &&
+        !graph_a.value().autoregressive_state(),
+        "FLUX.2 graph is iterative/descriptive and carries no false KV state");
+
+    const auto& nodes = graph_a.value().nodes();
+    check(
+        nodes.size() == 3U &&
+        nodes[0].compute == air::ExecutionComputeRegionKind::component &&
+        nodes[1].compute == air::ExecutionComputeRegionKind::component &&
+        nodes[2].compute == air::ExecutionComputeRegionKind::component,
+        "text encoder, denoiser, and VAE lower as component compute regions");
+    check(
+        !nodes[0].work_unit_kind && nodes[0].work_units == 0U &&
+        nodes[1].work_unit_kind == air::WorkUnitKind::iterations &&
+        nodes[1].work_units == 4U &&
+        !nodes[2].work_unit_kind && nodes[2].work_units == 0U,
+        "only denoiser graph region claims qualified iteration work");
+    check(
+        nodes[0].prepared_resource_ids ==
+            std::vector<std::string>{
+                std::string(air::flux2_klein_text_encoder_resource_id)} &&
+        nodes[1].prepared_resource_ids ==
+            std::vector<std::string>{
+                std::string(air::flux2_klein_denoiser_resource_id)} &&
+        nodes[2].prepared_resource_ids ==
+            std::vector<std::string>{
+                std::string(air::flux2_klein_vae_resource_id)},
+        "shared graph retains exact component resource identities");
+    check(
+        nodes[0].input_value_ids ==
+            plan.value().phases[0].input_value_ids &&
+        nodes[1].input_value_ids ==
+            plan.value().phases[1].input_value_ids &&
+        nodes[2].output_value_ids ==
+            plan.value().phases[2].output_value_ids,
+        "shared graph retains opaque semantic handoff identities");
+
+    const auto serialized =
+        air::serialize_execution_graph(graph_a.value());
+    check(
+        serialized.find("binding=descriptive") != std::string::npos &&
+        serialized.find("workload-kind=iterative-state") != std::string::npos &&
+        serialized.find("invocation=iterative-state") != std::string::npos &&
+        serialized.find("autoregressive-state=none") != std::string::npos &&
+        serialized.find("work-unit=iterations|work=4") != std::string::npos,
+        "shared serialization distinguishes iterative descriptive graph");
+}
+
 void test_plan_rejects_unqualified_semantic_or_resource_drift() {
     auto semantics =
         air::qualified_flux2_klein_oracle_semantics();
@@ -178,6 +254,7 @@ int main() {
     test_only_denoiser_carries_qualified_iterative_work();
     test_component_order_and_semantic_handoff_are_explicit();
     test_plan_does_not_fabricate_transition_or_residency_measurements();
+    test_shared_execution_graph_projection_is_descriptive_and_iterative();
     test_plan_rejects_unqualified_semantic_or_resource_drift();
 
     if (failures != 0) {

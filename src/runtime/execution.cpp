@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <type_traits>
+#include <unordered_set>
 
 namespace air {
 
@@ -233,6 +235,16 @@ Status validate_execution_plan(const ExecutionPlan& plan,
     return Status::ok();
 }
 
+const char* to_string(ExecutionGraphBindingKind kind) noexcept {
+    switch (kind) {
+    case ExecutionGraphBindingKind::descriptive:
+        return "descriptive";
+    case ExecutionGraphBindingKind::air_executable:
+        return "air-executable";
+    }
+    return "unknown";
+}
+
 const char* to_string(ExecutionGraphNodeKind kind) noexcept {
     switch (kind) {
     case ExecutionGraphNodeKind::compute_region: return "compute-region";
@@ -246,6 +258,7 @@ const char* to_string(ExecutionGraphNodeKind kind) noexcept {
 const char* to_string(ExecutionComputeRegionKind kind) noexcept {
     switch (kind) {
     case ExecutionComputeRegionKind::model: return "model";
+    case ExecutionComputeRegionKind::component: return "component";
     case ExecutionComputeRegionKind::device_greedy_selection:
         return "device-greedy-selection";
     case ExecutionComputeRegionKind::target_logprob_reduction:
@@ -359,19 +372,46 @@ namespace {
     std::ostringstream out;
     out << "schema=" << graph.schema_version() << '\n';
     out << "backend=" << to_string(graph.backend()) << '\n';
+    out << "binding=" << to_string(graph.binding()) << '\n';
     out << "workload-kind=" << to_string(graph.workload_kind()) << '\n';
-    out << "invocation=" << to_string(graph.invocation().kind) << '\n';
-    out << "work-unit-kind=";
-    if (graph.invocation().work_unit_kind) {
-        out << to_string(*graph.invocation().work_unit_kind);
-    } else {
-        out << "none";
-    }
-    out << '\n';
-    out << "topology=" << graph.invocation().topology_fingerprint.size()
-        << ':' << graph.invocation().topology_fingerprint << '\n';
-    out << "resource=" << graph.invocation().hardware_resource_id.size()
-        << ':' << graph.invocation().hardware_resource_id << '\n';
+
+    std::visit(
+        [&](const auto& invocation) {
+            using T = std::decay_t<decltype(invocation)>;
+            if constexpr (std::is_same_v<T, AutoregressivePhysicalInvocation>) {
+                out << "invocation=" << to_string(invocation.kind) << '\n';
+                out << "work-unit-kind=";
+                if (invocation.work_unit_kind) {
+                    out << to_string(*invocation.work_unit_kind);
+                } else {
+                    out << "none";
+                }
+                out << '\n';
+                out << "topology=" << invocation.topology_fingerprint.size()
+                    << ':' << invocation.topology_fingerprint << '\n';
+                out << "resource=" << invocation.hardware_resource_id.size()
+                    << ':' << invocation.hardware_resource_id << '\n';
+                out << "participants=" << invocation.participants.size() << '\n';
+                for (std::size_t i = 0; i < invocation.participants.size(); ++i) {
+                    const auto& participant = invocation.participants[i];
+                    out << "participant=" << i
+                        << "|work=" << participant.work_units
+                        << "|output=" << to_string(participant.output)
+                        << "|targets=" << participant.target_count << '\n';
+                }
+            } else {
+                out << "invocation=iterative-state\n";
+                out << "work-unit-kind=iterations\n";
+                out << "topology=" << invocation.topology_fingerprint.size()
+                    << ':' << invocation.topology_fingerprint << '\n';
+                out << "resource=" << invocation.hardware_resource_id.size()
+                    << ':' << invocation.hardware_resource_id << '\n';
+                out << "iterations=" << invocation.iteration_count << '\n';
+                out << "active-instances=" << invocation.active_instances << '\n';
+                out << "participants=0\n";
+            }
+        },
+        graph.workload_invocation());
     out << "autoregressive-state=" << (graph.autoregressive_state() ? "present" : "none") << '\n';
     out << "state-storage=";
     if (graph.autoregressive_state()) {
@@ -387,15 +427,6 @@ namespace {
         out << "none";
     }
     out << '\n';
-
-    out << "participants=" << graph.invocation().participants.size() << '\n';
-    for (std::size_t i = 0; i < graph.invocation().participants.size(); ++i) {
-        const auto& participant = graph.invocation().participants[i];
-        out << "participant=" << i
-            << "|work=" << participant.work_units
-            << "|output=" << to_string(participant.output)
-            << "|targets=" << participant.target_count << '\n';
-    }
 
     out << "nodes=" << graph.nodes().size() << '\n';
     for (const auto& node : graph.nodes()) {
@@ -478,6 +509,121 @@ namespace {
 }
 
 } // namespace
+
+Result<ExecutionGraph> finalize_execution_graph(
+    BackendKind backend,
+    ExecutionGraphBindingKind binding,
+    WorkloadPhysicalInvocation invocation,
+    std::optional<AutoregressiveExecutionState> autoregressive_state,
+    std::vector<ExecutionGraphNode> nodes) {
+    const auto invocation_status =
+        validate_workload_physical_invocation_boundary(invocation);
+    if (!invocation_status) return invocation_status;
+
+    const auto workload_kind =
+        physical_invocation_workload_kind(invocation);
+    if (workload_kind == ExecutionWorkloadKind::autoregressive_tokens) {
+        if (!autoregressive_state) {
+            return Status::invalid_argument(
+                "autoregressive execution graph requires autoregressive state");
+        }
+    } else if (autoregressive_state) {
+        return Status::invalid_argument(
+            "iterative execution graph must not carry KV/autoregressive state");
+    }
+
+    if (nodes.empty()) {
+        return Status::invalid_argument(
+            "execution graph requires at least one physical node");
+    }
+
+    const auto invocation_unit =
+        physical_invocation_work_unit_kind(invocation);
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+        const auto& node = nodes[i];
+        if (node.id != i) {
+            return Status::invalid_argument(
+                "execution graph node ids must be contiguous and ordered");
+        }
+        if (node.hardware_resource_id.empty()) {
+            return Status::invalid_argument(
+                "execution graph node requires hardware resource identity");
+        }
+        const auto work_status =
+            validate_work_measure(node.work_unit_kind, node.work_units);
+        if (!work_status) return work_status;
+        if (node.work_unit_kind &&
+            *node.work_unit_kind != invocation_unit) {
+            return Status::invalid_argument(
+                "execution graph node workload unit differs from invocation");
+        }
+        for (const auto dependency : node.dependencies) {
+            if (dependency >= node.id) {
+                return Status::invalid_argument(
+                    "execution graph dependency must reference an earlier node");
+            }
+        }
+
+        const bool compute = node.compute.has_value();
+        const bool transfer = node.transfer_direction.has_value();
+        const bool synchronization = node.synchronization.has_value();
+        switch (node.kind) {
+        case ExecutionGraphNodeKind::compute_region:
+            if (!compute || transfer || synchronization) {
+                return Status::invalid_argument(
+                    "compute-region graph node has conflicting physical kind");
+            }
+            break;
+        case ExecutionGraphNodeKind::transfer_region:
+            if (compute || !transfer || synchronization) {
+                return Status::invalid_argument(
+                    "transfer-region graph node has conflicting physical kind");
+            }
+            break;
+        case ExecutionGraphNodeKind::synchronization_region:
+            if (compute || transfer || !synchronization) {
+                return Status::invalid_argument(
+                    "synchronization graph node has conflicting physical kind");
+            }
+            break;
+        }
+
+        const auto validate_ids = [](const auto& ids) -> Status {
+            std::unordered_set<std::string> seen;
+            for (const auto& id : ids) {
+                if (id.empty()) {
+                    return Status::invalid_argument(
+                        "execution graph opaque identity must not be empty");
+                }
+                if (!seen.insert(id).second) {
+                    return Status::invalid_argument(
+                        "execution graph opaque identities must be unique within a field");
+                }
+            }
+            return Status::ok();
+        };
+        if (const auto s = validate_ids(node.prepared_resource_ids); !s) return s;
+        if (const auto s = validate_ids(node.input_value_ids); !s) return s;
+        if (const auto s = validate_ids(node.output_value_ids); !s) return s;
+    }
+
+    ExecutionGraph structural(
+        "",
+        backend,
+        binding,
+        std::move(invocation),
+        std::move(autoregressive_state),
+        std::move(nodes));
+    const auto canonical = canonical_graph_body(structural);
+    return ExecutionGraph(
+        graph_identity(canonical),
+        structural.backend(),
+        structural.binding(),
+        structural.workload_invocation(),
+        structural.autoregressive_state(),
+        std::vector<ExecutionGraphNode>(
+            structural.nodes().begin(), structural.nodes().end()));
+}
 
 Result<ExecutionGraph> derive_execution_graph(
     const ExecutionPlan& plan,
@@ -757,20 +903,12 @@ Result<ExecutionGraph> derive_execution_graph(
         capabilities.kv_storage,
         plan.kv.page_tokens,
     };
-    ExecutionGraph structural(
-        "",
+    return finalize_execution_graph(
         plan.backend,
-        WorkloadPhysicalInvocation{invocation},
-        state,
-        std::move(nodes));
-    const auto canonical = canonical_graph_body(structural);
-    return ExecutionGraph(
-        graph_identity(canonical),
-        plan.backend,
+        ExecutionGraphBindingKind::air_executable,
         WorkloadPhysicalInvocation{std::move(invocation)},
         state,
-        std::vector<ExecutionGraphNode>(
-            structural.nodes().begin(), structural.nodes().end()));
+        std::move(nodes));
 }
 
 std::string serialize_execution_graph(const ExecutionGraph& graph) {

@@ -73,4 +73,11 @@ make_flux2_klein_component_plan(
     const Flux2KleinSemanticContract& semantics,
     const Flux2KleinPhysicalPlan& plan);
 
+// Lower the validated component plan into the one shared ExecutionGraph
+// authority. The result is descriptive, not AIR-executable, until Stage 8H
+// admits component implementations.
+[[nodiscard]] Result<ExecutionGraph> derive_flux2_klein_execution_graph(
+    const Flux2KleinSemanticContract& semantics,
+    const Flux2KleinPhysicalPlan& plan);
+
 } // namespace air

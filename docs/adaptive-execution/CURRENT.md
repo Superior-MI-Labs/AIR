@@ -879,3 +879,29 @@ Immediate next action:
   is available;
 - without a GPU runner, retain the CUDA gate as pending and continue only with
   graph-contract work that does not assert live device behavior.
+
+
+### Stage 8G qualification state
+
+Qwen-preserving R1 source:
+
+`8b8e912a6d70167de7ca1a25f52c9158fc152836`
+
+Hosted Adaptive CPU preflight: SUCCESS, 18/18 tests.
+
+Real CUDA R1 concordance remains PENDING because the development GPU is
+unavailable. This is recorded hardware evidence debt.
+
+Stage 8G slice 2 now projects FLUX.2 into the same ExecutionGraph R1 authority.
+
+The FLUX graph is explicitly `descriptive`, not AIR-executable. It contains
+the three qualified component regions and exact resource/semantic identities,
+but makes no transfer, synchronization, or implementation claim that AIR has
+not measured/implemented.
+
+Immediate next action:
+
+- hosted CPU preflight for the shared Qwen + FLUX graph authority;
+- then Stage 8H must decide and implement the smallest AIR-owned executable
+  portion of FLUX.2 without depending on ComfyUI and without claiming
+  unqualified device behavior.

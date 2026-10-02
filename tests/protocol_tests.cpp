@@ -259,6 +259,8 @@ int main() {
                   std::string::npos &&
               graph_body.find("\"identity\":\"execution-graph:r1:") !=
                   std::string::npos &&
+              graph_body.find("\"binding\":\"air-executable\"") !=
+                  std::string::npos &&
               graph_body.find("\"workload_kind\":\"autoregressive-tokens\"") !=
                   std::string::npos &&
               graph_body.find("\"invocation\":\"prefill-single\"") !=
@@ -278,6 +280,70 @@ int main() {
               graph_body.find("\"request_id\":11") !=
                   std::string::npos,
               "execution graph endpoint serializes planned graph and evidence correlation as separate structured data");
+    }
+
+
+    {
+        const auto semantics =
+            air::qualified_flux2_klein_oracle_semantics();
+        auto component_plan =
+            air::make_flux2_klein_component_plan(
+                semantics,
+                "hardware-topology:protocol-flux",
+                "gpu0");
+        auto flux_graph = component_plan
+            ? air::derive_flux2_klein_execution_graph(
+                semantics, component_plan.value())
+            : air::Result<air::ExecutionGraph>{
+                air::Status::invalid_state(
+                    "component plan fixture did not derive")};
+
+        check(
+            flux_graph.is_ok(),
+            "protocol fixture derives iterative FLUX.2 ExecutionGraph");
+        if (flux_graph) {
+            air::ExecutionGraphTimelineSnapshot graph_timeline;
+            graph_timeline.level =
+                air::ExecutionObservationLevel::detailed;
+            graph_timeline.capacity = 1U;
+            graph_timeline.topology_status = "ready";
+            graph_timeline.topology_fingerprint =
+                "hardware-topology:protocol-flux";
+
+            air::ExecutionGraphObservation observation;
+            observation.observation_sequence = 9U;
+            observation.graph =
+                std::make_shared<const air::ExecutionGraph>(
+                    std::move(flux_graph).value());
+            observation.evidence_status =
+                air::ExecutionGraphEvidenceStatus::unobserved;
+            graph_timeline.observations.push_back(
+                std::move(observation));
+
+            const auto body =
+                air::server::execution_graph_timeline_json(
+                    graph_timeline);
+            check(
+                body.find("\"binding\":\"descriptive\"") !=
+                    std::string::npos &&
+                body.find("\"workload_kind\":\"iterative-state\"") !=
+                    std::string::npos &&
+                body.find("\"invocation\":\"iterative-state\"") !=
+                    std::string::npos &&
+                body.find("\"work_unit_kind\":\"iterations\"") !=
+                    std::string::npos &&
+                body.find("\"iteration_count\":4") !=
+                    std::string::npos &&
+                body.find("\"active_instances\":1") !=
+                    std::string::npos &&
+                body.find("\"state_storage\":null") !=
+                    std::string::npos &&
+                body.find("model/flux2-klein/denoiser/sha256/") !=
+                    std::string::npos &&
+                body.find("flux2-klein/latent/sampled") !=
+                    std::string::npos,
+                "protocol serializes iterative descriptive graph without Qwen-only accessor assumptions");
+        }
     }
 
     if (failures != 0) {

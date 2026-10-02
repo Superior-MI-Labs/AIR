@@ -272,4 +272,51 @@ Status validate_flux2_klein_component_plan(
     return Status::ok();
 }
 
+Result<ExecutionGraph> derive_flux2_klein_execution_graph(
+    const Flux2KleinSemanticContract& semantics,
+    const Flux2KleinPhysicalPlan& plan) {
+    const auto plan_status =
+        validate_flux2_klein_component_plan(semantics, plan);
+    if (!plan_status) return plan_status;
+
+    const auto& iterative = *plan.phases[1].iterative_work;
+    WorkloadPhysicalInvocation invocation{iterative};
+
+    std::vector<ExecutionGraphNode> nodes;
+    nodes.reserve(plan.phases.size());
+
+    for (const auto& phase : plan.phases) {
+        ExecutionGraphNode node;
+        node.id = phase.phase_id;
+        node.kind = ExecutionGraphNodeKind::compute_region;
+        node.compute = ExecutionComputeRegionKind::component;
+        node.hardware_resource_id = phase.hardware_resource_id;
+        node.participant_count = semantics.batch;
+        node.dependencies = phase.dependencies;
+        node.item_count = semantics.batch;
+
+        if (phase.iterative_work) {
+            node.work_unit_kind = WorkUnitKind::iterations;
+            node.work_units = phase.iterative_work->iteration_count;
+        }
+
+        for (const auto& resource : phase.prepared_resources) {
+            node.prepared_resource_ids.push_back(resource.resource_id);
+        }
+        node.input_value_ids = phase.input_value_ids;
+        node.output_value_ids = phase.output_value_ids;
+        nodes.push_back(std::move(node));
+    }
+
+    // The qualified oracle places this physical component plan on CUDA-class
+    // hardware, but AIR has not yet admitted executable FLUX component
+    // implementations. Binding remains explicitly descriptive.
+    return finalize_execution_graph(
+        BackendKind::cuda,
+        ExecutionGraphBindingKind::descriptive,
+        std::move(invocation),
+        std::nullopt,
+        std::move(nodes));
+}
+
 } // namespace air

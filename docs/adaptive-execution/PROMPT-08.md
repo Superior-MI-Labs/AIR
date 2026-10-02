@@ -1733,3 +1733,71 @@ Correction updates the protocol characterization to require:
 - prepared-resource and semantic-value arrays.
 
 No production code was changed for this failure.
+
+
+## Stage 8G slice 1 hosted qualification
+
+Corrected source:
+
+`8b8e912a6d70167de7ca1a25f52c9158fc152836`
+
+Adaptive CPU preflight:
+
+SUCCESS, 18/18 tests.
+
+CPU qualification closes the R1 data-model migration for Qwen.
+
+Pending evidence:
+
+- real CUDA detailed graph concordance has not been rerun after R1 because no
+  compatible GPU runner is currently available.
+
+This remains an explicit hardware qualification debt, not a failed test.
+
+## Stage 8G slice 2 - FLUX.2 projection into shared ExecutionGraph R1
+
+Status: CURRENT
+
+Slice 2 admits the second workload to the same graph authority.
+
+A new graph binding classification distinguishes:
+
+- `air-executable`: AIR currently owns an executable backend path for the
+  graph;
+- `descriptive`: AIR has a validated physical description but has not yet
+  admitted executable implementations for its component regions.
+
+Current Qwen graphs are `air-executable`.
+
+The FLUX.2 graph is `descriptive` in this slice. This is intentional and
+prevents the qualified external CUDA oracle from being misrepresented as an
+AIR CUDA executor.
+
+The single graph finalization authority now owns:
+
+- workload invocation discrimination;
+- autoregressive-state legality;
+- node IDs/dependencies;
+- typed workload work;
+- node physical-kind exclusivity;
+- opaque resource/value identity validation;
+- canonical graph identity.
+
+Both Qwen and FLUX projections go through this finalizer.
+
+FLUX.2 projection:
+
+- backend physical family: CUDA;
+- binding: descriptive;
+- workload: iterative-state;
+- no KV/autoregressive state;
+- three component compute regions:
+  text encoder -> denoiser -> VAE;
+- only denoiser carries `iterations = 4`;
+- exact Prompt 7 artifact resource identities retained;
+- opaque Prompt 7 semantic handoff identities retained;
+- no transfer/synchronization nodes are fabricated;
+- no implementation bindings are fabricated.
+
+Stage 8G slice-2 qualification is CPU/contract qualification only until Stage
+8H owns executable component implementations.
