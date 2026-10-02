@@ -6,7 +6,7 @@
     function render() {
       var m = App.state.model || {};
       App.clear(root);
-      root.appendChild(App.pageHead('Model truth', 'Models', 'AIR owns the active model. This page reports the loaded model and qualified public support boundary without maintaining a browser model registry.'));
+      root.appendChild(App.pageHead('Workload truth', 'Workload & Architecture', 'AIR owns the active executable model while shared execution contracts also describe the qualified FLUX.2 discriminator. The browser does not maintain a model registry.'));
       var grid = App.el('div', 'grid grid-2');
       var current = App.el('section', 'card padded');
       current.appendChild(App.el('div', 'eyebrow', 'Active model'));
@@ -20,10 +20,10 @@
       current.appendChild(App.kv('Vocabulary size', m.vocabulary_size));
       grid.appendChild(current);
       var support = App.el('section', 'card padded stack');
-      support.appendChild(App.el('div', 'eyebrow', 'AIR 0.9.12 public scope'));
-      support.appendChild(App.el('h3', '', 'Qwen2-family GGUF'));
-      support.appendChild(App.el('p', '', 'The qualified public scope focuses on Qwen2-family GGUF, including the tested Qwen2.5 path. AIR validates the selected GGUF at launch.'));
-      support.appendChild(App.callout('warn', 'No browser hot-swap', 'AIR 0.9.12 does not expose a runtime model-load/hot-swap endpoint. Change models by restarting the canonical server through the launcher or future air-setup helper.'));
+      support.appendChild(App.el('div', 'eyebrow', 'AIR 0.11 candidate scope'));
+      support.appendChild(App.el('h3', '', 'Qwen2 executable · FLUX.2 structural discriminator'));
+      support.appendChild(App.el('p', '', 'Qwen2-family GGUF remains AIR-executable. FLUX.2 Klein lowers through the shared workload, resource, semantic, and ExecutionGraph R1 contracts; only deterministic latent-geometry and schedule semantics execute inside AIR today.'));
+      support.appendChild(App.callout('warn', 'No browser hot-swap', 'AIR 0.11 does not yet expose a runtime model-load/hot-swap endpoint. Change models by restarting the canonical server through the launcher or future air-setup helper.'));
       grid.appendChild(support);
       root.appendChild(grid);
     }

@@ -1033,3 +1033,29 @@ Immediate next action:
 - add web asset/syntax preflight to the canonical adaptive preflight;
 - hosted-qualify the complete browser contract;
 - retain real-human and real-GPU UI validation as Prompt 11 evidence debt.
+
+
+### Prompt 10 hosted qualification
+
+Web 3.3 implementation source:
+
+`9bed03f82a323d70e9aa329e49d81b56786d8744`
+
+Adaptive preflight `36986171269`: SUCCESS.
+
+Control Room web preflight passed:
+
+- asset references;
+- boot order;
+- all required views;
+- all canonical endpoint references;
+- novice/research polling contract;
+- JavaScript syntax.
+
+Full C++ suite: 19/19 PASS.
+
+Final Prompt 10 cleanup removes stale 0.9.12 product copy and explicitly exposes
+the current hosted-vs-hardware qualification boundary.
+
+After the cleanup exact-head preflight passes, Prompt 10 is CLOSED for hosted
+qualification and Prompt 11 becomes the RC hardening/evidence-debt prompt.

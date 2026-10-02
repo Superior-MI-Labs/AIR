@@ -172,3 +172,56 @@ Prompt 10 closes when:
 - existing AIR tests remain green;
 - no parallel authority is introduced;
 - remaining human/hardware validation is explicitly handed to Prompt 11.
+
+
+## Hosted qualification - Web 3.3
+
+Implementation source:
+
+`9bed03f82a323d70e9aa329e49d81b56786d8744`
+
+Adaptive preflight:
+
+`36986171269` -> SUCCESS.
+
+Web-specific markers:
+
+- `web_asset_references=PASS`;
+- `web_boot_order=PASS`;
+- `web_required_views=PASS`;
+- `web_canonical_endpoints=PASS`;
+- `web_mode_polling_contract=PASS`;
+- `web_javascript_syntax=PASS`;
+- `AIR_WEB_PREFLIGHT=PASS`.
+
+C++ contract suite:
+
+- 19/19 PASS.
+
+Implemented Control Room views:
+
+- Overview;
+- Playground;
+- Decision;
+- Workload/Architecture;
+- Machine;
+- Runtime/Memory;
+- Plan Lab;
+- Execution/Evidence;
+- Semantics/Extensions;
+- Events/Diagnostics;
+- Metrics;
+- Setup;
+- About.
+
+Web 3.3 preserves one-way authority:
+
+server/runtime state -> HTTP -> presentation.
+
+It does not feed planner/resource/evidence decisions back into AIR.
+
+Remaining Prompt 10 evidence limitations are intentionally handed to Prompt 11:
+
+- no real human novice/research usability session;
+- no real post-R1 NVIDIA browser/evidence session;
+- no development-laptop reconnect/pressure/thermal session.

@@ -8,21 +8,22 @@
       var r = s.runtime || {};
       var m = s.model || {};
       App.clear(root);
-      root.appendChild(App.pageHead('Command Center', 'Home', 'AIR is a local inference runtime. This surface reports AIR state; it does not replace AIR state.'));
+      root.appendChild(App.pageHead('Control Room', 'Overview', 'AIR reports canonical workload, planning, resource, semantic, and execution state here. The browser remains presentation only.'));
       var hero = App.el('section', 'card hero');
-      hero.appendChild(App.el('div', 'eyebrow', 'AIR · ADAPTIVE INFERENCE RUNTIME'));
+      hero.appendChild(App.el('div', 'eyebrow', 'AIR · ADAPTIVE EXECUTION FOUNDATION'));
       hero.appendChild(App.el('h2', '', s.connected ? 'Runtime connected' : 'Runtime unavailable'));
-      hero.appendChild(App.el('p', '', s.connected ? 'Generate, run Decision, and inspect the live runtime from one local application.' : 'The application shell is running, but AIR has not reported healthy runtime state yet.'));
+      hero.appendChild(App.el('p', '', s.connected ? 'Generate, run Decision, inspect machine state, and follow AIR planning/evidence from one canonical local surface.' : 'The application shell is running, but AIR has not reported healthy runtime state yet.'));
       var badges = App.el('div', 'status-row');
       badges.appendChild(App.el('span', 'badge ' + (s.connected ? 'good' : 'bad'), s.connected ? 'AIR healthy' : 'AIR disconnected'));
-      badges.appendChild(App.el('span', 'badge blue', 'Web 3.2.0'));
-      badges.appendChild(App.el('span', 'badge', 'AIR 0.9.12'));
+      badges.appendChild(App.el('span', 'badge blue', 'Web 3.3.0'));
+      badges.appendChild(App.el('span', 'badge', 'AIR 0.11 candidate'));
       hero.appendChild(badges);
       var quickActions = App.el('div', 'actions hero-actions');
       [
         ['Open Playground', 'playground', 'primary'],
-        ['Run Decision', 'decision', ''],
-        ['Inspect Runtime', 'runtime', 'ghost']
+        ['Inspect Machine', 'machine', ''],
+        ['Execution Evidence', 'execution', 'ghost'],
+        ['Semantic Gaps', 'semantics', 'ghost']
       ].forEach(function (item) {
         var button = App.el('button', 'button ' + item[2], item[0]);
         button.type = 'button';
@@ -33,8 +34,8 @@
       root.appendChild(hero);
 
       var rd = App.el('div', 'callout r-and-d-note');
-      rd.appendChild(App.el('strong', '', 'Public R&D release'));
-      rd.appendChild(document.createTextNode(' AIR 0.9.12 is a qualified experimental checkpoint. The interface exposes real runtime state and explicit limitations rather than presenting research behavior as a finished commercial product.'));
+      rd.appendChild(App.el('strong', '', 'Hosted-qualified candidate'));
+      rd.appendChild(document.createTextNode(' AIR 0.11 is being qualified as an adaptive execution foundation. Hosted CPU/contracts are qualified here; post-R1 CUDA replay, FLUX device execution, and human usability remain explicit hardware/user evidence debt.'));
       root.appendChild(rd);
 
       var metrics = App.el('div', 'grid grid-4');

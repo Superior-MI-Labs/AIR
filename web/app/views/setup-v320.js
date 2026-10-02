@@ -10,7 +10,7 @@
     root.appendChild(App.pageHead(
       'First run & launch',
       'Setup',
-      'AIR 0.9.12 is served by air-server. This page gives public-safe installation and launch guidance without pretending the browser can execute privileged setup commands.'
+      'AIR 0.11 candidate is served by air-server. This page gives public-safe installation and launch guidance without pretending the browser can execute privileged setup commands.'
     ));
 
     var steps = App.el('div', 'setup-steps');
@@ -31,9 +31,9 @@
 
     var scope = App.el('section', 'card padded stack');
     scope.appendChild(App.el('div', 'eyebrow', 'Qualified public scope'));
-    scope.appendChild(App.el('h3', '', 'AIR 0.9.12 · R&D release'));
-    scope.appendChild(App.el('p', '', 'The qualified model path focuses on Qwen2-family GGUF, including the tested Qwen2.5 path. CPU/reference mode remains available when CUDA is unavailable.'));
-    scope.appendChild(App.callout('warn', 'No fake installer controls', 'A future loopback air-setup helper may safely scan dependencies and launch AIR. It is not part of AIR 0.9.12, so this browser does not expose arbitrary shell or package-install endpoints.'));
+    scope.appendChild(App.el('h3', '', 'AIR 0.11 candidate · R&D release'));
+    scope.appendChild(App.el('p', '', 'The executable model path remains Qwen2-family GGUF. CPU/reference mode is hosted-qualified; the retained RTX CUDA evidence predates ExecutionGraph R1 and is tracked as hardware requalification debt.'));
+    scope.appendChild(App.callout('warn', 'No fake installer controls', 'A future loopback air-setup helper may safely scan dependencies and launch AIR. It is not part of AIR 0.11 candidate, so this browser does not expose arbitrary shell or package-install endpoints.'));
     statusGrid.appendChild(scope);
     root.appendChild(statusGrid);
 

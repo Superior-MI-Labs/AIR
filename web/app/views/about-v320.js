@@ -13,7 +13,7 @@
     ));
 
     var hero = App.el('section', 'card hero r-and-d-hero');
-    hero.appendChild(App.el('div', 'eyebrow', 'AIR 0.9.12 · PUBLIC R&D RELEASE'));
+    hero.appendChild(App.el('div', 'eyebrow', 'AIR 0.11 candidate · PUBLIC R&D RELEASE'));
     hero.appendChild(App.el('h2', '', 'Inference as systems engineering'));
     hero.appendChild(App.el('p', '', 'Instead of treating inference as a black box, AIR makes scheduling, state, admission, backend execution, cancellation, and observability explicit enough to test and reason about.'));
     var badges = App.el('div', 'status-row');
@@ -41,7 +41,7 @@
     architecture.appendChild(App.el('div', 'eyebrow', 'Architecture'));
     architecture.appendChild(App.el('h3', '', 'One authoritative route from model to surface'));
     var flow = App.el('div', 'architecture-flow');
-    ['GGUF', 'ModelDefinition', 'PreparedModel', 'InferenceService', 'CapacityScheduler', 'MicrobatchScheduler', 'SequenceState', 'Reference / CUDA', 'HTTP / Web / Bench'].forEach(function (name, i, arr) {
+    ['Package / Model semantics', 'Workload adapter', 'ExecutionGraph R1', 'Planner / Resource authority', 'InferenceService', 'Reference / CUDA implementations', 'Evidence', 'HTTP / Control Room'].forEach(function (name, i, arr) {
       flow.appendChild(App.el('div', 'architecture-node', name));
       if (i < arr.length - 1) flow.appendChild(App.el('div', 'architecture-arrow', '↓'));
     });
@@ -51,9 +51,9 @@
     var status = App.el('div', 'grid grid-2');
     var now = App.el('section', 'card padded stack');
     now.appendChild(App.el('div', 'eyebrow', 'Where AIR is now'));
-    now.appendChild(App.el('h3', '', '0.9.12 qualified public checkpoint'));
-    now.appendChild(App.el('p', '', 'The release survived clean build/install, external CMake consumption, complete tests, public API checks, mixed generation and Decision load, explicit overload backpressure, fault injection, restart testing, and resource reclamation.'));
-    now.appendChild(App.callout('', 'Important', 'The public release is a checkpoint, not a claim that AIR is production-complete or universally optimized.'));
+    now.appendChild(App.el('h3', '', '0.11 hosted-qualified release candidate'));
+    now.appendChild(App.el('p', '', 'The candidate preserves the earlier qualified Qwen runtime and adds machine/environment separation, typed execution evidence, adaptive strategy planning, ExecutionGraph R1, a FLUX.2 second-architecture discriminator, trusted semantic extensions, and this Control Room.'));
+    now.appendChild(App.callout('', 'Important', 'Hosted qualification is not a substitute for the pending post-R1 NVIDIA replay, AIR-owned FLUX model/device execution, image parity, or human usability testing.'));
     status.appendChild(now);
 
     var limits = App.el('section', 'card padded stack');
