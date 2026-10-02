@@ -13,6 +13,7 @@ on:
       - "tests/**"
       - "scripts/**"
       - "docs/adaptive-execution/**"
+      - "web/**"
       - ".github/workflows/adaptive-execution-preflight.yml"
 
 concurrency:
@@ -39,3 +40,9 @@ jobs:
       - name: Adaptive CPU preflight
         run: |
           bash scripts/preflight-adaptive.sh
+
+      - name: Hosted RC hardening
+        env:
+          AIR_P11_HOSTED_OUT: ${{ runner.temp }}/air-prompt11-hosted
+        run: |
+          bash scripts/qualify-adaptive-prompt11-hosted.sh build-adaptive-preflight 18911

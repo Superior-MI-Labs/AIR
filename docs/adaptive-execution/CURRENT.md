@@ -1059,3 +1059,39 @@ the current hosted-vs-hardware qualification boundary.
 
 After the cleanup exact-head preflight passes, Prompt 10 is CLOSED for hosted
 qualification and Prompt 11 becomes the RC hardening/evidence-debt prompt.
+
+
+## Prompt 10 closed / hosted-qualified
+
+Final Control Room source:
+
+`17cdecd6ea0f706f243c9de22f61f37df535c2d8`
+
+Adaptive preflight:
+
+`36986473158` -> SUCCESS.
+
+Prompt 10 is CLOSED for hosted qualification.
+
+The remaining real-human and real-GPU Control Room evidence is carried as
+Prompt 11/12 debt rather than represented as passed.
+
+## Prompt 11 current
+
+Prompt 11 is now RC hardening under constrained hardware availability.
+
+A hosted installed-product harness will install the current build, generate a
+tiny Qwen2 GGUF, start the installed reference server, verify Web 3.3 and the
+canonical HTTP surfaces, execute generation and Decision, validate detailed
+ExecutionGraph R1 evidence, restart the server, and build an external CMake
+consumer.
+
+The existing C++ suite remains the authority for cancellation, backpressure,
+fairness, stream isolation, shutdown, and reclamation.
+
+Immediate next action:
+
+- run the new hosted hardening job on exact source;
+- fix only reproduced defects;
+- freeze unresolved post-R1 CUDA / FLUX-device / human-usability evidence as
+  explicit Prompt 12 release-candidate limitations.
