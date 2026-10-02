@@ -1,5 +1,7 @@
 #include "../src/server/protocol.hpp"
 #include "air/flux2_klein_plan.hpp"
+#include "air/flux2_klein_extension.hpp"
+#include <array>
 #include <memory>
 
 #include <iostream>
@@ -113,6 +115,51 @@ int main() {
           runtime.find("\"stream_queue_capacity\":64") != std::string::npos,
           "runtime snapshot exposes cancellation, delivery, live-KV, and stream-backpressure telemetry");
 
+
+    {
+        air::SemanticImplementationRegistry registry;
+        check(
+            air::register_flux2_klein_builtin_semantics(
+                registry).is_ok(),
+            "protocol semantic registry fixture registers built-ins");
+        const auto package =
+            air::flux2_klein_semantic_package_declaration();
+        const std::array packages{package};
+        auto semantic_snapshot =
+            air::snapshot_semantic_registry(
+                registry, packages);
+        check(
+            semantic_snapshot.is_ok(),
+            "protocol semantic registry snapshot derives");
+        if (semantic_snapshot) {
+            const auto semantic_body =
+                air::server::semantic_registry_json(
+                    semantic_snapshot.value());
+            check(
+                semantic_body.find(
+                    "\"package_id\":\"flux2-klein.oracle-v1\"") !=
+                        std::string::npos &&
+                semantic_body.find(
+                    "\"resolved_count\":2") !=
+                        std::string::npos &&
+                semantic_body.find(
+                    "\"missing_count\":9") !=
+                        std::string::npos &&
+                semantic_body.find(
+                    "\"semantic_id\":\"flux2-klein.derive-schedule\"") !=
+                        std::string::npos &&
+                semantic_body.find(
+                    "\"implementation_id\":\"air.flux2-klein.derive-schedule\"") !=
+                        std::string::npos &&
+                semantic_body.find(
+                    "\"semantic_id\":\"flux2-klein.denoiser\"") !=
+                        std::string::npos &&
+                semantic_body.find(
+                    "\"missing_reason\":\"not-registered\"") !=
+                        std::string::npos,
+                "semantic endpoint preserves registered and missing capability truth");
+        }
+    }
 
     auto decision = air::server::parse_decision_request(
         R"({"input":"route:","candidates":[{"id":"billing","text":"Billing","model_text":" billing"},{"id":"tech","text":"Technical","model_text":" technical"}],"scoring_policy":"sequence-logprob-mean","output_cardinality":"exactly-one","determinism":"required"})");

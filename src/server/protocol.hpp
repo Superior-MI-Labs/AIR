@@ -52,5 +52,7 @@ struct ParsedRequest {
     const ExecutionTimelineSnapshot& timeline);
 [[nodiscard]] std::string execution_graph_timeline_json(
     const ExecutionGraphTimelineSnapshot& timeline);
+[[nodiscard]] std::string semantic_registry_json(
+    const SemanticRegistrySnapshot& snapshot);
 
 } // namespace air::server

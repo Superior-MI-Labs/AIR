@@ -937,4 +937,104 @@ std::string execution_graph_timeline_json(
     return json::serialize(root);
 }
 
+std::string semantic_registry_json(
+    const SemanticRegistrySnapshot& snapshot) {
+    json::object root;
+    root["schema_version"] = 1U;
+
+    json::array implementations;
+    for (const auto& registered : snapshot.implementations) {
+        json::object item;
+        item["kind"] = json::value(
+            std::string(to_string(
+                registered.descriptor.requirement.kind)));
+        item["semantic_id"] = json::value(
+            registered.descriptor.requirement.semantic_id);
+
+        json::object contract_version;
+        contract_version["major"] =
+            registered.descriptor.requirement.contract_version.major;
+        contract_version["minor"] =
+            registered.descriptor.requirement.contract_version.minor;
+        contract_version["patch"] =
+            registered.descriptor.requirement.contract_version.patch;
+        item["contract_version"] = std::move(contract_version);
+
+        item["implementation_id"] = json::value(
+            registered.descriptor.implementation_id);
+
+        json::object implementation_version;
+        implementation_version["major"] =
+            registered.descriptor.implementation_version.major;
+        implementation_version["minor"] =
+            registered.descriptor.implementation_version.minor;
+        implementation_version["patch"] =
+            registered.descriptor.implementation_version.patch;
+        item["implementation_version"] =
+            std::move(implementation_version);
+        item["origin"] = json::value(
+            std::string(to_string(registered.origin)));
+        implementations.push_back(std::move(item));
+    }
+    root["implementations"] = std::move(implementations);
+
+    json::array packages;
+    for (const auto& package : snapshot.packages) {
+        json::object package_value;
+        package_value["package_id"] =
+            json::value(package.package_id);
+        package_value["resolved_count"] =
+            package.resolved_count;
+        package_value["missing_count"] =
+            package.missing_count;
+
+        json::array requirements;
+        for (const auto& status : package.requirements) {
+            json::object requirement;
+            requirement["kind"] = json::value(
+                std::string(to_string(status.requirement.kind)));
+            requirement["semantic_id"] = json::value(
+                status.requirement.semantic_id);
+
+            json::object version;
+            version["major"] =
+                status.requirement.contract_version.major;
+            version["minor"] =
+                status.requirement.contract_version.minor;
+            version["patch"] =
+                status.requirement.contract_version.patch;
+            requirement["contract_version"] = std::move(version);
+            requirement["resolved"] = status.resolved();
+
+            if (status.resolved()) {
+                requirement["implementation_id"] = json::value(
+                    status.implementation->implementation_id);
+                requirement["origin"] = json::value(
+                    std::string(to_string(*status.origin)));
+            } else if (status.missing) {
+                requirement["missing_reason"] = json::value(
+                    std::string(to_string(status.missing->reason)));
+                json::array available_versions;
+                for (const auto& available :
+                     status.missing->available_versions) {
+                    json::object available_value;
+                    available_value["major"] = available.major;
+                    available_value["minor"] = available.minor;
+                    available_value["patch"] = available.patch;
+                    available_versions.push_back(
+                        std::move(available_value));
+                }
+                requirement["available_versions"] =
+                    std::move(available_versions);
+            }
+            requirements.push_back(std::move(requirement));
+        }
+        package_value["requirements"] =
+            std::move(requirements);
+        packages.push_back(std::move(package_value));
+    }
+    root["packages"] = std::move(packages);
+    return json::serialize(root);
+}
+
 } // namespace air::server

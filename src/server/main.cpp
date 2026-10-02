@@ -423,6 +423,15 @@ void handle_request(tcp::socket socket,
                 service.execution_graph_timeline()));
         return;
     }
+    if (request.method() == http::verb::get &&
+        target == "/semantics") {
+        write_text(
+            socket,
+            http::status::ok,
+            air::server::semantic_registry_json(
+                service.semantic_registry_snapshot()));
+        return;
+    }
     if (request.method() == http::verb::get && target == "/metrics") {
         write_text(socket, http::status::ok, air::server::metrics_text(service.snapshot()), "text/plain; version=0.0.4");
         return;
