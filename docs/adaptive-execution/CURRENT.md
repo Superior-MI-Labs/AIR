@@ -976,3 +976,60 @@ Immediate next action:
 - exact-head hosted preflight;
 - if green, close Prompt 9 and expose missing/registered semantics through a
   read-only server surface for the Control Room.
+
+
+## Prompt 9 closed / qualified
+
+Final hosted-qualified source:
+
+`ffad7f76edf319efa5a4125ce8f03ea37ff492cc`
+
+Adaptive CPU preflight:
+
+`36985270195` -> SUCCESS, 19/19 tests.
+
+Qualified Prompt 9 result:
+
+- one trusted semantic implementation registry authority;
+- exact semantic kind/ID/version resolution;
+- structured MissingSemantic results;
+- duplicate owner rejection;
+- test extension admission without core planner/runtime edits;
+- package declarations remain data-only;
+- path-like executable identity data is rejected;
+- InferenceService owns the runtime registry instance;
+- FLUX.2 declares 11 exact requirements;
+- two AIR-owned deterministic semantics resolve;
+- nine model/tensor/component requirements remain explicitly missing;
+- `GET /semantics` exposes the read-only capability/missing state.
+
+Prompt 9 is CLOSED / QUALIFIED.
+
+## Prompt 10 current
+
+Prompt 10 is AIR Control Room.
+
+The existing Web 3.2 shell will be evolved, not replaced.
+
+Canonical data sources:
+
+- `/health`;
+- `/model`;
+- `/runtime`;
+- `/machine`;
+- `/environment`;
+- `/events`;
+- `/timeline`;
+- `/execution-graphs`;
+- `/semantics`;
+- `/metrics`.
+
+The browser remains a thin projection. It does not own model state, machine
+state, planner decisions, semantic availability, or graph/evidence truth.
+
+Immediate next action:
+
+- implement Web 3.3 Control Room views;
+- add web asset/syntax preflight to the canonical adaptive preflight;
+- hosted-qualify the complete browser contract;
+- retain real-human and real-GPU UI validation as Prompt 11 evidence debt.
