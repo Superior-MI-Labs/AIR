@@ -762,10 +762,39 @@ token output vocabulary.
 ExecutionGraph R0 remains autoregressive-only until the later graph projection
 stage. This slice does not create a second graph or executor.
 
+Stage 8D slice-1 source:
+
+`1f591f73b80ca56659a60cf4fd823a6d36ea7b8a`
+
+Adaptive CPU preflight `36946782772`: SUCCESS.
+
+Stage 8D slice 1 is CLOSED / QUALIFIED.
+
+### Stage 8E current
+
+Stage 8E now introduces the known FLUX.2 Klein semantic adapter contract.
+
+The first slice is deliberately frozen to the qualified Prompt 7 oracle rather
+than generalized to arbitrary diffusion requests.
+
+It carries semantic identity/configuration only:
+
+- prompt text / conditioning / seed / noise / schedule / latent / image;
+- distinct positive/negative conditioning identities;
+- distinct initial/sampled latent identities;
+- 1024x1024, batch 1, 4 iterations;
+- seed `432262096973490`;
+- Euler, CFG 1;
+- latent semantic geometry `[1,128,64,64]`;
+- exact five-value sigma path;
+- exact retained semantic-operation order.
+
+It contains no storage dtype/layout or physical placement/policy.
+
 Immediate next action:
 
-- exact-head Adaptive CPU preflight for the Stage 8D slice-1 invocation
-  contract;
-- require all existing tests plus the new invocation contract test to pass;
-- if green, close the discrimination boundary and move to the known FLUX.2
-  semantic adapter without yet claiming AIR-owned FLUX numerical execution.
+- exact-head Adaptive CPU preflight for Stage 8E slice 1;
+- require the frozen oracle semantic contract and all prior contracts to pass;
+- if green, close the semantic characterization slice and move to Stage 8F
+  component/resource physical planning under the already-qualified identified
+  resource authority.

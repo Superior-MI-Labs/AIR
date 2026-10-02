@@ -1395,3 +1395,92 @@ Stage 8D slice-1 falsification:
 7. shared validation does not become a second Qwen graph validator;
 8. CPU preflight passes with all existing tests plus the new invocation
    contract test.
+
+
+## Stage 8D slice 1 CPU qualification
+
+Source:
+
+`1f591f73b80ca56659a60cf4fd823a6d36ea7b8a`
+
+Adaptive CPU preflight:
+
+`36946782772` -> SUCCESS.
+
+Stage 8D slice 1 is CLOSED / QUALIFIED.
+
+No WolfCat CUDA rerun is required for this slice because it introduces no
+backend, graph-execution, numerical, memory, or device behavior. The qualified
+claim is only the compile-time/shared structural invocation boundary.
+
+## Stage 8E slice 1 - frozen FLUX.2 Klein semantic adapter contract
+
+Status: CURRENT
+
+Stage 8E begins with the exact semantic facts retained by Prompt 7 rather than
+a generalized diffusion API.
+
+The adapter is explicitly FLUX.2 Klein-specific.
+
+It represents:
+
+- semantic value kinds:
+  - prompt text;
+  - conditioning;
+  - seed;
+  - realized noise;
+  - sigma schedule;
+  - latent state;
+  - decoded image;
+- distinct stable identities for:
+  - positive and negative conditioning;
+  - initial and sampled latent state;
+- the qualified oracle configuration:
+  - 1024 x 1024;
+  - batch 1;
+  - 4 sampling transitions;
+  - seed `432262096973490`;
+  - Euler;
+  - CFG 1;
+- qualified latent semantic geometry:
+  `[1, 128, 64, 64]`;
+- exact qualified sigma path:
+  `1.000000000, 0.967383988, 0.908143923, 0.767199964, 0.000000000`;
+- the retained Prompt 7 operation order:
+  1. encode-conditioning;
+  2. derive-negative-conditioning;
+  3. initialize-latent;
+  4. derive-schedule;
+  5. realize-seeded-noise;
+  6. iterative-sample;
+  7. decode-latent.
+
+The adapter intentionally contains no:
+
+- dtype;
+- tensor layout;
+- device placement;
+- CUDA/CPU choice;
+- kernel identity;
+- stream/offload policy;
+- DynamicVRAM policy;
+- universal operation enum.
+
+The first contract is a frozen characterization of the qualified oracle.
+Changing seed, schedule, geometry, sampler/CFG, semantic identity, or operation
+order is rejected as unqualified drift in this slice.
+
+This narrowness is deliberate. AIR can widen the adapter only when subsequent
+AIR-owned execution/evidence justifies the wider contract.
+
+Stage 8E slice-1 falsification:
+
+1. frozen Prompt 7 oracle semantics validate;
+2. exact operation order matches retained source evidence;
+3. schedule-before-noise ordering is explicit;
+4. conditioning and latent values can share semantic kind while retaining
+   distinct identities;
+5. semantic contract has no device/dtype/layout fields;
+6. changed seed/schedule/order is rejected;
+7. accidental value-ID aliasing is rejected;
+8. all existing contracts remain green.

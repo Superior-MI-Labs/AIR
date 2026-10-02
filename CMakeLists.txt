@@ -38,6 +38,7 @@ add_library(air_core
     src/model/architecture_adapter.cpp
     src/model/prepared_model.cpp
     src/model/qwen2_contract.cpp
+    src/model/flux2_klein_semantics.cpp
     src/runtime/execution.cpp
     src/runtime/decision.cpp
     src/runtime/hardware.cpp
@@ -235,6 +236,10 @@ air_enable_warnings(air-protocol-tests)
     target_link_libraries(air-invocation-contract-tests PRIVATE AIR::core)
     air_enable_warnings(air-invocation-contract-tests)
 
+    add_executable(air-flux2-semantic-contract-tests tests/flux2_semantic_contract_tests.cpp)
+    target_link_libraries(air-flux2-semantic-contract-tests PRIVATE AIR::core)
+    air_enable_warnings(air-flux2-semantic-contract-tests)
+
     add_test(NAME air-core-tests COMMAND air-core-tests)
     add_test(NAME air-reference-tests COMMAND air-reference-tests)
     add_test(NAME air-cuda-contract-tests COMMAND air-cuda-contract-tests)
@@ -251,6 +256,7 @@ air_enable_warnings(air-protocol-tests)
     add_test(NAME air-workload-contract-tests COMMAND air-workload-contract-tests)
     add_test(NAME air-resource-contract-tests COMMAND air-resource-contract-tests)
     add_test(NAME air-invocation-contract-tests COMMAND air-invocation-contract-tests)
+    add_test(NAME air-flux2-semantic-contract-tests COMMAND air-flux2-semantic-contract-tests)
 endif()
 
 
