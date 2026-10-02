@@ -176,6 +176,41 @@ struct ExecutionPlan {
 // executable graph. The production backend path remains unchanged in Prompt 5B.
 inline constexpr std::uint32_t execution_graph_schema_version = 3U;
 
+enum class ExecutionGraphNodeKind {
+    compute_region = 0,
+    transfer_region,
+    synchronization_region,
+};
+
+enum class ExecutionComputeRegionKind {
+    model = 0,
+    device_greedy_selection,
+    target_logprob_reduction,
+};
+
+enum class ExecutionTransferDirection {
+    host_to_device = 0,
+    device_to_host,
+};
+
+enum class ExecutionPayloadKind {
+    input_tokens = 0,
+    full_logits,
+    greedy_result,
+    target_tokens,
+    target_logprob_results,
+};
+
+enum class ExecutionSynchronizationKind {
+    backend_stream_wait = 0,
+};
+
+[[nodiscard]] const char* to_string(ExecutionGraphNodeKind kind) noexcept;
+[[nodiscard]] const char* to_string(ExecutionComputeRegionKind kind) noexcept;
+[[nodiscard]] const char* to_string(ExecutionTransferDirection direction) noexcept;
+[[nodiscard]] const char* to_string(ExecutionPayloadKind payload) noexcept;
+[[nodiscard]] const char* to_string(ExecutionSynchronizationKind kind) noexcept;
+
 struct ExecutionImplementationBinding {
     QualifiedOperationSite site{QualifiedOperationSite::prefill_transformer_block_linear};
     std::optional<QuantizedLinearExecutionKind> linear;
