@@ -831,14 +831,19 @@ void test_service_semantic_registry_snapshot() {
     const auto snapshot =
         service.value()->semantic_registry_snapshot();
     check(
-        snapshot.implementations.size() == 2U &&
-        snapshot.packages.size() == 1U,
-        "InferenceService owns one read-only semantic registry snapshot");
-    if (!snapshot.packages.empty()) {
+        snapshot.is_ok(),
+        "InferenceService semantic registry snapshot derives");
+    if (snapshot) {
         check(
-            snapshot.packages.front().resolved_count == 2U &&
-            snapshot.packages.front().missing_count == 9U,
-            "service semantic snapshot retains FLUX implementation debt");
+            snapshot.value().implementations.size() == 2U &&
+            snapshot.value().packages.size() == 1U,
+            "InferenceService owns one read-only semantic registry snapshot");
+        if (!snapshot.value().packages.empty()) {
+            check(
+                snapshot.value().packages.front().resolved_count == 2U &&
+                snapshot.value().packages.front().missing_count == 9U,
+                "service semantic snapshot retains FLUX implementation debt");
+        }
     }
     service.value()->shutdown();
 }
