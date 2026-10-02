@@ -425,11 +425,19 @@ void handle_request(tcp::socket socket,
     }
     if (request.method() == http::verb::get &&
         target == "/semantics") {
+        auto semantics = service.semantic_registry_snapshot();
+        if (!semantics) {
+            write_error(
+                socket,
+                http::status::internal_server_error,
+                semantics.status().message());
+            return;
+        }
         write_text(
             socket,
             http::status::ok,
             air::server::semantic_registry_json(
-                service.semantic_registry_snapshot()));
+                semantics.value()));
         return;
     }
     if (request.method() == http::verb::get && target == "/metrics") {
