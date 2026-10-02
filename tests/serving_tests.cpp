@@ -819,7 +819,32 @@ void test_adaptive_manifest_is_consumed_by_service() {
 
 } // namespace
 
+void test_service_semantic_registry_snapshot() {
+    auto service = air::InferenceService::create(
+        tiny_model(),
+        air::BackendPreference::reference);
+    check(
+        service.is_ok(),
+        "service semantic registry fixture starts");
+    if (!service) return;
+
+    const auto snapshot =
+        service.value()->semantic_registry_snapshot();
+    check(
+        snapshot.implementations.size() == 2U &&
+        snapshot.packages.size() == 1U,
+        "InferenceService owns one read-only semantic registry snapshot");
+    if (!snapshot.packages.empty()) {
+        check(
+            snapshot.packages.front().resolved_count == 2U &&
+            snapshot.packages.front().missing_count == 9U,
+            "service semantic snapshot retains FLUX implementation debt");
+    }
+    service.value()->shutdown();
+}
+
 int main() {
+    test_service_semantic_registry_snapshot();
     test_paged_kv_fork_and_cow();
     test_service_scheduler_prefix_and_streaming();
     test_execution_observation_modes_and_bounds();

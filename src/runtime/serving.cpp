@@ -1,4 +1,5 @@
 #include "air/serving.hpp"
+#include "air/flux2_klein_extension.hpp"
 
 #include "air/format.hpp"
 #include "air/manifest.hpp"
@@ -296,6 +297,9 @@ struct InferenceService::Impl : ExecutionObservationSink {
     std::atomic<std::uint64_t> dropped_execution_graph_observations{0};
     std::uint64_t execution_graph_derivation_failures{0};
     std::string last_execution_graph_derivation_error;
+
+    SemanticImplementationRegistry semantic_registry;
+    std::vector<SemanticPackageDeclaration> semantic_packages;
 
     std::filesystem::path event_log_path;
     std::ofstream event_log;
@@ -2805,6 +2809,16 @@ Result<std::unique_ptr<InferenceService>> InferenceService::create(
     }
 
     auto impl = std::make_unique<Impl>(scheduler, execution);
+
+    if (auto status =
+            register_flux2_klein_builtin_semantics(
+                impl->semantic_registry);
+        !status) {
+        return status;
+    }
+    impl->semantic_packages.push_back(
+        flux2_klein_semantic_package_declaration());
+
     impl->model = std::move(model);
     auto tokenizer = create_tokenizer(impl->model->tokenizer_handle());
     if (!tokenizer) return tokenizer.status();
@@ -3361,6 +3375,14 @@ ExecutionGraphTimelineSnapshot InferenceService::execution_graph_timeline(
             static_cast<std::ptrdiff_t>(count),
         impl_->execution_graph_observations.end());
     return out;
+}
+
+SemanticRegistrySnapshot InferenceService::semantic_registry_snapshot() const {
+    auto snapshot = snapshot_semantic_registry(
+        impl_->semantic_registry,
+        impl_->semantic_packages);
+    if (!snapshot) return {};
+    return std::move(snapshot).value();
 }
 
 const ModelDefinition& InferenceService::model() const noexcept { return *impl_->model; }

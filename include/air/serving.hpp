@@ -1,6 +1,7 @@
 #pragma once
 
 #include "air/generation.hpp"
+#include "air/semantic_extension.hpp"
 #include "air/decision.hpp"
 #include "air/execution.hpp"
 #include "air/model.hpp"
@@ -337,6 +338,7 @@ public:
         std::size_t limit = 256) const;
     [[nodiscard]] ExecutionGraphTimelineSnapshot execution_graph_timeline(
         std::size_t limit = 128) const;
+    [[nodiscard]] SemanticRegistrySnapshot semantic_registry_snapshot() const;
     [[nodiscard]] const ModelDefinition& model() const noexcept;
     [[nodiscard]] std::string backend_name() const;
     void shutdown() noexcept;

@@ -1,6 +1,7 @@
 #include "air/semantic_extension.hpp"
 #include "air/flux2_klein_extension.hpp"
 
+#include <array>
 #include <concepts>
 #include <iostream>
 #include <memory>
