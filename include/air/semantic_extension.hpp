@@ -92,6 +92,36 @@ struct SemanticPackageDeclaration {
     std::vector<SemanticRequirement> requirements;
 };
 
+struct RegisteredSemanticImplementation {
+    SemanticImplementationDescriptor descriptor;
+    TrustedImplementationOrigin origin{
+        TrustedImplementationOrigin::built_in};
+};
+
+struct SemanticRequirementStatus {
+    SemanticRequirement requirement;
+    std::optional<SemanticImplementationDescriptor> implementation;
+    std::optional<TrustedImplementationOrigin> origin;
+    std::optional<MissingSemantic> missing;
+
+    [[nodiscard]] bool resolved() const noexcept {
+        return implementation.has_value() && origin.has_value() &&
+            !missing.has_value();
+    }
+};
+
+struct SemanticPackageStatus {
+    std::string package_id;
+    std::vector<SemanticRequirementStatus> requirements;
+    std::uint32_t resolved_count{0};
+    std::uint32_t missing_count{0};
+};
+
+struct SemanticRegistrySnapshot {
+    std::vector<RegisteredSemanticImplementation> implementations;
+    std::vector<SemanticPackageStatus> packages;
+};
+
 [[nodiscard]] Status validate_semantic_requirement(
     const SemanticRequirement& requirement);
 
@@ -113,6 +143,9 @@ public:
     [[nodiscard]] std::vector<SemanticImplementationDescriptor>
     descriptors() const;
 
+    [[nodiscard]] std::vector<RegisteredSemanticImplementation>
+    registered_implementations() const;
+
 private:
     struct Entry {
         std::shared_ptr<const SemanticImplementation> implementation;
@@ -123,5 +156,10 @@ private:
 
     std::vector<Entry> entries_;
 };
+
+[[nodiscard]] Result<SemanticRegistrySnapshot>
+snapshot_semantic_registry(
+    const SemanticImplementationRegistry& registry,
+    std::span<const SemanticPackageDeclaration> packages);
 
 } // namespace air

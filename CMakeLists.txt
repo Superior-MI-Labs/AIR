@@ -39,6 +39,7 @@ add_library(air_core
     src/model/prepared_model.cpp
     src/model/qwen2_contract.cpp
     src/model/flux2_klein_semantics.cpp
+    src/model/flux2_klein_extension.cpp
     src/runtime/execution.cpp
     src/runtime/decision.cpp
     src/runtime/hardware.cpp

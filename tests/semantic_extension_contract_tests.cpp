@@ -1,4 +1,5 @@
 #include "air/semantic_extension.hpp"
+#include "air/flux2_klein_extension.hpp"
 
 #include <concepts>
 #include <iostream>
@@ -223,7 +224,61 @@ void test_invalid_or_duplicate_data_is_rejected() {
 
 } // namespace
 
+void test_flux2_package_exposes_resolved_and_missing_semantics() {
+    air::SemanticImplementationRegistry registry;
+    check(
+        air::register_flux2_klein_builtin_semantics(registry).is_ok(),
+        "FLUX.2 built-in deterministic semantics register");
+
+    const auto package =
+        air::flux2_klein_semantic_package_declaration();
+    const std::array packages{package};
+    auto snapshot =
+        air::snapshot_semantic_registry(registry, packages);
+    check(snapshot.is_ok(), "FLUX.2 semantic registry snapshot derives");
+    if (!snapshot) return;
+
+    check(
+        snapshot.value().implementations.size() == 2U &&
+        snapshot.value().packages.size() == 1U,
+        "snapshot exposes two AIR-owned FLUX semantic implementations");
+    if (!snapshot.value().packages.empty()) {
+        const auto& status = snapshot.value().packages.front();
+        check(
+            status.package_id == "flux2-klein.oracle-v1" &&
+            status.requirements.size() == 11U &&
+            status.resolved_count == 2U &&
+            status.missing_count == 9U,
+            "FLUX package truthfully exposes implemented versus missing semantic surface");
+
+        bool schedule_resolved = false;
+        bool denoiser_missing = false;
+        for (const auto& requirement : status.requirements) {
+            if (requirement.requirement.semantic_id ==
+                "flux2-klein.derive-schedule") {
+                schedule_resolved =
+                    requirement.resolved() &&
+                    requirement.implementation &&
+                    requirement.implementation->implementation_id ==
+                        "air.flux2-klein.derive-schedule";
+            }
+            if (requirement.requirement.semantic_id ==
+                "flux2-klein.denoiser") {
+                denoiser_missing =
+                    !requirement.resolved() &&
+                    requirement.missing &&
+                    requirement.missing->reason ==
+                        air::MissingSemanticReason::not_registered;
+            }
+        }
+        check(
+            schedule_resolved && denoiser_missing,
+            "snapshot distinguishes executable deterministic semantics from missing model component semantics");
+    }
+}
+
 int main() {
+    test_flux2_package_exposes_resolved_and_missing_semantics();
     test_unknown_requirement_is_structured_missing_semantic();
     test_trusted_test_extension_registers_without_core_edit();
     test_version_mismatch_is_not_guessed();

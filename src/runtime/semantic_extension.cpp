@@ -217,3 +217,68 @@ SemanticImplementationRegistry::descriptors() const {
 }
 
 } // namespace air
+
+
+namespace air {
+
+std::vector<RegisteredSemanticImplementation>
+SemanticImplementationRegistry::registered_implementations() const {
+    std::vector<RegisteredSemanticImplementation> out;
+    out.reserve(entries_.size());
+    for (const auto& entry : entries_) {
+        out.push_back(
+            RegisteredSemanticImplementation{
+                entry.descriptor,
+                entry.origin,
+            });
+    }
+    return out;
+}
+
+Result<SemanticRegistrySnapshot> snapshot_semantic_registry(
+    const SemanticImplementationRegistry& registry,
+    std::span<const SemanticPackageDeclaration> packages) {
+    SemanticRegistrySnapshot snapshot;
+    snapshot.implementations =
+        registry.registered_implementations();
+    snapshot.packages.reserve(packages.size());
+
+    for (const auto& package : packages) {
+        const auto package_status =
+            validate_semantic_package_declaration(package);
+        if (!package_status) return package_status;
+
+        const auto resolutions = registry.resolve(package);
+        if (resolutions.size() != package.requirements.size()) {
+            return Status::invalid_state(
+                "semantic registry package resolution did not preserve requirement cardinality");
+        }
+
+        SemanticPackageStatus status;
+        status.package_id = package.package_id;
+        status.requirements.reserve(package.requirements.size());
+
+        for (std::size_t i = 0; i < package.requirements.size(); ++i) {
+            SemanticRequirementStatus requirement_status;
+            requirement_status.requirement = package.requirements[i];
+            const auto& resolution = resolutions[i];
+            if (resolution.resolved()) {
+                requirement_status.implementation =
+                    resolution.implementation->descriptor();
+                requirement_status.origin = resolution.origin;
+                ++status.resolved_count;
+            } else {
+                requirement_status.missing = resolution.missing;
+                ++status.missing_count;
+            }
+            status.requirements.push_back(
+                std::move(requirement_status));
+        }
+
+        snapshot.packages.push_back(std::move(status));
+    }
+
+    return snapshot;
+}
+
+} // namespace air
