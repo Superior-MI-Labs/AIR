@@ -791,10 +791,36 @@ It carries semantic identity/configuration only:
 
 It contains no storage dtype/layout or physical placement/policy.
 
+Stage 8E slice-1 source:
+
+`1c6c8d52110886948a5ea98f007609c3fa0af621`
+
+Adaptive CPU preflight `36947237089`: SUCCESS.
+
+Stage 8E slice 1 is CLOSED / QUALIFIED.
+
+### Stage 8F current
+
+Stage 8F now projects the frozen FLUX.2 semantic adapter into an ordered
+component/resource physical plan under AIR's existing identified-resource
+authority.
+
+The three current component phases are:
+
+- conditioning -> exact text-encoder artifact resource;
+- iterative denoise -> exact denoiser artifact resource;
+- decode image -> exact VAE artifact resource.
+
+Only denoise carries four iteration work units. Placement is supplied, not
+selected by the projection.
+
+Prompt 7 staged-MB observations are not converted to AIR resident-byte
+requirements. Expected component device bytes remain unknown.
+
 Immediate next action:
 
-- exact-head Adaptive CPU preflight for Stage 8E slice 1;
-- require the frozen oracle semantic contract and all prior contracts to pass;
-- if green, close the semantic characterization slice and move to Stage 8F
-  component/resource physical planning under the already-qualified identified
-  resource authority.
+- exact-head Adaptive CPU preflight for Stage 8F slice 1;
+- require resource identity, semantic handoff, iterative work, and
+  no-fabricated-byte/transition tests to pass;
+- if green, close the component-plan slice and begin ExecutionGraph R1
+  projection of both qualified workloads.

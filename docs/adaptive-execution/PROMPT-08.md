@@ -1484,3 +1484,85 @@ Stage 8E slice-1 falsification:
 6. changed seed/schedule/order is rejected;
 7. accidental value-ID aliasing is rejected;
 8. all existing contracts remain green.
+
+
+## Stage 8E slice 1 CPU qualification
+
+Source:
+
+`1c6c8d52110886948a5ea98f007609c3fa0af621`
+
+Adaptive CPU preflight:
+
+`36947237089` -> SUCCESS.
+
+Stage 8E slice 1 is CLOSED / QUALIFIED.
+
+The current claim remains characterization-only: AIR now has an adapter-owned
+typed representation of the frozen FLUX.2 Klein semantics. It does not yet
+execute those semantics.
+
+## Stage 8F slice 1 - FLUX.2 component/resource physical plan
+
+Status: CURRENT
+
+Stage 8F reuses the existing Stage 8B identified prepared-resource authority
+without adding an image-specific resource type.
+
+Exact artifact-qualified resource identities are used for:
+
+- text encoder;
+- denoiser;
+- VAE.
+
+The physical component plan has three ordered phases:
+
+1. conditioning:
+   - requires exact text-encoder resource identity;
+   - consumes prompt-text identity;
+   - produces positive/negative conditioning identities;
+2. iterative denoise:
+   - depends on conditioning;
+   - requires exact denoiser resource identity;
+   - carries the Stage 8D iterative invocation:
+     four iterations, one active instance;
+   - consumes latent/noise/conditioning/sigma identities;
+   - produces sampled-latent identity;
+3. decode image:
+   - depends on denoise;
+   - requires exact VAE resource identity;
+   - consumes sampled-latent identity;
+   - produces decoded-image identity.
+
+Placement is supplied as an input to the deterministic projection. This
+function is not a planner and does not select hardware.
+
+Important evidence discipline:
+
+- Prompt 7 staged sizes `3669 MB / 3882 MB / 160 MB` remain external runtime
+  observations;
+- Stage 8F leaves `expected_device_bytes` unknown for all three AIR prepared
+  resource requirements;
+- it does not convert those MB numbers to bytes;
+- it does not assert all three components are simultaneously resident;
+- it does not assert load/eviction duration;
+- it does not assert stream assignment, overlap, offload, or per-layer
+  residency.
+
+The component plan deliberately does not claim end-to-end producers for
+schedule/noise/latent initialization yet. Those values are referenced from the
+qualified semantic adapter; Stage 8H owns AIR execution of meaningful portions.
+
+Stage 8F slice-1 falsification:
+
+1. exact artifact-qualified component identities use existing
+   `PreparedResourceRequirement`;
+2. expected resident bytes remain unknown;
+3. only the denoiser phase carries iteration work;
+4. phase dependencies are deterministic;
+5. semantic output identities are stable adapter-owned references;
+6. resource-ID drift is rejected;
+7. invented staged-MB -> resident-byte conversion is rejected;
+8. no transition/residency measurement fields are fabricated;
+9. missing placement is rejected;
+10. all prior contracts remain green.

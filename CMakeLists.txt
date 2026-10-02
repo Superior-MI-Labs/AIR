@@ -52,6 +52,7 @@ add_library(air_core
     src/runtime/work_unit.cpp
     src/runtime/invocation.cpp
     src/runtime/resource.cpp
+    src/runtime/flux2_klein_plan.cpp
     src/runtime/verification.cpp
     src/runtime/manifest.cpp
     src/runtime/qualification.cpp
@@ -240,6 +241,10 @@ air_enable_warnings(air-protocol-tests)
     target_link_libraries(air-flux2-semantic-contract-tests PRIVATE AIR::core)
     air_enable_warnings(air-flux2-semantic-contract-tests)
 
+    add_executable(air-flux2-plan-contract-tests tests/flux2_plan_contract_tests.cpp)
+    target_link_libraries(air-flux2-plan-contract-tests PRIVATE AIR::core)
+    air_enable_warnings(air-flux2-plan-contract-tests)
+
     add_test(NAME air-core-tests COMMAND air-core-tests)
     add_test(NAME air-reference-tests COMMAND air-reference-tests)
     add_test(NAME air-cuda-contract-tests COMMAND air-cuda-contract-tests)
@@ -257,6 +262,7 @@ air_enable_warnings(air-protocol-tests)
     add_test(NAME air-resource-contract-tests COMMAND air-resource-contract-tests)
     add_test(NAME air-invocation-contract-tests COMMAND air-invocation-contract-tests)
     add_test(NAME air-flux2-semantic-contract-tests COMMAND air-flux2-semantic-contract-tests)
+    add_test(NAME air-flux2-plan-contract-tests COMMAND air-flux2-plan-contract-tests)
 endif()
 
 
