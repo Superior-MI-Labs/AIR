@@ -13,6 +13,11 @@ on_error() {
     echo "failed_stage=$STAGE" >&2
     echo "exit_code=$rc" >&2
     echo "build_dir=$OUT" >&2
+    if [[ -f "$OUT/web-preflight.log" ]]; then
+        echo >&2
+        echo "=== tail: web-preflight.log ===" >&2
+        tail -n 160 "$OUT/web-preflight.log" >&2
+    fi
     if [[ -f "$OUT/research-compat-configure.log" ]]; then
         echo >&2
         echo "=== tail: research-compat-configure.log ===" >&2
@@ -58,6 +63,9 @@ done < <(find scripts -maxdepth 1 -type f -name '*.py' -print | sort)
 STAGE="clean-build-dir"
 rm -rf "$OUT"
 mkdir -p "$OUT"
+
+STAGE="web-preflight"
+bash "$ROOT/scripts/preflight-web.sh" | tee "$OUT/web-preflight.log"
 
 STAGE="research-compat-configure"
 cmake -S "$ROOT" -B "$OUT/research-compat" \

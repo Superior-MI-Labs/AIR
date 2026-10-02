@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="air-web-version" content="3.2.0">
+  <meta name="air-web-version" content="3.3.0">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta name="color-scheme" content="dark">
-  <title>AIR · Superior MI Labs</title>
+  <title>AIR Control Room · Superior MI Labs</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23091420%22/><path d=%22M10 38c9-12 17-12 26 0 7 9 13 9 18 0%22 fill=%22none%22 stroke=%22%2358b8e8%22 stroke-width=%225%22 stroke-linecap=%22round%22/><path d=%22M44 15v16M36 23h16%22 stroke=%22%23c88a55%22 stroke-width=%224%22 stroke-linecap=%22round%22/></svg>">
-  <link rel="stylesheet" href="/app/styles-v320.css">
+  <link rel="stylesheet" href="/app/styles-v330.css">
   <script>
-    window.__AIR_WEB_BOOT = { version: '3.2.0', started: false };
+    window.__AIR_WEB_BOOT = { version: '3.3.0', started: false };
     window.addEventListener('error', function (event) {
       var target = document.getElementById('boot-status');
       if (target) {
@@ -20,29 +20,33 @@
       }
     });
   </script>
-  <script defer src="/app/core-v320.js"></script>
-  <script defer src="/app/api-v320.js"></script>
+  <script defer src="/app/core-v330.js"></script>
+  <script defer src="/app/api-v330.js"></script>
   <script defer src="/app/views/home-v320.js"></script>
   <script defer src="/app/views/playground-v320.js"></script>
   <script defer src="/app/views/decision-v320.js"></script>
   <script defer src="/app/views/models-v320.js"></script>
+  <script defer src="/app/views/machine-v330.js"></script>
   <script defer src="/app/views/runtime-v320.js"></script>
+  <script defer src="/app/views/plan-v330.js"></script>
+  <script defer src="/app/views/execution-v330.js"></script>
+  <script defer src="/app/views/semantics-v330.js"></script>
   <script defer src="/app/views/diagnostics-v320.js"></script>
   <script defer src="/app/views/metrics-v320.js"></script>
   <script defer src="/app/views/setup-v320.js"></script>
   <script defer src="/app/views/about-v320.js"></script>
-  <script defer src="/app/main-v320.js"></script>
+  <script defer src="/app/main-v330.js"></script>
 </head>
 <body>
-  <noscript><div class="fatal">AIR Command Center requires JavaScript.</div></noscript>
+  <noscript><div class="fatal">AIR Control Room requires JavaScript.</div></noscript>
   <div id="app">
     <div class="boot-screen">
       <div class="brand-mark" aria-hidden="true"><span class="wave">≈</span><span class="plus">+</span></div>
       <div>
         <div class="eyebrow">SUPERIOR MI LABS</div>
         <h1>AIR</h1>
-        <p>Adaptive Inference Runtime</p>
-        <div id="boot-status" class="boot-status">Loading application shell…</div>
+        <p>Adaptive Execution Control Room</p>
+        <div id="boot-status" class="boot-status">Loading Control Room…</div>
       </div>
     </div>
   </div>
