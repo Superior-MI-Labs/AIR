@@ -1676,3 +1676,32 @@ Required qualification:
 4. Qwen prepared-resource graph reference;
 5. protocol inspection fields;
 6. focused CUDA graph/evidence replay before iterative graph admission.
+
+
+## Stage 8G slice 1 first preflight result
+
+Source:
+
+`cbed5e03725978311d8fcb2f8f9ded3d6e925657`
+
+Adaptive CPU preflight:
+
+`36958959777` -> FAIL at cpu-build.
+
+Classification:
+
+BUILD-GRAPH / HEADER EXTRACTION DEFECT.
+
+The invocation-vocabulary extraction removed a contiguous declaration block
+that also contained ExecutionGraph-owned node/transfer/payload/synchronization
+enums. The compiler therefore correctly rejected execution.cpp.
+
+No runtime behavior, graph semantics, or architectural assumption was tested by
+that failure.
+
+Correction:
+
+- restore graph-owned enum declarations and their inspection functions in
+  `execution.hpp`;
+- keep physical invocation/workload vocabulary in `invocation.hpp`;
+- do not duplicate ownership.
