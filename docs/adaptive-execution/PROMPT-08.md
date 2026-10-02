@@ -1801,3 +1801,25 @@ FLUX.2 projection:
 
 Stage 8G slice-2 qualification is CPU/contract qualification only until Stage
 8H owns executable component implementations.
+
+
+## Stage 8G slice 2 first preflight result
+
+Source:
+
+`8cea63608d36fa51b53dc0d6883a5c976be23314`
+
+Adaptive CPU preflight: FAIL at cpu-build.
+
+Classification:
+
+TEST FIXTURE INCLUDE / ENUM NAME DEFECT.
+
+The core library, including shared graph finalization and the FLUX graph
+projection, built successfully. The protocol test fixture:
+
+- did not include `air/flux2_klein_plan.hpp`;
+- used the nonexistent evidence-state spelling `unobserved` instead of the
+  existing `not_evaluated`.
+
+No production implementation change is justified by this failure.
