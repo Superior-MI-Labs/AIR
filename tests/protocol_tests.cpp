@@ -255,13 +255,25 @@ int main() {
                   std::string::npos &&
               graph_body.find("\"evidence_status\":\"concordant\"") !=
                   std::string::npos &&
-              graph_body.find("\"identity\":\"execution-graph:r0:") !=
+              graph_body.find("\"schema_version\":3") !=
+                  std::string::npos &&
+              graph_body.find("\"identity\":\"execution-graph:r1:") !=
+                  std::string::npos &&
+              graph_body.find("\"workload_kind\":\"autoregressive-tokens\"") !=
                   std::string::npos &&
               graph_body.find("\"invocation\":\"prefill-single\"") !=
                   std::string::npos &&
               graph_body.find("\"work_unit_kind\":\"tokens\"") !=
                   std::string::npos &&
               graph_body.find("\"hardware_resource_id\":\"cpu0\"") !=
+                  std::string::npos &&
+              graph_body.find("\"item_count\":0") !=
+                  std::string::npos &&
+              graph_body.find("\"prepared_resource_ids\":[]") !=
+                  std::string::npos &&
+              graph_body.find("\"input_value_ids\":[]") !=
+                  std::string::npos &&
+              graph_body.find("\"output_value_ids\":[]") !=
                   std::string::npos &&
               graph_body.find("\"request_id\":11") !=
                   std::string::npos,
