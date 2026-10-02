@@ -3377,12 +3377,11 @@ ExecutionGraphTimelineSnapshot InferenceService::execution_graph_timeline(
     return out;
 }
 
-SemanticRegistrySnapshot InferenceService::semantic_registry_snapshot() const {
-    auto snapshot = snapshot_semantic_registry(
+Result<SemanticRegistrySnapshot>
+InferenceService::semantic_registry_snapshot() const {
+    return snapshot_semantic_registry(
         impl_->semantic_registry,
         impl_->semantic_packages);
-    if (!snapshot) return {};
-    return std::move(snapshot).value();
 }
 
 const ModelDefinition& InferenceService::model() const noexcept { return *impl_->model; }
