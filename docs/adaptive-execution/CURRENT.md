@@ -1189,3 +1189,37 @@ Immediate next action:
 - exact-head hosted preflight + Prompt 11 + Prompt 12 release qualifier;
 - fix only reproduced release-blocking defects;
 - when green, record the exact READY_TO_TAG commit and publication status.
+
+
+### Prompt 12 hosted release defect 1
+
+Freeze source:
+
+`477a7585dc31a9e9750416f4982b681a32100672`
+
+GitHub Actions:
+
+`37146592863` -> FAIL in the hosted 0.11 release-candidate step.
+
+Prior gates on the same source passed:
+
+- adaptive Web/C++ preflight;
+- 19/19 tests;
+- Prompt 11 installed-product hardening.
+
+The release qualifier stopped during its static documentation assertions before
+running its own build/hardening/package phases.
+
+Classification: RELEASE PROVENANCE WORDING.
+
+The qualifier requires the final-source hardware limitation to identify Qwen
+explicitly. Release notes said only "post-R1 CUDA concordance".
+
+Correction:
+
+- release notes now state
+  "post-R1 Qwen CUDA graph concordance on the final exact 0.11 source";
+- the qualifier prints `release_static_contract_checks=PASS` after all static
+  release-document assertions.
+
+No runtime, planner, graph, semantic, or evidence claim was weakened.

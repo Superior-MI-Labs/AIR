@@ -45,6 +45,7 @@ grep -Fq 'Adaptive Execution Foundation' docs/RELEASE-0.11.0.md
 grep -Fq 'post-R1 Qwen CUDA graph concordance' docs/RELEASE-0.11.0.md
 grep -Fq 'not implemented / missing semantic' docs/SUPPORT_MATRIX.md
 grep -Fq 'ExecutionGraph R1 schema version is `3`' docs/PUBLIC_CONTRACTS.md
+echo "release_static_contract_checks=PASS"
 
 mkdir -p "$OUT"
 {

@@ -82,7 +82,7 @@ The development NVIDIA laptop became unavailable during final RC hardening.
 
 Therefore this release does not claim:
 
-- post-R1 CUDA concordance on the final exact 0.11 source;
+- post-R1 Qwen CUDA graph concordance on the final exact 0.11 source;
 - final-source NVIDIA memory/thermal/power qualification;
 - AIR-owned FLUX text-encoder/denoiser/VAE execution;
 - FLUX image parity;
