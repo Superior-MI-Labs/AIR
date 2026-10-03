@@ -1,6 +1,6 @@
 # Prompt 12 — AIR 0.11.0 Hosted Release Qualification
 
-Status: CURRENT
+Status: CLOSED / HOSTED-QUALIFIED / PUBLICATION PENDING
 Program: AIR 0.11.0 Adaptive Execution Foundation
 
 ## Purpose
@@ -80,3 +80,52 @@ manifest/checksums/release notes.
 
 Prompt 12 closes only after the exact release source is hosted-qualified and
 the publication state is recorded truthfully.
+
+
+## Hosted release-candidate qualification
+
+First complete hosted release-candidate source:
+
+`d7dbe6f8dbdd7a4a867573225bf5da0740bd6b5c`
+
+GitHub Actions:
+
+`37146788192` -> SUCCESS.
+
+Required markers:
+
+- `release_static_contract_checks=PASS`;
+- `AIR_WEB_PREFLIGHT=PASS`;
+- 19/19 CTests PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`;
+- `PROMPT11_HOSTED_RC_HARDENING=PASS`;
+- installed AIR executables report `0.11.0`;
+- installed CMake package reports `0.11.0`;
+- `FINAL_HOSTED_RELEASE_CANDIDATE=PASS`;
+- `READY_TO_TAG_WITH_LIMITATIONS=v0.11.0`;
+- `GPU_FINAL_SOURCE_QUALIFIED=false`;
+- `FLUX2_DEVICE_EXECUTION_QUALIFIED=false`;
+- `HUMAN_USABILITY_QUALIFIED=false`.
+
+Generated archive checksums for that candidate:
+
+- source:
+  `daf383fe322000356c3ed74f8a28c8a353861cfbd0daff3e7c8dae73f9b21f9f`;
+- hosted qualification evidence:
+  `16bc7d03291545f2477cc880a977f78adb74a140dafb7c56c400190efde85ad7`;
+- release manifest:
+  `3d9fc7cbdfa71749002a9574f2b0d0ac3f9586cb7294c49822dfb39f76dcae2d`.
+
+GitHub Actions artifact:
+
+- name: `AIR-0.11.0-hosted-release-candidate`;
+- artifact ID: `11282591813`;
+- uploaded ZIP SHA-256:
+  `1e40242c2a35b57721aad222609a1ce2e887e891f9fa6ecd38ce56b10308809e`.
+
+This closure record changes only release documentation. The commit containing
+this record must itself pass the identical Prompt 12 hosted release workflow
+before it is used as the `v0.11.0` tag target.
+
+Publication is still pending. No tag or GitHub Release is claimed until it
+exists publicly.

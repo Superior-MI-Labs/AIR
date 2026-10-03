@@ -41,6 +41,19 @@ Those results remain retained research evidence.
 
 They do not establish final-source post-R1 CUDA qualification.
 
+### Hosted release-candidate gate
+
+The first complete candidate gate passed on
+`d7dbe6f8dbdd7a4a867573225bf5da0740bd6b5c` in GitHub Actions run
+`37146788192`.
+
+That run generated and uploaded the deterministic source/evidence bundle under
+artifact ID `11282591813`.
+
+The final tag target is the documentation-complete successor commit after it
+passes the same exact-source workflow. This avoids changing source after
+qualification merely to record qualification.
+
 ### Explicit 0.11 evidence debt
 
 The 0.11 release manifest records these as not qualified:

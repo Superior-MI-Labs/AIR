@@ -1223,3 +1223,43 @@ Correction:
   release-document assertions.
 
 No runtime, planner, graph, semantic, or evidence claim was weakened.
+
+
+### Prompt 12 hosted candidate pass
+
+Candidate source:
+
+`d7dbe6f8dbdd7a4a867573225bf5da0740bd6b5c`
+
+GitHub Actions:
+
+`37146788192` -> SUCCESS.
+
+Qualification:
+
+- base adaptive preflight PASS;
+- Prompt 11 hosted installed-product hardening PASS;
+- release static contract checks PASS;
+- installed version surfaces all 0.11.0;
+- deterministic source/evidence packaging PASS;
+- release manifest/checksums PASS;
+- release-candidate artifact upload PASS;
+- `FINAL_HOSTED_RELEASE_CANDIDATE=PASS`;
+- `READY_TO_TAG_WITH_LIMITATIONS=v0.11.0`.
+
+Artifact:
+
+- ID `11282591813`;
+- uploaded ZIP SHA-256
+  `1e40242c2a35b57721aad222609a1ce2e887e891f9fa6ecd38ce56b10308809e`.
+
+Explicit false qualification fields:
+
+- final-source GPU qualification: false;
+- FLUX.2 device execution qualification: false;
+- human usability qualification: false.
+
+This commit adds only the qualification closure/provenance record. It must pass
+the same full hosted workflow before becoming the final v0.11.0 tag target.
+
+Publication status: NOT YET TAGGED / NOT YET PUBLISHED.
