@@ -1095,3 +1095,41 @@ Immediate next action:
 - fix only reproduced defects;
 - freeze unresolved post-R1 CUDA / FLUX-device / human-usability evidence as
   explicit Prompt 12 release-candidate limitations.
+
+
+### Prompt 11 hosted hardening defect 1
+
+Failing source:
+
+`c87c1fc7514c9a68213e06e710d62c8893cefe18`
+
+Hosted hardening run:
+
+`36986832726` -> FAIL.
+
+All canonical preflight checks and 19/19 C++ tests passed before the installed
+product harness reproduced one HTTP contract defect:
+
+- POST `/generate` with an extra native field returned HTTP 501;
+- the installed-product contract requires HTTP 400 for an invalid native AIR
+  request shape.
+
+Root cause:
+
+`reject_unknown_fields()` classified every unknown field as
+`ErrorCode::unsupported`.
+
+Correction preserves the distinction between API surfaces:
+
+- native AIR `/generate` unknown fields -> `invalid_argument` -> HTTP 400;
+- OpenAI-compatibility fields recognized as unavailable capabilities continue
+  to use `unsupported` -> HTTP 501;
+- recognized unsupported values such as `n != 1` remain HTTP 501.
+
+A protocol characterization now locks the native unknown-field classification.
+
+Immediate next action:
+
+- exact-head hosted adaptive preflight;
+- rerun the installed-product Prompt 11 hardening harness;
+- fix only additional reproduced RC defects.
