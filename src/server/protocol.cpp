@@ -72,12 +72,25 @@ std::atomic<std::uint64_t> next_response_id{1};
     return false;
 }
 
+enum class UnknownFieldDisposition {
+    invalid_request = 0,
+    unsupported_capability,
+};
+
 [[nodiscard]] Status reject_unknown_fields(
-    const json::object& object, std::initializer_list<std::string_view> allowed) {
+    const json::object& object,
+    std::initializer_list<std::string_view> allowed,
+    UnknownFieldDisposition disposition =
+        UnknownFieldDisposition::unsupported_capability) {
     for (const auto& item : object) {
         if (!allowed_key(item.key(), allowed)) {
-            return Status::unsupported("AIR does not implement request field: " +
-                                       std::string(item.key()));
+            const auto message =
+                "AIR does not implement request field: " +
+                std::string(item.key());
+            if (disposition == UnknownFieldDisposition::invalid_request) {
+                return Status::invalid_argument(message);
+            }
+            return Status::unsupported(message);
         }
     }
     return Status::ok();
@@ -221,7 +234,9 @@ Result<ParsedRequest> parse_generation_request(std::string_view target, std::str
 
     if (request.flavor == ApiFlavor::native) {
         const auto fields = reject_unknown_fields(
-            object, {"prompt", "max_tokens", "temperature", "top_p", "top_k", "seed", "stream"});
+            object,
+            {"prompt", "max_tokens", "temperature", "top_p", "top_k", "seed", "stream"},
+            UnknownFieldDisposition::invalid_request);
         if (!fields) return fields;
         auto prompt = required_string(object, "prompt");
         if (!prompt) return prompt.status();
