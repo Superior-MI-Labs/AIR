@@ -1,6 +1,6 @@
 # Prompt 11 - Hosted RC Hardening and Evidence Debt
 
-Status: CURRENT
+Status: CLOSED / HOSTED-QUALIFIED
 Program: AIR 0.11.0 Adaptive Execution Foundation
 
 ## Situation
@@ -99,3 +99,38 @@ Prompt 11 closes when:
 - Control Room web preflight passes;
 - defects discovered by hosted hardening are fixed at owning seams;
 - remaining unavailable evidence is recorded explicitly for Prompt 12.
+
+
+## Final result
+
+Final Prompt 11 source:
+
+`8641887454593d6ab4df47f40ff76318f7fe9d9a`
+
+GitHub Actions:
+
+`37146097793` -> SUCCESS.
+
+Qualified markers include:
+
+- `AIR_WEB_PREFLIGHT=PASS`;
+- 19/19 CTests PASS;
+- `ADAPTIVE_PREFLIGHT=PASS`;
+- installed package and external CMake consumer PASS;
+- `hosted_health_model_runtime=PASS`;
+- `hosted_machine_environment_authority=PASS`;
+- `hosted_semantic_missing_surface=PASS`;
+- `hosted_generation=PASS`;
+- `hosted_decision=PASS`;
+- `hosted_invalid_request=PASS`;
+- `hosted_detailed_timeline=PASS`;
+- `hosted_execution_graph_r1=PASS`;
+- `hosted_restart=PASS`;
+- `hosted_semantic_registry_restart=PASS`;
+- `PROMPT11_HOSTED_RC_HARDENING=PASS`.
+
+The first hosted hardening attempt found one real HTTP classification defect.
+That defect was corrected at the protocol seam and locked with a regression
+test before Prompt 11 closed.
+
+Prompt 11 closes with hardware/user evidence debt unchanged and explicit.

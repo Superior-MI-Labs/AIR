@@ -1,151 +1,171 @@
 <p align="center">
-  <img
-    src="docs/assets/air-github-banner.svg"
-    width="100%"
-    alt="AIR — Adaptive Inference Runtime by Superior MI Labs"
-  >
+  <img src="docs/assets/air-github-banner.svg" width="100%" alt="AIR — Adaptive Inference Runtime by Superior MI Labs">
 </p>
 
 <h1 align="center">AIR</h1>
 
 <p align="center">
   <strong>Adaptive Inference Runtime</strong><br>
-  Local-first inference with explicit architecture, bounded execution,
-  observable state, and falsifiable optimization.
+  Local-first execution with explicit semantics, machine-aware planning,
+  bounded runtime ownership, and falsifiable evidence.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.10.0">
-    <img src="https://img.shields.io/badge/release-v0.10.0-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.10.0">
+  <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.11.0">
+    <img src="https://img.shields.io/badge/release-v0.11.0-55d9ff?style=for-the-badge&labelColor=07131d" alt="AIR 0.11.0">
   </a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-55d9ff?style=for-the-badge&labelColor=07131d" alt="C++20">
-  <img src="https://img.shields.io/badge/CTest-12%2F12%20PASS-42c98b?style=for-the-badge&labelColor=07131d" alt="12 of 12 CTests passing">
-  <img src="https://img.shields.io/badge/CUDA-optional-76dfff?style=for-the-badge&labelColor=07131d" alt="CUDA optional">
+  <img src="https://img.shields.io/badge/CTest-19%2F19%20PASS-42c98b?style=for-the-badge&labelColor=07131d" alt="19 of 19 hosted CTests passing">
+  <img src="https://img.shields.io/badge/Web-3.3-76dfff?style=for-the-badge&labelColor=07131d" alt="AIR Web 3.3">
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-Apache%202.0-e7a85f?style=for-the-badge&labelColor=07131d" alt="Apache License 2.0">
   </a>
 </p>
 
-<p align="center">
-  <strong>
-    <a href="https://huggingface.co/spaces/Superior-Mind-Labs/AIR">Hugging Face Space</a>
-    &nbsp;•&nbsp;
-    <a href="https://github.com/Superior-MI-Labs/AIR/releases/tag/v0.10.0">Release 0.10.0</a>
-    &nbsp;•&nbsp;
-    <a href="#quick-start-on-linux">Quick Start</a>
-    &nbsp;•&nbsp;
-    <a href="#architecture">Architecture</a>
-  </strong>
-</p>
+**AIR 0.11.0 — Adaptive Execution Foundation** evolves AIR from a
+Qwen2-oriented inference runtime toward a machine-aware computation runtime
+without introducing a second scheduler, planner, or model-family engine.
 
-**AIR 0.10.0** is the modular model-architecture boundary release of the
-Adaptive Inference Runtime from **Superior MI Labs**.
+AIR remains public research software. Release claims are intentionally narrower
+than the architecture's long-term goal.
 
-This release separates qualified model-family interpretation and semantic
-tensor binding from backend execution. Qwen2 remains the only qualified
-production model architecture in AIR 0.10.0.
+## What 0.11 adds
 
-AIR is a standalone C++20 inference runtime built around a simple systems idea:
-model execution should have explicit ownership, bounded resources, observable
-state, and falsifiable optimization instead of accumulating parallel hidden
-pipelines.
+AIR 0.11 introduces:
 
-> **Status:** public research software. AIR is usable and qualified on its
-> tested path, but it is not presented as a finished commercial inference
-> platform.
+- canonical hardware topology and dynamic execution-environment snapshots;
+- typed execution observation and bounded timelines;
+- explicit semantic-operation versus physical-implementation boundaries;
+- ExecutionGraph R1 with workload-scoped invocation and typed work units;
+- evidence-backed adaptive strategy planning;
+- identified prepared-resource residency instead of anonymous byte equivalence;
+- explicit work-unit identities for tokens, iterations, and bytes;
+- a second structural workload, the qualified FLUX.2 Klein oracle;
+- shared Qwen/FLUX workload, resource, invocation, and graph abstractions;
+- AIR-owned deterministic FLUX semantic operations for latent geometry and
+  sigma-schedule derivation;
+- structured missing-semantic resolution through one trusted implementation
+  registry;
+- AIR Control Room Web 3.3;
+- hosted installed-product qualification for the reference path.
 
-## Why AIR
-
-| Local-first | Observable | Explicit | Falsifiable |
-| --- | --- | --- | --- |
-| Run inference on hardware you control. | Runtime, model, event, and metrics state remain visible. | Ownership and execution contracts are intentionally clear. | Optimizations are expected to survive measurement and destructive testing. |
-
-GitHub is the canonical engineering source for AIR. The public Hugging Face
-Space provides an interactive research and presentation surface:
-
-**https://huggingface.co/spaces/Superior-Mind-Labs/AIR**
-
-## What AIR includes
-
-- one canonical production inference service;
-- one scheduler architecture;
-- reference/CPU and NVIDIA CUDA execution paths behind the same contracts;
-- GGUF model loading for the current qualified Qwen2-family scope;
-- an internal architecture-adapter boundary that resolves model-family rules
-  into validated semantic tensor bindings before execution;
-- Reference and CUDA executors that consume the same prepared semantic model
-  contract instead of reconstructing Qwen2/GGUF tensor names;
-- bounded request queues and explicit HTTP 503 backpressure;
-- deterministic cleanup and cancellation;
-- backend-neutral sequence-state contracts;
-- native generation;
-- a bounded OpenAI-shaped completions/chat compatibility surface;
-- native semantic `POST /decide`;
-- runtime, event, model, and metrics observability;
-- a built-in browser command center.
-
-## Browser application
-
-AIR includes a local browser application under `web/`.
-
-When AIR is running, open:
+The high-level direction is:
 
 ```text
-http://127.0.0.1:8181
+package / immutable resources
+            ↓
+semantic computation
+            ↓
+hardware topology + environment + evidence
+            ↓
+physical execution plan / ExecutionGraph
+            ↓
+one AIR runtime
+            ↓
+measured execution
 ```
 
-The command center provides:
+AIR may aggressively adapt **how** known computation executes. It must not guess
+**what** unknown computation means.
 
-- Home / connection state
-- generation Playground
-- Decision
-- Models
-- Runtime
-- Diagnostics
-- Metrics
-- Setup guidance
-- About / Architecture
+## Qualified execution scope
 
-The browser is a **surface over AIR**, not another runtime or state owner.
+### Qwen2
 
-The `v0.10.0` release tag and published release artifacts are the authority
-for the frozen 0.10.0 release. Historical `v0.9.12` artifacts remain the
-authority for that earlier release.
+Qwen2 remains the only production model family with an AIR-owned end-to-end
+inference executor.
+
+Qualified functionality includes the Reference path and retained NVIDIA CUDA
+evidence from the adaptive-execution program. The final 0.11 source is
+hosted-qualified on the Reference path.
+
+Because the development NVIDIA machine became unavailable during final RC
+hardening, **post-ExecutionGraph-R1 CUDA replay on the final exact 0.11 source is
+not claimed as qualified**. The CUDA backend remains available, but that exact
+hardware gate is recorded as release evidence debt.
+
+### FLUX.2 Klein
+
+FLUX.2 is the second architecture discriminator, not a claimed production image
+backend.
+
+AIR 0.11 qualifies:
+
+- the frozen external FLUX.2 Klein semantic oracle contract;
+- semantic value identities and operation ordering;
+- iterative physical invocation structure;
+- text-encoder / denoiser / VAE resource identities;
+- shared component/resource planning structures;
+- descriptive ExecutionGraph R1 projection;
+- AIR-owned deterministic latent-geometry and sigma-schedule semantics;
+- structured reporting of the nine still-missing model/tensor/component
+  semantic implementations.
+
+AIR 0.11 does **not** claim AIR-owned text-encoder, denoiser, VAE execution or
+decoded-image parity.
+
+## Control Room
+
+AIR Web 3.3 projects canonical server state. It does not own runtime truth.
+
+The Control Room consumes:
+
+```text
+/health
+/model
+/runtime
+/machine
+/environment
+/events
+/timeline
+/execution-graphs
+/semantics
+/metrics
+```
+
+It exposes machine state, workload/runtime state, execution evidence,
+ExecutionGraph structure, resource residency, and unsupported semantic
+requirements.
+
+## Public HTTP surface
+
+```text
+GET  /
+GET  /health
+GET  /model
+GET  /runtime
+GET  /machine
+GET  /environment
+GET  /events
+GET  /timeline
+GET  /execution-graphs
+GET  /semantics
+GET  /metrics
+GET  /v1/models
+
+POST /generate
+POST /v1/completions
+POST /v1/chat/completions
+POST /decide
+```
+
+The native AIR request schema treats unknown fields as invalid requests.
+OpenAI-shaped compatibility routes keep recognized-but-unimplemented
+capabilities explicit rather than silently approximating them.
 
 ## Quick start on Linux
-
-Clone:
 
 ```bash
 git clone https://github.com/Superior-MI-Labs/AIR.git
 cd AIR
-```
 
-Optional guided dependency/build check:
-
-```bash
 ./bootstrap.sh
-```
-
-Or build directly:
-
-```bash
 ./scripts/build.sh
-```
-
-Run the tests:
-
-```bash
 ctest --test-dir build --output-on-failure
-```
-
-Install into your user prefix:
-
-```bash
 ./scripts/install-local.sh
 ```
 
-Start AIR with a supported GGUF model:
+Start AIR with a qualified Qwen2-family GGUF:
 
 ```bash
 ./run-air.sh /path/to/model.gguf
@@ -157,206 +177,68 @@ Then open:
 http://127.0.0.1:8181
 ```
 
-## Build requirements
+Required base toolchain:
 
-Required:
+- C++20 compiler;
+- CMake 3.22+;
+- pkg-config;
+- PCRE2 8-bit development headers;
+- Boost headers including Beast and JSON.
 
-- C++20 compiler
-- CMake 3.22+
-- pkg-config
-- PCRE2 8-bit development headers
-- Boost headers including Beast and JSON
+CUDA remains optional and requires a compatible NVIDIA driver/toolkit and
+cuBLAS.
 
-For NVIDIA CUDA acceleration:
+AIR is a direct runtime. **llama.cpp and ComfyUI are not AIR runtime
+dependencies.**
 
-- compatible NVIDIA GPU and driver
-- CUDA Toolkit / `nvcc`
-- cuBLAS
+## Architecture rules
 
-CUDA is optional. AIR can use the reference/CPU path when CUDA is unavailable.
+AIR's current design rules include:
 
-AIR is a direct inference runtime. **llama.cpp is not an AIR dependency.**
-
-### Debian / Ubuntu / Linux Mint
-
-A typical base toolchain can be installed with:
-
-```bash
-sudo apt update
-sudo apt install -y build-essential cmake pkg-config libpcre2-dev libboost-all-dev
-```
-
-CUDA installation is intentionally separate because the correct NVIDIA
-toolchain depends on your GPU, driver, distribution, and desired CUDA version.
-
-## Public HTTP API
-
-```text
-GET  /
-GET  /health
-GET  /model
-GET  /runtime
-GET  /events
-GET  /metrics
-GET  /v1/models
-
-POST /generate
-POST /v1/completions
-POST /v1/chat/completions
-POST /decide
-```
-
-AIR's OpenAI-shaped routes intentionally support a bounded compatibility
-subset. Unsupported fields should fail explicitly rather than being silently
-ignored.
-
-## Native generation
-
-```bash
-curl http://127.0.0.1:8181/generate \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "Explain deterministic state ownership in one paragraph.",
-    "max_tokens": 128,
-    "temperature": 0,
-    "stream": false
-  }'
-```
-
-## Native Decision
-
-`/decide` scores a bounded set of semantic candidates without generating a
-normal free-form answer.
-
-```json
-{
-  "input": "Route this request:",
-  "candidates": [
-    {
-      "id": "billing",
-      "text": "Billing",
-      "model_text": " billing"
-    },
-    {
-      "id": "technical",
-      "text": "Technical support",
-      "model_text": " technical support"
-    }
-  ],
-  "scoring_policy": "sequence-logprob-mean",
-  "output_cardinality": "exactly-one",
-  "determinism": "required"
-}
-```
-
-Important: Decision scores are **candidate-set-normalized relative scores**.
-They are not calibrated confidence or probability.
-
-## Architecture
-
-<p align="center">
-  <img
-    src="docs/assets/air-runtime-flow.svg"
-    width="100%"
-    alt="AIR runtime architecture flow"
-  >
-</p>
-
-The high-level execution path is:
-
-```text
-GGUF
-  ↓
-ModelDefinition
-  ↓
-PreparedModel
-  ↓
-InferenceService
-  ↓
-CapacityScheduler
-  ↓
-MicrobatchScheduler
-  ↓
-SequenceState
-  ↓
-Reference or CUDA executor
-  ↓
-HTTP / Browser / Bench / Qualification
-```
-
-AIR's design rules include:
-
-- one authoritative state owner per domain;
-- semantic identity is separate from execution-state identity;
-- semantic contracts are separate from physical execution plans;
-- CapacityScheduler owns device-resource authority;
-- the browser never becomes a second runtime;
-- reference execution remains an independent correctness oracle;
-- source/tests/machine evidence outrank narrative;
-- negative results remain useful research evidence.
-
-## AIR 0.10.0 qualification
-
-The frozen release passed a destructive public-release program including:
-
-- 12/12 CTests;
-- external `find_package(AIR)` consumer build and execution;
-- installed public headers and CMake package;
-- public HTTP/API and static-web checks;
-- generation and Decision workloads;
-- bounded overload/backpressure;
-- malformed and over-context fault injection;
-- shutdown/restart;
-- warmed resource soak and reclamation checks;
-- release archive and installed-file checksum verification.
-
-Frozen release identity:
-
-```text
-Version:                    0.9.12
-Qualified source fingerprint:
-587928104d2da182d30903daf00b30d1bd45f3115dcb4896bf3ea3bc70f04fb3
-
-Qualified release archive SHA-256:
-78e463df6c3eb4c8f6f550430fe429579cf08a678bc7cb1d047a702a76763c9f
-```
-
-## Current V1 limitations
-
-AIR 0.10.0 does not claim:
-
-- calibrated Decision confidence/probability;
-- `qualified-auto` production Decision scorer selection;
-- abstention or multi-select threshold execution;
-- persistent CUDA cross-request sequence-state retention;
-- fuzzy/semantic execution-state reuse;
-- arbitrary GGUF architecture compatibility;
-- generic response caching/single-flight inside AIR.
-
-Those omissions are deliberate public boundaries, not hidden features.
-
-## R&D status
-
-AIR is part of an early-stage Superior MI Labs R&D effort in Upper Michigan.
-
-The broader direction includes inference architecture, reasoning systems, local
-compute infrastructure, developer tooling, education, and practical AI systems
-that can eventually support communities, entrepreneurs, researchers, and local
-organizations.
-
-The project is early. Testing, technical discussion, bug reports,
-contributions, collaboration, and constructive criticism are welcome.
-
-## License
-
-The public repository is licensed under the **Apache License 2.0**.
+- one canonical state owner per domain;
+- one production runtime and scheduler path;
+- semantic identity separate from physical execution identity;
+- stable hardware topology separate from dynamic environment state;
+- raw observations separate from inference and policy;
+- explicit resource identity instead of byte-equivalence guesses;
+- the browser is a read-only/thin control surface;
+- missing semantics fail structurally;
+- packages cannot inject arbitrary executable code;
+- optimizations require retained evidence;
+- negative experiments remain evidence.
 
 See:
 
-- `LICENSE`
-- `NOTICE`
-- `OPEN_SOURCE_SCOPE.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SUPPORT_MATRIX.md`
+- `docs/PUBLIC_CONTRACTS.md`
+- `docs/RELEASE-0.11.0.md`
+- `docs/adaptive-execution/RELEASE-0.11-STRATEGY.md`
 
-The license applies to the material actually published here. Unpublished
-Superior MI Labs components are not automatically licensed, and project names
-or branding are not granted as trademarks by the Apache License.
+## 0.11 hosted qualification
+
+The final hosted release gate requires:
+
+- Web 3.3 preflight;
+- 19/19 CTests;
+- isolated install;
+- external `find_package(AIR)` consumer;
+- installed Reference server;
+- machine/environment authority checks;
+- semantic-registry resolved/missing checks;
+- real HTTP generation and Decision;
+- invalid native-request rejection;
+- detailed timeline and ExecutionGraph R1 observation;
+- shutdown/restart;
+- process cleanup;
+- deterministic source/evidence packaging and SHA-256 manifest.
+
+Hardware/user limitations remain explicit in the release manifest.
+
+## Status and license
+
+AIR is an early-stage Superior MI Labs R&D project. Testing, bug reports,
+technical criticism, and contributions are welcome.
+
+The public repository is licensed under the **Apache License 2.0**. See
+`LICENSE`, `NOTICE`, and `OPEN_SOURCE_SCOPE.md`.

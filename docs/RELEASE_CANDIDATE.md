@@ -1,68 +1,38 @@
-# AIR 0.10.0 Release Boundary
+# AIR 0.11.0 Release Candidate Boundary
 
-The release-candidate architecture freeze begins after the reliability destruction phase.
+Release: AIR 0.11.0 — Adaptive Execution Foundation
 
-## Frozen architecture
+The 0.11 release candidate freezes the adaptive-execution architecture after
+Prompt 11 hosted hardening.
 
-```text
-GGUF
-  -> ModelDefinition                  canonical state
-  -> Architecture Adapter             model-family interpretation
-  -> PreparedModelSemantics           derived semantic bindings
-  -> Prepared backend                 backend-derived execution state
-       -> SequenceState
-       -> physical KV ownership
+## Frozen ownership
 
-InferenceService
-  -> capacity admission               worst-case logical reservation
-  -> micro-scheduling                 decode-first + phase round robin
-  -> backend execution
-  -> bounded stream delivery
+- ModelDefinition remains canonical Qwen model truth.
+- Semantic packages/requirements remain data, not executable authority.
+- One trusted semantic implementation registry owns implementation resolution.
+- HardwareTopology owns stable structure.
+- ExecutionEnvironment owns volatile machine observations.
+- Strategy Lab is the adaptive planning authority.
+- Prepared backends own physical execution resources.
+- ExecutionGraph is derived physical description, not a second executor.
+- InferenceService remains the production serving authority.
+- Control Room remains a thin projection.
 
-Reference executor                    correctness oracle
-CUDA executor                         optimized implementation
-Qualification                         measured execution evidence
-Verification                          opt-in differential observer
-```
+## Frozen 0.11 evidence boundary
 
-The following ownership rules are frozen:
+Exact-source hosted qualification is mandatory.
 
-1. `ModelDefinition` is the only canonical model definition.
-2. Architecture adapters may derive validated semantic bindings but may not duplicate model truth.
-3. Prepared backends may derive execution state but may not duplicate model truth.
-4. The scheduler owns request ordering, not transformer math.
-5. Backends own physical execution/KV geometry, not transport code.
-6. Capacity admission reserves future resource requirements before sequence allocation.
-7. Cancellation and shutdown release backend resources before completion becomes externally final.
-8. Verification observes the real executors; it is not a second transformer implementation.
-9. Benchmarks execute through the production `InferenceService` path.
-10. Qualification manifests are evidence and are valid only for matching model/hardware/runtime semantics.
+Retained earlier NVIDIA evidence remains historical machine evidence.
 
-## Release-candidate change rule
+Unavailable final-source GPU and human evidence is explicitly false/pending in
+the release manifest.
 
-After this boundary, comparison testing may trigger:
+## Change rule
 
-- correctness fixes;
-- reliability/resource fixes;
-- measurement fixes;
-- documentation corrections.
+After this freeze, changes are limited to:
 
-It may not introduce new execution architecture solely to improve a benchmark. Architectural research moves to `ROADMAP.md` unless a demonstrated defect makes it necessary for correctness or release safety.
+- reproduced correctness/reliability defects;
+- qualification/packaging defects;
+- documentation/provenance corrections.
 
-## Frozen schema versions
-
-- execution manifest: v10
-- benchmark report: `air.benchmark.v11`
-- verification report: `air.verification.v1`
-
-## Exit into comparison phase
-
-The RC is ready for controlled comparison when:
-
-- clean GCC and Clang builds pass;
-- ASan/UBSan pass;
-- CUDA source parses and real NVCC validation passes;
-- parser fuzz, compute-sanitizer, serving soak, cancellation, resource reclamation and repeated lifecycle gates pass;
-- installed CMake package builds a downstream consumer;
-- public protocol rejects unknown/unsupported fields explicitly;
-- current docs contain no obsolete lock-stage semantics.
+New execution architecture belongs after 0.11.

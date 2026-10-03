@@ -1,67 +1,63 @@
 # AIR Public Contracts
 
-This document defines the AIR 0.10.0 compatibility boundary. It separates supported user-facing contracts from diagnostic/internal implementation surfaces.
+This document defines the AIR 0.11.0 compatibility boundary. AIR is pre-1.0;
+binary ABI stability is not promised.
 
-AIR is pre-1.0. Binary ABI stability is not promised. Within the 0.10 release line, source/API and wire-format changes should remain explicit and evidence-backed; correctness or security fixes may change erroneous behavior.
-
-## Stable 0.10.0 surfaces
-
-### Executables
+## Installed executables
 
 - `air-cli`
 - `air-server`
 - `air-bench`
 - `air-qualify`
 - `air-verify`
+- `air-strategy-probe`
 
-### Primary C++ service surface
+## C++ package
 
-`air::InferenceService` and its request/response/cancellation types are the supported embedding boundary:
-
-- `InferenceRequest`
-- `InferenceResponse`
-- `GenerationConfig`
-- `SamplingConfig`
-- `RequestMetrics`
-- `CancellationSource` / `CancellationToken`
-- `ServiceSnapshot`
-- `SchedulerConfig`
-- `ManifestConfig`
-
-`ModelDefinition`, tokenizer/model metadata, status/result types, and execution-plan data are also public because they appear transitively in supported interfaces.
-
-Low-level `ReferenceExecutor`, `CudaExecutor`, concrete KV-cache classes, and verification-stage objects are expert/diagnostic APIs. They are installed and tested, but they do not carry source-compatibility promises before 1.0.
-
-### CMake package
-
-Installed AIR exports:
+Installed CMake exports:
 
 ```cmake
-AIR::core
-AIR::cuda
+find_package(AIR CONFIG REQUIRED)
+target_link_libraries(app PRIVATE AIR::core AIR::cuda)
 ```
 
-through `find_package(AIR CONFIG REQUIRED)`.
+The primary embedding authority remains `air::InferenceService`.
+
+Low-level executors, graph internals, prepared backend state, semantic extension
+internals, and evidence structures are expert/research surfaces and may evolve
+before 1.0.
 
 ## HTTP contract
 
-Endpoints:
+Read-only surfaces:
 
 ```text
-GET  /
-GET  /health
-GET  /model
-GET  /runtime
-GET  /events
-GET  /metrics
-GET  /v1/models
+GET /
+GET /health
+GET /model
+GET /runtime
+GET /machine
+GET /environment
+GET /events
+GET /timeline
+GET /execution-graphs
+GET /semantics
+GET /metrics
+GET /v1/models
+```
+
+Mutation/work surfaces:
+
+```text
 POST /generate
 POST /v1/completions
 POST /v1/chat/completions
 POST /decide
 ```
 
-`/generate` accepts:
+### Native generation
+
+`/generate` accepts exactly:
 
 ```text
 prompt: string, required
@@ -73,7 +69,13 @@ seed: non-negative uint64
 stream: boolean
 ```
 
-OpenAI-shaped completion endpoints additionally accept `model` as an optional string compatibility field, `n` only when equal to 1, and either `max_tokens` or `max_completion_tokens` but not both.
+An unknown native AIR field is an invalid request and maps to HTTP 400.
+
+### OpenAI-shaped compatibility routes
+
+Completion/chat routes additionally accept `model` as an optional single-model
+compatibility field, `n` only when equal to 1, and either `max_tokens` or
+`max_completion_tokens` but not both.
 
 Chat message objects accept exactly:
 
@@ -82,64 +84,106 @@ role: string
 content: string
 ```
 
-Unknown fields are rejected with an explicit unsupported error. Unsupported protocol features are never silently approximated.
+Recognized compatibility capabilities that AIR does not implement remain
+explicit unsupported errors and map to HTTP 501 rather than being silently
+approximated.
 
-`model` is accepted for single-model client compatibility; it does not perform model routing.
+`model` does not perform model routing.
 
-## Frozen evidence schemas
+### Decision
+
+`POST /decide` is a bounded semantic candidate-scoring request. Returned
+normalized scores are candidate-set-relative scores, not calibrated confidence
+or probability.
+
+## Adaptive read-only contracts
+
+### Machine
+
+`/machine` is the stable structural topology view.
+
+`/environment` is dynamic availability/observation state and references the
+topology fingerprint. Volatile free-memory or utilization changes do not mutate
+topology identity.
+
+### Timeline
+
+Execution observation uses a bounded timeline. Non-zero work counts are typed.
+Qualified work-unit kinds are:
+
+- `tokens`
+- `iterations`
+- `bytes`
+
+Zero-work administrative/synchronization spans may be unitless.
+
+### ExecutionGraph
+
+ExecutionGraph R1 schema version is `3`.
+
+Graphs distinguish:
+
+- workload kind;
+- physical invocation;
+- optional autoregressive state;
+- typed workload work;
+- auxiliary item multiplicity;
+- placement;
+- dependencies;
+- implementation/resource references;
+- opaque semantic value identities;
+- descriptive versus AIR-executable binding.
+
+Generic graph code must not infer semantic meaning from opaque IDs.
+
+### Semantics
+
+`/semantics` exposes the trusted implementation registry and structured
+missing-semantic state.
+
+Packages are data-only. They cannot provide executable scripts, commands,
+entrypoints, library paths, or arbitrary source code.
+
+## Evidence schemas retained from 0.10
 
 ### Execution manifest
 
 `schema_version = 10`
 
-AIR reads and writes manifest schema v10 only. Older schema identities are
-rejected rather than silently reinterpreted. Requalification is the migration
-mechanism because manifests represent measurement evidence, not durable user
-configuration.
+Evidence manifests are not durable configuration. Stale/foreign schema
+identities are rejected and requalification is the migration mechanism.
 
 ### Benchmark report
 
 `air.benchmark.v11`
 
-Percentiles use shared linear interpolation semantics.
-
 ### Verification report
 
 `air.verification.v1`
 
-Teacher-forced reference/CUDA comparison and optional stage evidence are diagnostic outputs, not performance results.
+## Capability reporting
 
-## Internal model-architecture boundary
-
-AIR 0.10.0 introduces an internal architecture-adapter and prepared-semantic
-model boundary.
-
-This boundary is intentionally not a new stable public Neural Model IR.
-`ModelDefinition` remains canonical model truth. Architecture-specific
-preparation resolves qualified source tensors and semantic constraints into
-derived execution bindings. Low-level prepared semantic types and internal
-executor factories remain implementation details.
-
-Qwen2 remains the only qualified production model architecture in 0.10.0.
-
-## Capability semantics
-
-A capability is reported only when the selected prepared backend implements it physically.
+A capability is reported only when the selected backend/implementation can
+actually provide it.
 
 In particular:
 
-- scheduler prefill quantum is not backend native batch width;
+- scheduler quantum is not native backend width;
 - KV page size is physical storage geometry;
-- checkpoint support does not imply persistent prefix reuse;
-- admitted concurrency does not imply fused multi-sequence CUDA decode;
-- automatic planning may select only plans valid for the prepared backend's capabilities.
+- prepared-resource byte equality does not imply resource identity;
+- descriptive FLUX graphs are not executable image-generation support;
+- a resolved semantic registry entry is distinct from a descriptive package
+  requirement;
+- retained earlier CUDA evidence is distinct from final-source CUDA
+  qualification.
 
 ## Compatibility policy
 
 Before 1.0:
 
-- correctness fixes may change erroneous behavior;
-- new optional fields may be added;
-- unsupported inputs remain explicit failures rather than best-effort guesses;
-- existing frozen evidence schemas are not silently reinterpreted;
-- architecture expansion belongs to a new documented capability, not a hidden fallback path.
+- correctness/security fixes may change erroneous behavior;
+- additive diagnostic fields may be introduced with schema advancement;
+- unsupported inputs fail explicitly;
+- frozen evidence schemas are never silently reinterpreted;
+- architecture expansion enters through explicit semantic/implementation
+  contracts, not hidden fallback paths.

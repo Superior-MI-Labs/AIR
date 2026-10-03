@@ -46,3 +46,17 @@ jobs:
           AIR_P11_HOSTED_OUT: ${{ runner.temp }}/air-prompt11-hosted
         run: |
           bash scripts/qualify-adaptive-prompt11-hosted.sh build-adaptive-preflight 18911
+
+      - name: Hosted 0.11 release candidate
+        env:
+          AIR_RELEASE_OUT: ${{ runner.temp }}/AIR-0.11.0-RC
+        run: |
+          bash scripts/qualify-release-0.11.0-hosted.sh build-adaptive-preflight 18931
+
+      - name: Upload hosted 0.11 release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIR-0.11.0-hosted-release-candidate
+          path: ${{ runner.temp }}/AIR-0.11.0-RC
+          if-no-files-found: error
+          retention-days: 30

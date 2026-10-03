@@ -1,111 +1,176 @@
 # AIR Architecture
 
-AIR separates canonical model state, backend-derived execution state, resource admission, scheduling, serving, and evidence.
+AIR 0.11 separates semantic computation, immutable resources, stable machine
+topology, dynamic environment state, physical planning, runtime execution, and
+measured evidence.
 
-## Core pipeline
+## Authority model
+
+```text
+Model / Workflow Package
+          |
+          v
+Semantic contracts
+"what must happen"
+          |
+          +-------------------------+
+          |                         |
+          v                         v
+Immutable resources         HardwareTopology
+                                  +
+                         ExecutionEnvironment
+                                  +
+                           retained evidence
+          |                         |
+          +-------------+-----------+
+                        v
+              physical planning
+                        |
+                        v
+                ExecutionGraph R1
+"how this machine is expected to do it"
+                        |
+                        v
+                 one AIR runtime
+                        |
+                        v
+                 measured evidence
+```
+
+No layer may silently become a second owner for another layer's truth.
+
+## Production Qwen path
 
 ```text
 GGUF
-  -> GgufFormat
   -> ModelDefinition
-  -> Architecture Adapter
+  -> Qwen2 Architecture Adapter
   -> PreparedModelSemantics
-      -> ReferenceExecutor
-      -> CUDA prepared execution
-          -> SequenceState
-          -> backend KV ownership
-
-InferenceService
-  -> Planner / ExecutionPlan
-  -> CapacityScheduler
-  -> MicrobatchScheduler
-  -> prepared backend / SequenceState
-  -> sampling / streaming / metrics
+  -> ExecutionPlan / ExecutionGraph R1
+  -> Reference or CUDA prepared backend
+  -> SequenceState
+  -> InferenceService
 ```
 
-`ModelDefinition` is the single source of truth for model metadata, tensor descriptors, tokenizer metadata, and mapped model storage.
+`ModelDefinition` remains canonical model truth. Prepared semantics and backend
+resources are derived state.
 
-`PreparedModelSemantics` is an immutable derived view. It binds semantic roles
-such as token embedding, Q/K/V projections, attention output, FFN weights,
-normalization, optional biases, tied output, and validated geometry to canonical
-tensor descriptors owned by the `ModelDefinition`.
+## Workload structure
 
-Prepared backends may additionally own transformed execution state such as
-device residency, workspaces, page pools, and kernel-family classification,
-but none of those become a second model definition.
+AIR now distinguishes service semantics from physical workload structure.
 
-## Architecture contract
+Service semantics include generation and bounded Decision.
 
-Model-family interpretation is owned by the architecture adapter seam. Qwen2
-is the only qualified production adapter in AIR 0.10.0.
+Execution workload structure currently includes:
 
-The Qwen2 adapter validates the qualified semantic restrictions and resolves
-source tensor names once into prepared semantic bindings. Reference and CUDA
-execution then consume those bindings rather than reconstructing Qwen2/GGUF
-tensor names in their numerical paths.
+- autoregressive token recurrence;
+- iterative state transformation.
 
-The prepared semantic boundary is internal. It is not a universal Neural Model
-IR and is not a claim that arbitrary GGUF architectures can execute.
+Physical invocation is discriminated rather than forcing iterative work into
+prefill/decode vocabulary.
 
-The current execution scope is documented in `SUPPORT_MATRIX.md`.
+## Work and resources
 
-## Reference path
+Non-zero measured work has an explicit unit:
 
-The CPU reference executor prioritizes inspectability and deterministic numerical behavior over speed. It is the correctness oracle used by CUDA differential verification.
+- tokens;
+- iterations;
+- bytes.
 
-## CUDA path
+Prepared resources use identity-aware requirements and residency. Equal byte
+counts from different resources are never interchangeable evidence.
 
-The CUDA backend owns:
+RuntimeSnapshot consumes identified residency. Aggregate prepared bytes are
+derived diagnostics/capacity evidence, not a second mutable truth.
 
-- model residency;
-- prepared tensor/kernel-family metadata;
-- native multi-token prefill;
-- device-side paged KV;
-- reusable page pools;
-- deterministic greedy selection;
-- specialized matrix kernels;
-- CUDA execution counters.
+## Machine authority
 
-Compressed GGUF tensors remain compressed in VRAM. AIR does not materialize a duplicate full-model FP16/FP32 representation.
+`HardwareTopology` represents stable structural facts and has a deterministic
+fingerprint.
 
-## Resource ownership
+`ExecutionEnvironmentSnapshot` represents dynamic observations such as
+available memory and current device state.
 
-Capacity admission and physical allocation are deliberately separate. Admission reserves the worst-case sequence footprint implied by the request before sequence creation. Physical KV pages are then acquired on demand as tokens commit.
+Hardware fact, measurement, inference, and policy remain distinct.
 
-A sequence transaction may write uncommitted state, but token count and externally visible state advance only after successful execution. Checkpoint restoration shares committed pages by reference; a shared partial tail is copied on write.
+## ExecutionGraph R1
 
-## Scheduling
+The graph is immutable derived physical state, not semantic truth and not a
+second executor.
 
-The capacity scheduler decides whether a request can safely become active. The micro-scheduler decides which admitted sequence receives work next.
+It can represent both qualified workload structures and carries:
 
-Decode-ready work has phase priority over prefill-ready work. Within each phase, round-robin rotation prevents fixed-slot starvation.
+- workload-scoped physical invocation;
+- optional autoregressive state;
+- typed workload work;
+- item multiplicity where a count is not workload progress;
+- placement;
+- dependencies;
+- resource/implementation identities;
+- opaque semantic value identities;
+- binding status.
 
-Three quantities are intentionally independent:
+Qwen graphs can be AIR-executable. FLUX.2 graphs in 0.11 are descriptive where
+required semantic/model implementations are missing.
 
-```text
-scheduler prefill quantum != backend native prefill width != physical KV page size
-```
+## Second architecture: FLUX.2 Klein
 
-CUDA decode execution width is currently one. Admitting multiple requests therefore provides fairness/interleaving rather than fused multi-sequence execution.
+The external Prompt 7 oracle established a structurally different workload:
 
-## Serving
+- text conditioning;
+- positive/negative conditioning values;
+- latent state;
+- seed/noise;
+- sigma schedule;
+- four iterative denoising transitions;
+- VAE decode;
+- independent text-encoder, denoiser, and VAE resources.
 
-`InferenceService` is the single production inference boundary used by the server, benchmark system, and qualification workflow. Transport logic does not own model execution.
+AIR reuses the same workload/resource/invocation/graph authorities rather than
+creating a diffusion runtime.
 
-Streaming uses bounded per-request delivery queues so slow clients cannot block the inference scheduler. Cancellation is checked before admission and between bounded execution slices. Shutdown cancels queued/active work and joins the scheduler cleanly.
+AIR 0.11 itself executes the deterministic latent-geometry and schedule
+semantics. Model-component execution remains a structured missing-semantic
+boundary.
 
-## Evidence
+## Semantic extension authority
 
-Benchmarks use the production service path. Qualification produces execution manifests from measured paired rounds. Verification observes the real reference/CUDA executors under one teacher-forced token history.
+One trusted registry resolves exact semantic kind/ID/version requirements.
 
-There is no benchmark-only executor and no verification-only transformer implementation.
+Unknown semantics return structured MissingSemantic state.
 
-## Release-candidate invariants
+Packages may declare requirements but cannot execute arbitrary code. Trusted
+implementations are registered by AIR or explicitly trusted extension code.
 
-- one canonical model definition;
-- one production serving path;
-- planner decides, executor executes;
-- backend capabilities describe physical behavior only;
-- resource ownership is explicit and reclaimable;
-- unsupported model/protocol behavior fails explicitly;
-- evidence schemas are versioned and not silently reinterpreted.
+## Runtime and scheduling
+
+`InferenceService` remains the production boundary used by HTTP, benchmark,
+qualification, and Decision.
+
+The capacity scheduler owns admission. The micro-scheduler owns ordering.
+Prepared backends own physical execution state. The browser owns none of these.
+
+## Observation and adaptation
+
+Execution spans distinguish service/backend scope and measured phase/category.
+
+Strategy Lab compares evidence-backed candidates under explicit objectives. It
+may change physical execution but not semantic meaning.
+
+Negative experiments remain retained evidence.
+
+## Control Room
+
+Web 3.3 is a thin projection over canonical server endpoints. Disconnecting the
+browser cannot change runtime correctness.
+
+## 0.11 qualification boundary
+
+Hosted exact-source qualification covers the CPU/reference installed product,
+Control Room assets, canonical read-only surfaces, generation/Decision,
+ExecutionGraph R1 reference observation, semantic registry state, restart, and
+external CMake consumption.
+
+Final exact-source post-R1 CUDA replay, AIR-owned FLUX component execution/image
+parity, NVIDIA thermal/power characterization, and final human usability remain
+explicit evidence debt.

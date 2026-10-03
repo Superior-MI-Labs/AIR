@@ -1133,3 +1133,59 @@ Immediate next action:
 - exact-head hosted adaptive preflight;
 - rerun the installed-product Prompt 11 hardening harness;
 - fix only additional reproduced RC defects.
+
+
+## Prompt 11 closed / hosted-qualified
+
+Final exact source:
+
+`8641887454593d6ab4df47f40ff76318f7fe9d9a`
+
+GitHub Actions:
+
+`37146097793` -> SUCCESS.
+
+Final hosted qualification:
+
+- Web 3.3 preflight PASS;
+- 19/19 CTests PASS;
+- installed package PASS;
+- external CMake consumer PASS;
+- machine/environment authority PASS;
+- semantic missing/resolved surface PASS;
+- HTTP generation PASS;
+- HTTP Decision PASS;
+- invalid native request classification PASS;
+- detailed timeline PASS;
+- ExecutionGraph R1 reference observation PASS;
+- server restart PASS;
+- semantic registry restart PASS;
+- no leaked installed server process;
+- `PROMPT11_HOSTED_RC_HARDENING=PASS`.
+
+Prompt 11 is CLOSED.
+
+## Prompt 12 current
+
+Prompt 12 freezes AIR 0.11.0 — Adaptive Execution Foundation.
+
+Release qualification is hosted and exact-source. The release manifest must
+record unavailable final-source GPU and human evidence as false, not inferred
+from earlier runs.
+
+The release freeze includes:
+
+- project version 0.11.0;
+- 0.11 README/support/contracts/architecture;
+- release notes and provenance;
+- hosted deterministic release qualifier;
+- source archive;
+- hosted evidence archive;
+- SHA-256 manifest;
+- downloadable GitHub Actions release-candidate artifact.
+
+Immediate next action:
+
+- exact-head hosted preflight + Prompt 11 + Prompt 12 release qualifier;
+- fix only reproduced release-blocking defects;
+- when green, record the exact READY_TO_TAG commit and publication status.

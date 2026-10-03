@@ -1,40 +1,59 @@
-# AIR 0.10.0 Support Matrix
+# AIR 0.11.0 Support Matrix
 
-## Model format
+## Production inference model scope
 
-| Area | Supported |
+| Area | Qualified / supported |
 |---|---|
 | Container | GGUF v3 |
-| Architecture metadata | `qwen2` |
-| Tested family | Qwen2.5 GGUF |
+| Production architecture metadata | `qwen2` |
+| Tested production family | Qwen2.5 GGUF |
 | Tokenizer | byte-level GPT-2 BPE / Qwen2 pre-tokenization |
 | Chat rendering | explicit Qwen2 ChatML |
+| Reference execution | hosted exact-source qualified |
+| NVIDIA CUDA execution | backend present; retained pre-R1 machine evidence; final exact-source post-R1 replay pending |
 
-## Model architecture boundary
+Qwen2 remains the only AIR-owned end-to-end production model executor in
+0.11.0.
 
-AIR 0.10.0 separates model-family interpretation from backend execution.
+## Adaptive execution foundation
 
-The qualified production path is:
+Qualified hosted contracts:
 
-```text
-GGUF
-  -> ModelDefinition
-  -> Qwen2 Architecture Adapter
-  -> PreparedModelSemantics
-  -> Reference / CUDA
-```
+- HardwareTopology stable structural identity;
+- ExecutionEnvironmentSnapshot dynamic availability;
+- typed execution spans/timeline;
+- ExecutionGraph R1;
+- workload structure: autoregressive tokens / iterative state;
+- work units: tokens / iterations / bytes;
+- identified prepared-resource requirements/residency;
+- evidence-backed Strategy Lab planning;
+- trusted semantic implementation registry;
+- structured MissingSemantic results;
+- AIR Control Room Web 3.3.
 
-The adapter resolves canonical source tensor names and Qwen2 semantic rules into
-validated semantic roles. Reference and CUDA execution consume those semantic
-bindings.
+## FLUX.2 Klein second architecture
 
-This does **not** mean arbitrary GGUF or arbitrary neural architectures are
-supported. Qwen2 remains the only qualified production architecture in this
-release.
+| Capability | 0.11 status |
+|---|---|
+| Frozen external oracle characterization | qualified from retained Prompt 7 evidence |
+| Semantic value/operation contract | hosted qualified |
+| Iterative invocation structure | hosted qualified |
+| Text encoder / denoiser / VAE resource identities | hosted qualified |
+| Shared component/resource physical plan | hosted qualified |
+| Descriptive ExecutionGraph R1 projection | hosted qualified |
+| Latent geometry derivation | AIR-owned + hosted qualified |
+| Sigma/schedule derivation | AIR-owned + hosted qualified |
+| Text encoder execution in AIR | not implemented / missing semantic |
+| Denoiser execution in AIR | not implemented / missing semantic |
+| VAE execution in AIR | not implemented / missing semantic |
+| AIR-owned decoded image parity | not qualified |
 
-## Execution tensor encodings
+The FLUX graph is descriptive where AIR lacks an implementation. It is not a
+parallel diffusion runtime.
 
-Both the CPU reference executor and CUDA executor support:
+## Qwen2 tensor encodings
+
+Reference and CUDA executors support the retained qualified tensor encodings:
 
 - F32
 - F16
@@ -45,60 +64,69 @@ Both the CPU reference executor and CUDA executor support:
 - Q4_K
 - Q6_K
 
-The GGUF inspector can describe additional encodings, but execution rejects unsupported tensor types explicitly.
+Unsupported encodings fail explicitly.
 
-## Qwen2 execution constraints
+## Qwen2 semantic constraints
 
-Supported:
+Qualified:
 
-- grouped-query attention
-- optional Q/K/V biases
-- standard RMSNorm
-- SwiGLU FFN
-- full even head-dimension RoPE
-- tied output embeddings when `output.weight` is absent
+- grouped-query attention;
+- optional Q/K/V biases;
+- RMSNorm;
+- SwiGLU FFN;
+- full even head-dimension RoPE;
+- tied output embeddings when `output.weight` is absent.
 
-Not supported in AIR 0.10.0:
+Not claimed:
 
-- RoPE scaling types/factors other than the unscaled form
-- sliding-window attention
-- partial rotary dimensions
-- other model architectures
+- arbitrary model architectures;
+- sliding-window attention;
+- partial rotary dimensions;
+- arbitrary RoPE scaling semantics;
+- universal neural/tensor IR.
 
 ## Backends
 
 ### Reference
 
-- CPU correctness path
-- physical paged KV
-- sequence checkpoints
-- serving-level exact-prefix reuse
-- scalar/readable execution prioritized over speed
+- CPU correctness path;
+- hosted exact-source 0.11 qualification;
+- paged KV and sequence state;
+- generation and Decision;
+- detailed observation and ExecutionGraph R1 evidence.
 
 ### NVIDIA CUDA
 
-- native multi-token prefill, maximum width 128
-- physical executor-owned paged KV
-- demand allocation and page reuse
-- capacity-aware logical reservations
-- checkpoint/page sharing with copy-on-write partial tails
-- device-side deterministic greedy token selection
-- specialized F16/BF16/quantized matrix kernels
-- native greedy decode execution width 8 for compatible sequences
-- persistent serving-level prefix reuse disabled pending pressure-aware eviction
+AIR retains:
+
+- native multi-token prefill;
+- executor-owned paged KV;
+- demand allocation/page reuse;
+- deterministic device greedy selection;
+- specialized matrix kernels;
+- identified optional prepared resources;
+- evidence-backed dense-FP32 research tactic.
+
+Final-source 0.11 post-R1 CUDA graph concordance, memory pressure, power and
+thermal behavior remain unqualified because the development GPU became
+unavailable during final hardening.
 
 ## Platforms
 
-Primary validation platform for the first release candidate:
+Hosted final qualification:
 
-- Linux
-- NVIDIA CUDA
-- x86-64
+- Ubuntu 24.04 x86-64;
+- CPU/reference execution.
 
-The CPU/reference build is portable C++20 but the project does not yet claim a tested macOS/Windows release matrix.
+Retained development evidence:
 
-## AIR 0.9.6 experimental CUDA tactic
+- Linux Mint;
+- NVIDIA RTX 3080 Laptop GPU;
+- CUDA execution through the pre-final adaptive stages.
 
-`shared-tile8` was rejected by Prompt 13 paired evidence and is no longer a live tactic.
+AIR does not claim a tested macOS or Windows release matrix.
 
-`dense-f32-cublas` is supported only by the CUDA prepared backend as an explicit research tactic for batched linear prefill/native decode. It lazily allocates a derived FP32 matrix arena, is not a reference-backend capability, and is not automatically selected.
+## Human usability
+
+Control Room Web 3.3 passes static/installed hosted checks. A final interactive
+human novice/research usability session remains release evidence debt.
