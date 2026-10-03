@@ -21,6 +21,13 @@ int main() {
           native.value().inference.generation.max_new_tokens == 7,
           "native generation request is parsed once into canonical inference request");
 
+    auto native_unknown = air::server::parse_generation_request(
+        "/generate",
+        R"({"prompt":"hello","max_tokens":1,"unsupported_field":true})");
+    check(!native_unknown &&
+          native_unknown.status().code() == air::ErrorCode::invalid_argument,
+          "native AIR request schema rejects unknown fields as invalid requests");
+
     auto chat = air::server::parse_generation_request(
         "/v1/chat/completions",
         R"({"model":"x","messages":[{"role":"system","content":"s"},{"role":"user","content":"u"}],"max_completion_tokens":9,"stream":false})");
